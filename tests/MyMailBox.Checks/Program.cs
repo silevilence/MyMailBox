@@ -12,3 +12,4 @@ await context.Fiber.DisposeAsync();
 if (pages.Pages.Count != 0) throw new Exception("Welcome registration leaked");
 Console.WriteLine("PASS bootstrap: CordiSharp welcome activation and cleanup");
 if (args.Length == 0 || args.Contains("plugins")) await PluginChecks.Run();
+if (args.Length == 0 || args.Contains("profiles")) await ProfileChecks.Run();

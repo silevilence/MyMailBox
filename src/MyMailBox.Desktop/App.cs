@@ -6,6 +6,7 @@ using CordiSharp;
 using MyMailBox.Builtins;
 using MyMailBox.Contracts;
 using MyMailBox.Runtime;
+using System.Text.Json;
 
 namespace MyMailBox.Desktop;
 
@@ -25,9 +26,35 @@ public sealed class App : Application
             var pages = new Contributions();
             var runtime = new PluginRuntime(pages);
             context.Provide<IContributions>("mailbox.ui", pages);
-            context.Inject(["mailbox.ui"], (ctx, _) => { WelcomePlugin.Apply(ctx); return null; }).Await().GetAwaiter().GetResult();
-            context.Inject(["mailbox.ui"], (ctx, _) => { PluginLab.Apply(ctx, runtime); return null; }).Await().GetAwaiter().GetResult();
             desktop.MainWindow = new ShellWindow(pages);
+            Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
+            {
+                var workspace = Environment.GetEnvironmentVariable("MYMAILBOX_HOME")
+                    ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MyMailBox");
+                var directory = Path.Combine(workspace, "profiles", "default");
+                try
+                {
+                    DefaultProfile.Ensure(directory);
+                    var catalog = DefaultProfile.Catalog();
+                    var pluginDirectory = Path.Combine(workspace, "plugins");
+                    if (Directory.Exists(pluginDirectory))
+                        foreach (var manifest in Directory.EnumerateFiles(pluginDirectory, "manifest.json", SearchOption.AllDirectories))
+                        {
+                            var model = JsonSerializer.Deserialize<PluginManifest>(File.ReadAllText(manifest), ConfigurationFiles.Json)!;
+                            catalog.Add(new(model, PluginOrigin.External, Path.GetDirectoryName(manifest)!));
+                        }
+                    var core = new CoreProfile(runtime, catalog, Path.Combine(directory, "core.json"));
+                    await core.Start();
+                    if (core.Error is not null) DefaultProfile.Recovery(pages, core.Error, directory);
+                    else
+                    {
+                        foreach (var instance in catalog.Order(ConfigurationFiles.Read(Path.Combine(directory, "plugins.json")), PluginKind.Ordinary, core.ActivePlugins))
+                            await runtime.Start(catalog.Find(instance), CoreProfile.Options(instance));
+                        await context.Inject(["mailbox.ui"], (ctx, _) => { PluginLab.Apply(ctx, runtime); return null; });
+                    }
+                }
+                catch (Exception error) { DefaultProfile.Recovery(pages, error.Message, directory); }
+            });
             desktop.Exit += (_, _) =>
             {
                 runtime.DisposeAsync().AsTask().GetAwaiter().GetResult();
