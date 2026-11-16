@@ -14,3 +14,4 @@ Console.WriteLine("PASS bootstrap: CordiSharp welcome activation and cleanup");
 if (args.Length == 0 || args.Contains("plugins")) await PluginChecks.Run();
 if (args.Length == 0 || args.Contains("profiles")) await ProfileChecks.Run();
 if (args.Length == 0 || args.Contains("configuration")) await ConfigurationChecks.Run();
+if (args.Length == 0 || args.Contains("prototype")) await PrototypeChecks.Run();

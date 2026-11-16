@@ -7,11 +7,12 @@ namespace MyMailBox.Builtins;
 public static class DefaultProfile
 {
     public static PluginConfiguration Core => new(1, [new("platform", "core.platform", "1.0.0")]);
-    public static PluginConfiguration Ordinary => new(1, [new("welcome", "welcome", "1.0.0")]);
+    public static PluginConfiguration Ordinary => new(1, [new("welcome", "welcome", "1.0.0"), new("prototype", "prototype", "1.0.0")]);
 
     public static PluginCatalog Catalog()
     {
         var catalog = new PluginCatalog();
+        catalog.Add(new(new("prototype", "1.0.0", 1, 1, PluginKind.Ordinary, "prototype"), PluginOrigin.Builtin, "", PrototypePlugin.Apply));
         catalog.Add(new(new("core.platform", "1.0.0", 1, 1, PluginKind.Core, "platform"), PluginOrigin.Builtin, "", (ctx, _) =>
         {
             var host = ctx.Get<IPluginHost>("mailbox.host")!;

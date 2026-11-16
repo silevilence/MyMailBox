@@ -214,5 +214,5 @@ flowchart TD
 | [108 界定联系人和日历是否扩展为独立产品功能](issues/108-contacts-calendar.md) | 可选扩展决策，确认后继续拆分 | [49](issues/49-account-import.md)、[52](issues/52-pst-fidelity.md)、[27](issues/27-address-suggestions.md) | needs-info |
 
 <!-- implementation-status -->
-当前已完成实现与定向检查：02、03、04、05。实际 UI 与整体回归统一验收；证据见 [验收记录](../../docs/validation/framework-plugins.md)。
+当前已完成实现与定向检查：01、02、03、04、05。实际 UI 与整体回归统一验收；证据见 [验收记录](../../docs/validation/framework-plugins.md)。
 <!-- /implementation-status -->
