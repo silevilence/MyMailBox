@@ -4,7 +4,9 @@
 
 问题与规格以 Markdown 文件形式保存在本仓库的 `.scratch/<feature>/` 下，不使用外部跟踪器。详见 `docs/agents/issue-tracker.md`。
 
-当前 MyMailBox 开发任务入口为 `.scratch/mymailbox/index.md`，规格见 `.scratch/mymailbox/spec.md`，需求覆盖见 `.scratch/mymailbox/coverage.md`。每项工单在 `issues/` 中独立保存；开始实现前检查直接依赖、条件路线和外部环境，不将分诊就绪视为开发完成。
+规格总索引为 `.scratch/index.md`。Spec 指整个需求目录，目录按 `<三位编号>-<英文代号>` 命名，从 `000` 起递增；当前为 `.scratch/000-mymailbox/`。目录内规格文件统一叫 `spec.md`，不在文件名中重复编号。新增规格先登记，已有编号不重排、不复用；工单通过目录名标明所属规格。
+
+当前 MyMailBox 开发任务入口为 `.scratch/000-mymailbox/index.md`，规格见 `.scratch/000-mymailbox/spec.md`，需求覆盖见 `.scratch/000-mymailbox/coverage.md`。每项工单在 `issues/` 中独立保存；开始实现前检查直接依赖、条件路线和外部环境，不将分诊就绪视为开发完成。
 
 ### Triage labels
 
