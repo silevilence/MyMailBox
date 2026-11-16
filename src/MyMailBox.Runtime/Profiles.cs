@@ -20,7 +20,8 @@ public static class ConfigurationFiles
         {
             var config = JsonSerializer.Deserialize<PluginConfiguration>(File.ReadAllText(path), Json)
                 ?? throw new InvalidDataException("配置为空");
-            if (config.SchemaVersion != 1) throw new InvalidDataException("schemaVersion：仅支持版本 1");
+            if (config.SchemaVersion == 0) config = config with { SchemaVersion = 1 };
+            if (config.SchemaVersion != 1) throw new InvalidDataException("schemaVersion：仅支持版本 0 → 1 迁移或版本 1");
             if (config.Instances is null) throw new InvalidDataException("instances：必须为数组");
             var ids = new HashSet<string>();
             foreach (var item in config.Instances)

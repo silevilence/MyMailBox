@@ -25,6 +25,8 @@ public sealed class App : Application
             var context = Context.Create();
             var pages = new Contributions();
             var runtime = new PluginRuntime(pages);
+            HotConfiguration? hotConfiguration = null;
+            IDisposable? settings = null;
             context.Provide<IContributions>("mailbox.ui", pages);
             desktop.MainWindow = new ShellWindow(pages);
             Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
@@ -48,8 +50,9 @@ public sealed class App : Application
                     if (core.Error is not null) DefaultProfile.Recovery(pages, core.Error, directory);
                     else
                     {
-                        foreach (var instance in catalog.Order(ConfigurationFiles.Read(Path.Combine(directory, "plugins.json")), PluginKind.Ordinary, core.ActivePlugins))
-                            await runtime.Start(catalog.Find(instance), CoreProfile.Options(instance));
+                        hotConfiguration = new HotConfiguration(runtime, catalog, core.ActivePlugins, Path.Combine(directory, "plugins.json"));
+                        settings = PluginSettings.Register(pages, hotConfiguration);
+                        await hotConfiguration.Reload();
                         await context.Inject(["mailbox.ui"], (ctx, _) => { PluginLab.Apply(ctx, runtime); return null; });
                     }
                 }
@@ -57,6 +60,8 @@ public sealed class App : Application
             });
             desktop.Exit += (_, _) =>
             {
+                settings?.Dispose();
+                hotConfiguration?.DisposeAsync().AsTask().GetAwaiter().GetResult();
                 runtime.DisposeAsync().AsTask().GetAwaiter().GetResult();
                 context.Fiber.DisposeAsync().AsTask().GetAwaiter().GetResult();
             };

@@ -15,6 +15,7 @@ public sealed class ShellWindow : Window
     private readonly StackPanel _navigation = new() { Spacing = 8, Margin = new Thickness(16) };
     private readonly ContentControl _body = new() { Margin = new Thickness(32) };
     private string? _selected;
+    private readonly TextBlock _notice = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(16), Foreground = Brush.Parse("#7C2D12") };
 
     public ShellWindow(Contributions pages)
     {
@@ -27,11 +28,16 @@ public sealed class ShellWindow : Window
         var sidebar = new Border { Background = Brush.Parse("#F1F5F9"), Child = _navigation };
         grid.Children.Add(sidebar);
         Grid.SetColumn(_body, 1); grid.Children.Add(_body);
-        Content = grid;
+        var layout = new DockPanel(); DockPanel.SetDock(_notice, Dock.Bottom); layout.Children.Add(_notice); layout.Children.Add(grid);
+        AutomationProperties.SetAutomationId(_notice, "global-notice");
+        Content = layout;
         pages.Changed += Refresh;
-        Closed += (_, _) => { pages.Changed -= Refresh; _body.Content = null; _navigation.Children.Clear(); };
+        pages.NoticeChanged += NoticeChanged;
+        Closed += (_, _) => { pages.Changed -= Refresh; pages.NoticeChanged -= NoticeChanged; _body.Content = null; _navigation.Children.Clear(); };
         Refresh();
     }
+
+    private void NoticeChanged() => Dispatcher.UIThread.Post(() => _notice.Text = _pages.Notice);
 
     private void Refresh()
     {
