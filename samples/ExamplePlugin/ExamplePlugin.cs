@@ -13,11 +13,17 @@ public sealed class Example : IPlugin<PluginOptions>
     {
         if (options.FailInitialization) throw new InvalidOperationException("示例新版本初始化失败");
         var host = context.Get<IPluginHost>("mailbox.host")!;
+#if PLUGIN_V2
+        const string revision = "版本2";
+#else
+        const string revision = "版本1";
+#endif
         var received = 0;
         var ticks = 0;
         context.Effect(() => host.Subscribe(_ => Interlocked.Increment(ref received)));
         context.Effect(() => new Timer(_ => Interlocked.Increment(ref ticks), null, 20, 20));
-        context.Effect(() => host.Command("ping", _ => Task.FromResult($"{Words.Message(options.Greeting)}; events={received}; ticks={Volatile.Read(ref ticks)}")));
+        context.Effect(() => host.Command("ping", _ => Task.FromResult($"{revision} · {Words.Message(options.Greeting)}; events={received}; ticks={Volatile.Read(ref ticks)}")));
+        context.Effect(() => host.Command("work", async token => { await Task.Delay(1000, token); host.Notify("work-complete"); return "模拟操作完成，未产生真实邮件副作用。"; }));
         context.Effect(() => host.Add(new Page("example", "外部插件示例", "通过共享契约贡献的页面，代码与私有依赖在可回收上下文中运行。", [],
             [new("ping", "调用插件命令")], (_, _) => Task.FromResult(Words.Message(options.Greeting)))));
     }

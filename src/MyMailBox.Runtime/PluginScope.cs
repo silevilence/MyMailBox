@@ -6,9 +6,17 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
 {
     private readonly List<IDisposable> _owned = [];
     private readonly Dictionary<string, Func<CancellationToken, Task<string>>> _commands = [];
+    private readonly object _gate = new();
+    private readonly CancellationTokenSource _cancellation = new();
+    private bool _accepting = true;
+    private int _active;
+    private TaskCompletionSource _idle = Completed();
+    public int ActiveOperations { get { lock (_gate) return _active; } }
+    public bool Accepting { get { lock (_gate) return _accepting; } }
+    private static TaskCompletionSource Completed() { var result = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously); result.SetResult(); return result; }
     public string InstanceId { get; } = instanceId;
     public IReadOnlyCollection<string> Commands => _commands.Keys;
-    public IDisposable Add(Page page) => Own(pages.Add(page with { Id = InstanceId + "/" + page.Id }));
+    public IDisposable Add(Page page) => Own(pages.Add(page with { Id = InstanceId + "/" + page.Id, Execute = (values, action) => Run(_ => page.Execute(values, action)) }));
     public IDisposable AddSelector(Selector selector) => Own(pages.AddSelector(selector));
     public IDisposable AddNative(NativePage page) => Own(pages.AddNative(page with { Id = InstanceId + "/" + page.Id }));
     public IDisposable Command(string id, Func<CancellationToken, Task<string>> execute)
@@ -18,7 +26,33 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
     }
     public IDisposable Subscribe(Action<string> listener) => Own(events.Subscribe(listener));
     public void Notify(string value) => events.Emit(value);
-    public Task<string> Execute(string command, CancellationToken cancellation = default) => _commands[command](cancellation);
+    public Task<string> Execute(string command, CancellationToken cancellation = default) => Run(token => _commands[command](token), cancellation);
+    private async Task<string> Run(Func<CancellationToken, Task<string>> operation, CancellationToken cancellation = default)
+    {
+        lock (_gate)
+        {
+            if (!_accepting) throw new InvalidOperationException($"{InstanceId} 正在停止接单/更新，请稍后重试。");
+            if (_active++ == 0) _idle = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        }
+        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellation, _cancellation.Token);
+        try { return await operation(linked.Token); }
+        // Do not let plugin exception types/stack traces escape into long-lived host Tasks.
+        catch (OperationCanceledException) { throw new OperationCanceledException("Plugin operation canceled", linked.Token); }
+        catch (Exception error) { throw new InvalidOperationException(error.Message); }
+        finally
+        {
+            operation = null!;
+            lock (_gate) if (--_active == 0) _idle.TrySetResult();
+        }
+    }
+    public async Task Drain(bool cancel, TimeSpan timeout)
+    {
+        Task idle;
+        lock (_gate) { _accepting = false; idle = _idle.Task; }
+        if (cancel) _cancellation.Cancel();
+        try { await idle.WaitAsync(timeout); }
+        catch (TimeoutException e) { throw new InvalidOperationException($"停止操作失败：{InstanceId} 仍有 {ActiveOperations} 项在途任务，尚未释放程序集。", e); }
+    }
     private IDisposable Own(IDisposable resource) { _owned.Add(resource); return resource; }
     public void Dispose()
     {

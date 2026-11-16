@@ -54,7 +54,7 @@ public sealed class App : Application
                         hotConfiguration = new HotConfiguration(runtime, catalog, core.ActivePlugins, Path.Combine(directory, "plugins.json"));
                         settings = PluginSettings.Register(pages, hotConfiguration);
                         await hotConfiguration.Reload();
-                        manager = PluginManager.Register(pages, packages, catalog, hotConfiguration, Path.Combine(directory, "core.json"));
+                        manager = PluginManager.Register(pages, packages, catalog, hotConfiguration, Path.Combine(directory, "core.json"), runtime);
                         if (packageErrors.Count > 0) pages.Notice = string.Join("\n", packageErrors);
                     }
                 }
