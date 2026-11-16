@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net10.0": {
+      "CordiSharp": {
+        "type": "Direct",
+        "requested": "[0.2.0, )",
+        "resolved": "0.2.0",
+        "contentHash": "xJemkUMeJvOq444036BdY5zhTBz1bSpLUG7VL7NKdrremMa6ze3c5ANo2wkymXEpg0zQTVzLYHstjdEPvBQ6Gg=="
+      },
+      "mymailbox.contracts": {
+        "type": "Project"
+      },
+      "privategreeting": {
+        "type": "Project"
+      }
+    }
+  }
+}

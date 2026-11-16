@@ -212,3 +212,7 @@ flowchart TD
 | [106 决定并验证完全退出 GUI 后的任务运行](issues/106-background-mode.md) | 可选扩展决策，确认后继续拆分 | [72](issues/72-scheduler-recovery.md)、[11](issues/11-accounts.md)、[86](issues/86-installer.md) | needs-info |
 | [107 决定单文件运行存储与整库加密范围](issues/107-storage-choices.md) | 可选扩展决策，确认后继续拆分 | [19](issues/19-backup.md)、[56](issues/56-archive-export.md)、[61](issues/61-fulltext.md) | needs-info |
 | [108 界定联系人和日历是否扩展为独立产品功能](issues/108-contacts-calendar.md) | 可选扩展决策，确认后继续拆分 | [49](issues/49-account-import.md)、[52](issues/52-pst-fidelity.md)、[27](issues/27-address-suggestions.md) | needs-info |
+
+<!-- implementation-status -->
+当前已完成实现与定向检查：02、03。实际 UI 与整体回归统一验收；证据见 [验收记录](../../docs/validation/framework-plugins.md)。
+<!-- /implementation-status -->

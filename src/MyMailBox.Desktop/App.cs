@@ -23,12 +23,17 @@ public sealed class App : Application
         {
             var context = Context.Create();
             var pages = new Contributions();
+            var runtime = new PluginRuntime(pages);
             context.Provide<IContributions>("mailbox.ui", pages);
             context.Inject(["mailbox.ui"], (ctx, _) => { WelcomePlugin.Apply(ctx); return null; }).Await().GetAwaiter().GetResult();
+            context.Inject(["mailbox.ui"], (ctx, _) => { PluginLab.Apply(ctx, runtime); return null; }).Await().GetAwaiter().GetResult();
             desktop.MainWindow = new ShellWindow(pages);
-            desktop.Exit += (_, _) => context.Fiber.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            desktop.Exit += (_, _) =>
+            {
+                runtime.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                context.Fiber.DisposeAsync().AsTask().GetAwaiter().GetResult();
+            };
         }
         base.OnFrameworkInitializationCompleted();
     }
 }
-

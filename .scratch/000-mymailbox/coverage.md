@@ -42,3 +42,7 @@ REQ 是原始用户需求及后续确认，SUP 为必要支撑，OPT 为尚未�
 - 公司 Exchange 的具体路线与规则转换范围按 [条件门槛](spec.md) 确定，尚未选择的路线不能被默认勾选通过。
 - OPT 任务的“评估完成”不等于功能实现。若选入范围，必须继续细化实现与验收任务并更新此表。
 - 所有产品能力采用内置插件，同类第二实现与外部接入由 [扩展性验收](issues/94-extensibility-audit.md) 核对。
+
+<!-- implementation-status -->
+当前已完成实现与定向检查：02、03。实际 UI 与整体回归统一验收；证据见 [验收记录](../../docs/validation/framework-plugins.md)。
+<!-- /implementation-status -->
