@@ -9,6 +9,7 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
     private readonly object _gate = new();
     private readonly CancellationTokenSource _cancellation = new();
     private bool _accepting = true;
+    private bool _disposed;
     private int _active;
     private TaskCompletionSource _idle = Completed();
     public int ActiveOperations { get { lock (_gate) return _active; } }
@@ -32,7 +33,7 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
             throw new UnauthorizedAccessException($"未授予权限：{capability}；关联 ID：{id}");
         }
         diagnostics?.Record(InstanceId, capability, "authorized");
-        return operations.Invoke(capability, account, cancellation);
+        return Run(token => operations.Invoke(capability, account, token), cancellation);
     }
     public IDisposable Command(string id, Func<CancellationToken, Task<string>> execute)
     {
@@ -68,12 +69,27 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         try { await idle.WaitAsync(timeout); }
         catch (TimeoutException e) { throw new InvalidOperationException($"停止操作失败：{InstanceId} 仍有 {ActiveOperations} 项在途任务，尚未释放程序集。", e); }
     }
-    private IDisposable Own(IDisposable resource) { _owned.Add(resource); return resource; }
+    private IDisposable Own(IDisposable resource)
+    {
+        lock (_gate)
+        {
+            if (!_disposed) { _owned.Add(resource); return resource; }
+        }
+        resource.Dispose();
+        throw new ObjectDisposedException(InstanceId);
+    }
     public void Dispose()
     {
-        foreach (var item in _owned.AsEnumerable().Reverse()) item.Dispose();
-        _owned.Clear();
+        IDisposable[] resources;
+        lock (_gate)
+        {
+            if (_disposed) return;
+            _disposed = true; _accepting = false;
+            resources = _owned.AsEnumerable().Reverse().ToArray(); _owned.Clear();
+        }
+        foreach (var item in resources) item.Dispose();
         _commands.Clear();
+        _cancellation.Dispose();
     }
 }
 

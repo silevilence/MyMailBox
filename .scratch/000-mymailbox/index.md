@@ -1,6 +1,6 @@
 # 000-mymailbox · MyMailBox 开发任务索引
 
-日期：2026 年 11 月 16 日。用户已确认按草案创建独立工单，**开始实施；具体进度以各工单 Progress 和验收记录为准**。
+日期：2026 年 11 月 16 日。用户已确认按草案创建独立工单，**01–09 已完成，其他 99 项未开始**。
 
 - [000-mymailbox 开发规格与完成标准](spec.md)
 - [全部规格索引](../index.md)
@@ -16,7 +16,7 @@
 | 条件路线或实现 | 5 | 按公司部署/规则评估选择，不默认全部实施或全部跳过 |
 | 可选扩展与范围决策 | 10 | 尚未选入首版；决策通过后按需细化 |
 
-初始分诊：77 项 `ready-for-agent`、31 项 `needs-info`。初始 `Progress` 为 `not-started`；当前已完成 02 的实现与定向检查，最终 UI 验收集中执行。ready 只表示任务说明就绪，不表示已解除依赖。
+初始分诊：77 项 `ready-for-agent`、31 项 `needs-info`。初始 `Progress` 为 `not-started`；当前 01–09 已完成实现、定向检查及最终集中验收。ready 只表示任务说明就绪，不表示已解除依赖。
 
 “依赖”列只列直接前置任务；外部环境在工单中列出。公司路线与规则导入还需执行 [规格中的条件门槛](spec.md)，不能只看普通依赖表就判定最终可验收。
 
@@ -214,5 +214,5 @@ flowchart TD
 | [108 界定联系人和日历是否扩展为独立产品功能](issues/108-contacts-calendar.md) | 可选扩展决策，确认后继续拆分 | [49](issues/49-account-import.md)、[52](issues/52-pst-fidelity.md)、[27](issues/27-address-suggestions.md) | needs-info |
 
 <!-- implementation-status -->
-当前已完成实现与定向检查：01、02、03、04、05、06、07、08、09。实际 UI 与整体回归统一验收；证据见 [验收记录](../../docs/validation/framework-plugins.md)。
+当前已完成实现与验收：01–09；其余 99 项未开始。证据见 [验收记录](../../docs/validation/framework-plugins.md)。
 <!-- /implementation-status -->

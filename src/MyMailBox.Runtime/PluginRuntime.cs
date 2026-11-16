@@ -1,6 +1,7 @@
 using CordiSharp;
 using CordiSharp.Loading;
 using MyMailBox.Contracts;
+using System.Collections.Concurrent;
 
 namespace MyMailBox.Runtime;
 
@@ -10,11 +11,12 @@ public sealed record PluginDefinition(PluginManifest Manifest, PluginOrigin Orig
 /// <summary>Project policy around CordiSharp; assembly loading and fiber cleanup remain upstream.</summary>
 public sealed class PluginRuntime(Contributions pages, HostOperations? operations = null, Diagnostics? diagnostics = null) : IAsyncDisposable
 {
-    private readonly Dictionary<string, RunningPlugin> _running = [];
-    private readonly Dictionary<string, string> _states = [];
+    private readonly ConcurrentDictionary<string, RunningPlugin> _running = new();
+    private readonly ConcurrentDictionary<string, string> _states = new();
+    private long _sequence;
     public IReadOnlyDictionary<string, string> States => new Dictionary<string, string>(_states);
     public EventHub Events { get; } = new();
-    public IReadOnlyCollection<string> Running => _running.Keys;
+    public IReadOnlyCollection<string> Running => _running.Keys.ToArray();
     public PluginScope Scope(string instance) => _running[instance].Scope;
 
     public async Task Start(PluginDefinition definition, PluginOptions options)
@@ -39,24 +41,25 @@ public sealed class PluginRuntime(Contributions pages, HostOperations? operation
                 if (set.IsUnloaded) throw new InvalidOperationException("程序集装入失败：" + definition.Manifest.Assembly);
                 await set.LoadPlugin(definition.Manifest.Entry, options);
             }
-            _running.Add(options.InstanceId, new(root, scope, set, definition.Manifest));
+            if (!_running.TryAdd(options.InstanceId, new(root, scope, set, definition.Manifest, Interlocked.Increment(ref _sequence)))) throw new InvalidOperationException("实例重复启用");
             _states[options.InstanceId] = "已启用 " + definition.Manifest.Version;
             diagnostics?.Record(options.InstanceId, "activate", "success");
         }
         catch (Exception error)
         {
-            _states[options.InstanceId] = "启用失败：" + error.Message;
-            diagnostics?.Record(options.InstanceId, "activate", "failed", "activation-failed");
+            var correlation = diagnostics?.Record(options.InstanceId, "activate", "failed", "activation-failed");
+            _states[options.InstanceId] = "启用失败：" + error.Message + (correlation is null ? "" : "；关联 ID：" + correlation);
             scope.Dispose();
             if (set is not null) await set.DisposeAsync();
             await root.Fiber.DisposeAsync();
-            throw;
+            throw new InvalidOperationException(_states[options.InstanceId]);
         }
     }
 
     public async Task Stop(string instance, bool cancel = false, TimeSpan? timeout = null)
     {
         if (!_running.TryGetValue(instance, out var running)) return;
+        if (_states[instance].StartsWith("资源/程序集释放失败")) throw new InvalidOperationException(_states[instance]);
         _states[instance] = "正在排空在途操作";
         try { await running.Scope.Drain(cancel, timeout ?? TimeSpan.FromSeconds(5)); }
         catch (Exception e) { _states[instance] = e.Message; diagnostics?.Record(instance, "drain", "failed", "drain-timeout"); throw; }
@@ -65,7 +68,7 @@ public sealed class PluginRuntime(Contributions pages, HostOperations? operation
             running.Scope.Dispose();
             if (running.Assembly is not null) await running.Assembly.UnloadAsync(verify: true);
             await running.Root.Fiber.DisposeAsync();
-            _running.Remove(instance);
+            _running.TryRemove(instance, out _);
             _states[instance] = "已停用并释放";
             diagnostics?.Record(instance, "unload", "success");
         }
@@ -75,7 +78,15 @@ public sealed class PluginRuntime(Contributions pages, HostOperations? operation
 
     public async ValueTask DisposeAsync()
     {
-        foreach (var id in Running.Reverse().ToArray()) await Stop(id);
+        foreach (var id in _running.Values.OrderByDescending(p => p.Sequence).Select(p => p.Scope.InstanceId).ToArray())
+        {
+            var running = _running[id];
+            await running.Scope.Drain(false, TimeSpan.FromSeconds(5));
+            running.Scope.Dispose();
+            if (running.Assembly is not null) await running.Assembly.DisposeAsync();
+            await running.Root.Fiber.DisposeAsync();
+            _running.TryRemove(id, out _);
+        }
     }
-    private sealed record RunningPlugin(Context Root, PluginScope Scope, AssemblyPluginSet? Assembly, PluginManifest Manifest);
+    private sealed record RunningPlugin(Context Root, PluginScope Scope, AssemblyPluginSet? Assembly, PluginManifest Manifest, long Sequence);
 }

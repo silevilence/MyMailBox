@@ -2,9 +2,7 @@ using Avalonia;
 using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Styling;
 using Avalonia.Themes.Fluent;
-using CordiSharp;
 using MyMailBox.Builtins;
-using MyMailBox.Contracts;
 using MyMailBox.Runtime;
 
 namespace MyMailBox.Desktop;
@@ -21,7 +19,6 @@ public sealed class App : Application
     {
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
-            var context = Context.Create();
             var pages = new Contributions(action =>
             {
                 if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) action();
@@ -35,8 +32,8 @@ public sealed class App : Application
             IDisposable? settings = null;
             IDisposable? manager = null;
             IDisposable? diagnosticsPage = null;
-            context.Provide<IContributions>("mailbox.ui", pages);
             desktop.MainWindow = new ShellWindow(pages);
+            var initialized = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
             {
                 var directory = Path.Combine(workspace, "profiles", "default");
@@ -53,23 +50,34 @@ public sealed class App : Application
                     else
                     {
                         hotConfiguration = new HotConfiguration(runtime, catalog, core.ActivePlugins, Path.Combine(directory, "plugins.json"));
-                        settings = PluginSettings.Register(pages, hotConfiguration);
                         await hotConfiguration.Reload();
+                        settings = PluginSettings.Register(pages, hotConfiguration);
+                        if (hotConfiguration.Error is not null) pages.Notice = hotConfiguration.Error;
                         manager = PluginManager.Register(pages, packages, catalog, hotConfiguration, Path.Combine(directory, "core.json"), runtime);
                         diagnosticsPage = DiagnosticsPage.Register(pages, runtime, hotConfiguration, catalog, diagnostics, workspace);
                         if (packageErrors.Count > 0) pages.Notice = string.Join("\n", packageErrors);
                     }
                 }
                 catch (Exception error) { DefaultProfile.Recovery(pages, error.Message, directory); }
+                finally { initialized.TrySetResult(); }
             });
-            desktop.Exit += (_, _) =>
+            var closing = false;
+            var readyToClose = false;
+            desktop.MainWindow.Closing += async (_, args) =>
             {
-                settings?.Dispose();
-                manager?.Dispose();
-                diagnosticsPage?.Dispose();
-                hotConfiguration?.DisposeAsync().AsTask().GetAwaiter().GetResult();
-                runtime.DisposeAsync().AsTask().GetAwaiter().GetResult();
-                context.Fiber.DisposeAsync().AsTask().GetAwaiter().GetResult();
+                if (readyToClose) return;
+                args.Cancel = true;
+                if (closing) return;
+                closing = true;
+                try
+                {
+                    await initialized.Task;
+                    if (hotConfiguration is not null) await hotConfiguration.DisposeAsync();
+                    settings?.Dispose(); manager?.Dispose(); diagnosticsPage?.Dispose();
+                    await runtime.DisposeAsync();
+                    readyToClose = true; desktop.MainWindow.Close();
+                }
+                catch (Exception error) { pages.Notice = "关闭未完成：" + error.Message; closing = false; }
             };
         }
         base.OnFrameworkInitializationCompleted();

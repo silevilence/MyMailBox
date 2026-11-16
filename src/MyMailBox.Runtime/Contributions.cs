@@ -8,6 +8,7 @@ public sealed class Contributions(Action<Action>? dispatch = null) : IContributi
     private readonly object _gate = new();
     private readonly Dictionary<string, Selector> _selectors = [];
     private readonly Dictionary<string, NativePage> _native = [];
+    public int SelectorRevision { get; private set; }
     private void Notify() { if (dispatch is null) Changed?.Invoke(); else dispatch(() => Changed?.Invoke()); }
     public event Action? Changed;
     public event Action? NoticeChanged;
@@ -18,9 +19,9 @@ public sealed class Contributions(Action<Action>? dispatch = null) : IContributi
     public IReadOnlyList<Choice> Choices(string key) { lock (_gate) return _selectors.TryGetValue(key, out var provider) ? provider.Choices() : []; }
     public IDisposable AddSelector(Selector selector)
     {
-        lock (_gate) _selectors.Add(selector.Key, selector);
+        lock (_gate) { _selectors.Add(selector.Key, selector); SelectorRevision++; }
         Notify();
-        return new Cleanup(() => { lock (_gate) _selectors.Remove(selector.Key); Notify(); });
+        return new Cleanup(() => { lock (_gate) { _selectors.Remove(selector.Key); SelectorRevision++; } Notify(); });
     }
     public IDisposable AddNative(NativePage page)
     {

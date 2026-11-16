@@ -59,6 +59,8 @@ public sealed class HotConfiguration : IAsyncDisposable
 
     private async Task Apply(PluginConfiguration next)
     {
+        var retained = _runtime.States.FirstOrDefault(p => p.Value.StartsWith("资源/程序集释放失败"));
+        if (retained.Key is not null) throw new InvalidOperationException($"{retained.Key} 的程序集尚未释放，请重启后再修改插件配置。");
         if (next.SchemaVersion != 1) throw new InvalidDataException("schemaVersion：期望 1");
         if (next.Instances.Select(p => p.Id).Distinct().Count() != next.Instances.Length) throw new InvalidDataException("instances.id：重复");
         foreach (var item in next.Instances)
@@ -91,6 +93,8 @@ public sealed class HotConfiguration : IAsyncDisposable
         }
         catch (Exception activationError)
         {
+            if (_runtime.States.Values.Any(s => s.StartsWith("资源/程序集释放失败") || s.StartsWith("停止操作失败")))
+                throw new InvalidOperationException("插件停止或释放未完成，配置未提交；请查看运行状态并重试或重启。" + activationError.Message);
             foreach (var item in started.AsEnumerable().Reverse()) await _runtime.Stop(item.Id);
             try
             {

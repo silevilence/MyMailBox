@@ -13,5 +13,6 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/MyMailBox.Checks/MyMailBox.Checks.csproj" />
+    <Project Path="tests/MyMailBox.UiChecks/MyMailBox.UiChecks.csproj" />
   </Folder>
 </Solution>

@@ -37,10 +37,12 @@ Blocked by: 02
 
 ## 验证与交付记录
 
-CordiSharp 0.2.0 适配、共享契约与私有依赖、30 轮 GC/事件/文件锁检查通过；详见 docs/cordisharp.md。 实际 UI 与完整回归按本次任务约定集中验收，发现未解决问题时回退状态。
+CordiSharp 0.2.0 适配、共享契约与私有依赖、30 轮 GC/事件/文件锁检查通过；详见 docs/cordisharp.md。 完整回归与集中 UI 验收已完成，详见 [统一验收记录](../../../docs/validation/framework-plugins.md)。
 
 ## Comments
 
 - 2026-11-16：用户确认任务拆分后创建，尚未开始开发。
 
 - 2026-11-16：实现与定向检查完成。CordiSharp 0.2.0 适配、共享契约与私有依赖、30 轮 GC/事件/文件锁检查通过；详见 docs/cordisharp.md。
+
+- 2026-11-16：统一验收完成，见 [验收记录](../../../docs/validation/framework-plugins.md)。

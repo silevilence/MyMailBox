@@ -6,6 +6,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using MyMailBox.Contracts;
 using MyMailBox.Runtime;
+using Page = MyMailBox.Contracts.Page;
 
 namespace MyMailBox.Desktop;
 
@@ -17,17 +18,28 @@ public sealed class ShellWindow : Window
     private string? _selected;
     private NativePage? _nativePage;
     private object? _nativeView;
+    private Page? _renderedPage;
+    private int _selectorRevision;
+    private readonly List<Action> _viewCleanup = [];
     private readonly TextBlock _notice = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(16), Foreground = Brush.Parse("#7C2D12") };
 
     public ShellWindow(Contributions pages)
     {
         _pages = pages;
         Title = "MyMailBox";
-        Width = 1120; Height = 780; MinWidth = 860; MinHeight = 600;
+        Width = 1120; Height = 780; MinWidth = 760; MinHeight = 480;
+        Opened += (_, _) =>
+        {
+            if (Screens.ScreenFromWindow(this) is { } screen)
+            {
+                Width = Math.Min(Width, screen.WorkingArea.Width / RenderScaling - 32);
+                Height = Math.Min(Height, screen.WorkingArea.Height / RenderScaling - 32);
+            }
+        };
         FontFamily = new FontFamily("Microsoft YaHei UI, Segoe UI");
         FontSize = 14;
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("220,*") };
-        var sidebar = new Border { Background = Brush.Parse("#F1F5F9"), Child = _navigation };
+        var sidebar = new Border { Background = Brush.Parse("#F1F5F9"), Child = new ScrollViewer { Content = _navigation } };
         grid.Children.Add(sidebar);
         Grid.SetColumn(_body, 1); grid.Children.Add(_body);
         var layout = new DockPanel(); DockPanel.SetDock(_notice, Dock.Bottom); layout.Children.Add(_notice); layout.Children.Add(grid);
@@ -62,14 +74,22 @@ public sealed class ShellWindow : Window
             AutomationProperties.SetAutomationId(button, "nav-" + id);
             button.Click += (_, _) => Show(id); _navigation.Children.Add(button);
         }
-        Show(pages.Any(p => p.Id == _selected) || _pages.NativePages.Any(p => p.Id == _selected) ? _selected! : pages.FirstOrDefault()?.Id);
+        var selectedPage = pages.FirstOrDefault(p => p.Id == _selected);
+        var selectedNative = _pages.NativePages.FirstOrDefault(p => p.Id == _selected);
+        if (selectedPage is not null && ReferenceEquals(selectedPage, _renderedPage) &&
+            (!selectedPage.Fields.Any(f => f.Selector is not null) || _selectorRevision == _pages.SelectorRevision)) return;
+        if (selectedNative is not null && ReferenceEquals(selectedNative, _nativePage)) return;
+        Show(selectedPage is not null || selectedNative is not null ? _selected! : pages.FirstOrDefault()?.Id);
     }
 
     private void ReleaseView()
     {
+        foreach (var cleanup in _viewCleanup) cleanup();
+        _viewCleanup.Clear();
         _body.Content = null;
         if (_nativeView is not null) _nativePage!.Release(_nativeView);
         _nativeView = null; _nativePage = null;
+        _renderedPage = null;
     }
 
     private void Show(string? id)
@@ -85,6 +105,7 @@ public sealed class ShellWindow : Window
         }
         var page = _pages.Pages.FirstOrDefault(p => p.Id == id);
         if (page is null) return;
+        _renderedPage = page; _selectorRevision = _pages.SelectorRevision;
         var panel = new StackPanel { Spacing = 16, MaxWidth = 800, HorizontalAlignment = HorizontalAlignment.Stretch };
         panel.Children.Add(new TextBlock { Text = page.Title, FontSize = 28, FontWeight = FontWeight.SemiBold });
         panel.Children.Add(new TextBlock { Text = page.Description, TextWrapping = TextWrapping.Wrap, Foreground = Brush.Parse("#475569") });
@@ -129,13 +150,15 @@ public sealed class ShellWindow : Window
         {
             var button = new Button { Content = action.Label, Margin = new Thickness(0, 0, 8, 8) };
             AutomationProperties.SetAutomationId(button, action.Id);
-            button.Click += async (_, _) =>
+            EventHandler<Avalonia.Interactivity.RoutedEventArgs> handler = async (_, _) =>
             {
                 button.IsEnabled = false; result.Text = "正在处理…";
                 try { result.Text = await page.Execute(readers.ToDictionary(p => p.Key, p => p.Value()), action.Id); }
                 catch (Exception error) { result.Text = "操作未完成：" + error.Message; }
                 finally { button.IsEnabled = true; }
             };
+            button.Click += handler;
+            _viewCleanup.Add(() => button.Click -= handler);
             actions.Children.Add(button);
         }
         panel.Children.Add(actions); panel.Children.Add(result);
