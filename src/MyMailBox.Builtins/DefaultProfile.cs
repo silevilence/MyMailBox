@@ -7,11 +7,18 @@ namespace MyMailBox.Builtins;
 public static class DefaultProfile
 {
     public static PluginConfiguration Core => new(1, [new("platform", "core.platform", "1.0.0")]);
-    public static PluginConfiguration Ordinary => new(1, [new("welcome", "welcome", "1.0.0"), new("prototype", "prototype", "1.0.0")]);
+    public static PluginConfiguration Ordinary => new(1, [new("welcome", "welcome", "1.0.0"), new("prototype", "prototype", "1.0.0"), new("selector", "selector", "1.0.0")]);
 
     public static PluginCatalog Catalog()
     {
         var catalog = new PluginCatalog();
+        catalog.Add(new(new("selector", "1.0.0", 1, 1, PluginKind.Ordinary, "selector"), PluginOrigin.Builtin, "", (ctx, _) =>
+        {
+            var host = ctx.Get<IPluginHost>("mailbox.host")!;
+            ctx.Effect(() => host.AddSelector(new("accounts", "默认账户选择器", () => PrototypePlugin.Accounts)));
+            ctx.Effect(() => host.Add(new Page("selector", "选择器示例", "账户选项由可替换的普通插件提供。", [new("selected-account", "账户", "work", Selector: "accounts")],
+                [new("confirm-selection", "确认选择")], (values, _) => Task.FromResult("稳定账户 ID：" + values["selected-account"]))));
+        }));
         catalog.Add(new(new("prototype", "1.0.0", 1, 1, PluginKind.Ordinary, "prototype"), PluginOrigin.Builtin, "", PrototypePlugin.Apply));
         catalog.Add(new(new("core.platform", "1.0.0", 1, 1, PluginKind.Core, "platform"), PluginOrigin.Builtin, "", (ctx, _) =>
         {

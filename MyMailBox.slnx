@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/samples/">
     <Project Path="samples/ExamplePlugin/ExamplePlugin.csproj" />
+    <Project Path="samples/NativePlugin/NativePlugin.csproj" />
     <Project Path="samples/PrivateGreeting/PrivateGreeting.csproj" />
   </Folder>
   <Folder Name="/src/">

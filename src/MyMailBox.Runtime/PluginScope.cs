@@ -9,6 +9,8 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
     public string InstanceId { get; } = instanceId;
     public IReadOnlyCollection<string> Commands => _commands.Keys;
     public IDisposable Add(Page page) => Own(pages.Add(page with { Id = InstanceId + "/" + page.Id }));
+    public IDisposable AddSelector(Selector selector) => Own(pages.AddSelector(selector));
+    public IDisposable AddNative(NativePage page) => Own(pages.AddNative(page with { Id = InstanceId + "/" + page.Id }));
     public IDisposable Command(string id, Func<CancellationToken, Task<string>> execute)
     {
         _commands.Add(id, execute);

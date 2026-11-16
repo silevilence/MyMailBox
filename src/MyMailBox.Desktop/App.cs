@@ -23,7 +23,11 @@ public sealed class App : Application
         if (ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
         {
             var context = Context.Create();
-            var pages = new Contributions();
+            var pages = new Contributions(action =>
+            {
+                if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) action();
+                else Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(action).GetAwaiter().GetResult();
+            });
             var runtime = new PluginRuntime(pages);
             HotConfiguration? hotConfiguration = null;
             IDisposable? settings = null;

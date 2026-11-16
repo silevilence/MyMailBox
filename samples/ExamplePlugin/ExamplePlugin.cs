@@ -22,3 +22,18 @@ public sealed class Example : IPlugin<PluginOptions>
             [new("ping", "调用插件命令")], (_, _) => Task.FromResult(Words.Message(options.Greeting)))));
     }
 }
+
+[Plugin("selector")]
+[Inject("mailbox.host")]
+public sealed class AlternativeSelector : IPlugin<PluginOptions>
+{
+    public void Load(Context context, PluginOptions options)
+    {
+        var host = context.Get<IPluginHost>("mailbox.host")!;
+        context.Effect(() => host.AddSelector(new("accounts", "外部账户选择器", () =>
+            [new("local", "本地归档 · 本地邮箱 · /年度归档"), new("personal", "个人 · alex@personal.example · /收件箱"), new("work", "工作 · alex@work.example · /收件箱")])));
+        context.Effect(() => host.Add(new Page("selector", "选择器示例", "此页及账户选项来自外部第二实现。稳定 ID 与默认实现一致。",
+            [new("selected-account", "账户", "personal", Selector: "accounts")], [new("confirm-selection", "确认选择")],
+            (values, _) => Task.FromResult("稳定账户 ID：" + values["selected-account"]))));
+    }
+}

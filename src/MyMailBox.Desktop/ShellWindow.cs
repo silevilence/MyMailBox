@@ -15,6 +15,8 @@ public sealed class ShellWindow : Window
     private readonly StackPanel _navigation = new() { Spacing = 8, Margin = new Thickness(16) };
     private readonly ContentControl _body = new() { Margin = new Thickness(32) };
     private string? _selected;
+    private NativePage? _nativePage;
+    private object? _nativeView;
     private readonly TextBlock _notice = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(16), Foreground = Brush.Parse("#7C2D12") };
 
     public ShellWindow(Contributions pages)
@@ -33,7 +35,7 @@ public sealed class ShellWindow : Window
         Content = layout;
         pages.Changed += Refresh;
         pages.NoticeChanged += NoticeChanged;
-        Closed += (_, _) => { pages.Changed -= Refresh; pages.NoticeChanged -= NoticeChanged; _body.Content = null; _navigation.Children.Clear(); };
+        Closed += (_, _) => { pages.Changed -= Refresh; pages.NoticeChanged -= NoticeChanged; ReleaseView(); _navigation.Children.Clear(); };
         Refresh();
     }
 
@@ -53,13 +55,34 @@ public sealed class ShellWindow : Window
             button.Click += (_, _) => Show(id);
             _navigation.Children.Add(button);
         }
-        Show(pages.Any(p => p.Id == _selected) ? _selected! : pages.FirstOrDefault()?.Id);
+        foreach (var page in _pages.NativePages)
+        {
+            var id = page.Id;
+            var button = new Button { Content = page.Title, HorizontalAlignment = HorizontalAlignment.Stretch };
+            AutomationProperties.SetAutomationId(button, "nav-" + id);
+            button.Click += (_, _) => Show(id); _navigation.Children.Add(button);
+        }
+        Show(pages.Any(p => p.Id == _selected) || _pages.NativePages.Any(p => p.Id == _selected) ? _selected! : pages.FirstOrDefault()?.Id);
+    }
+
+    private void ReleaseView()
+    {
+        _body.Content = null;
+        if (_nativeView is not null) _nativePage!.Release(_nativeView);
+        _nativeView = null; _nativePage = null;
     }
 
     private void Show(string? id)
     {
         _selected = id;
-        _body.Content = null;
+        ReleaseView();
+        var native = _pages.NativePages.FirstOrDefault(p => p.Id == id);
+        if (native is not null)
+        {
+            var view = native.Create();
+            if (view is not Control control) { native.Release(view); throw new InvalidOperationException("高级页面未返回 Avalonia Control"); }
+            _nativePage = native; _nativeView = view; _body.Content = control; return;
+        }
         var page = _pages.Pages.FirstOrDefault(p => p.Id == id);
         if (page is null) return;
         var panel = new StackPanel { Spacing = 16, MaxWidth = 800, HorizontalAlignment = HorizontalAlignment.Stretch };
@@ -71,7 +94,7 @@ public sealed class ShellWindow : Window
             var fieldPanel = new StackPanel { Spacing = 6 };
             fieldPanel.Children.Add(new TextBlock { Text = field.Label, FontWeight = FontWeight.Medium });
             Control input;
-            if (field.Choices is { } choices)
+            if ((field.Selector is null ? field.Choices : _pages.Choices(field.Selector)) is { } choices)
             {
                 var select = new ComboBox { ItemsSource = choices.Select(c => c.Label).ToArray(), HorizontalAlignment = HorizontalAlignment.Stretch };
                 select.SelectedIndex = Math.Max(0, choices.ToList().FindIndex(c => c.Id == field.Value));
