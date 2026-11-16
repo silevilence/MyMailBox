@@ -31,6 +31,7 @@ public sealed class App : Application
             var runtime = new PluginRuntime(pages);
             HotConfiguration? hotConfiguration = null;
             IDisposable? settings = null;
+            IDisposable? manager = null;
             context.Provide<IContributions>("mailbox.ui", pages);
             desktop.MainWindow = new ShellWindow(pages);
             Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
@@ -43,12 +44,8 @@ public sealed class App : Application
                     DefaultProfile.Ensure(directory);
                     var catalog = DefaultProfile.Catalog();
                     var pluginDirectory = Path.Combine(workspace, "plugins");
-                    if (Directory.Exists(pluginDirectory))
-                        foreach (var manifest in Directory.EnumerateFiles(pluginDirectory, "manifest.json", SearchOption.AllDirectories))
-                        {
-                            var model = JsonSerializer.Deserialize<PluginManifest>(File.ReadAllText(manifest), ConfigurationFiles.Json)!;
-                            catalog.Add(new(model, PluginOrigin.External, Path.GetDirectoryName(manifest)!));
-                        }
+                    var packages = new PluginPackages(pluginDirectory, catalog);
+                    var packageErrors = packages.Discover();
                     var core = new CoreProfile(runtime, catalog, Path.Combine(directory, "core.json"));
                     await core.Start();
                     if (core.Error is not null) DefaultProfile.Recovery(pages, core.Error, directory);
@@ -57,7 +54,8 @@ public sealed class App : Application
                         hotConfiguration = new HotConfiguration(runtime, catalog, core.ActivePlugins, Path.Combine(directory, "plugins.json"));
                         settings = PluginSettings.Register(pages, hotConfiguration);
                         await hotConfiguration.Reload();
-                        await context.Inject(["mailbox.ui"], (ctx, _) => { PluginLab.Apply(ctx, runtime); return null; });
+                        manager = PluginManager.Register(pages, packages, catalog, hotConfiguration, Path.Combine(directory, "core.json"));
+                        if (packageErrors.Count > 0) pages.Notice = string.Join("\n", packageErrors);
                     }
                 }
                 catch (Exception error) { DefaultProfile.Recovery(pages, error.Message, directory); }
@@ -65,6 +63,7 @@ public sealed class App : Application
             desktop.Exit += (_, _) =>
             {
                 settings?.Dispose();
+                manager?.Dispose();
                 hotConfiguration?.DisposeAsync().AsTask().GetAwaiter().GetResult();
                 runtime.DisposeAsync().AsTask().GetAwaiter().GetResult();
                 context.Fiber.DisposeAsync().AsTask().GetAwaiter().GetResult();

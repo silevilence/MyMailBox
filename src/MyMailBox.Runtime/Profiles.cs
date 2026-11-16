@@ -51,6 +51,7 @@ public sealed class PluginCatalog
     private readonly Dictionary<string, PluginDefinition> _definitions = [];
     public IReadOnlyCollection<PluginDefinition> All => _definitions.Values;
     public void Add(PluginDefinition definition) => _definitions[definition.Manifest.Id + "@" + definition.Manifest.Version] = definition;
+    public void Remove(string id, string version) => _definitions.Remove(id + "@" + version);
     public PluginDefinition Find(PluginInstance instance) => _definitions.GetValueOrDefault(instance.Plugin + "@" + instance.Version)
         ?? throw new InvalidDataException($"instances[{instance.Id}] → {instance.Plugin}@{instance.Version}：缺失插件/服务或版本不兼容");
 

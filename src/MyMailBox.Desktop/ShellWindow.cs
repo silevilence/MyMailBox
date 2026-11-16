@@ -106,6 +106,17 @@ public sealed class ShellWindow : Window
                 var text = new TextBox { Text = field.Value, AcceptsReturn = field.Multiline, MinHeight = field.Multiline ? 100 : 36 };
                 readers[field.Id] = () => text.Text ?? "";
                 input = text;
+                if (field.FilePicker)
+                {
+                    var browse = new Button { Content = "选择文件…" };
+                    AutomationProperties.SetAutomationId(browse, "browse-" + field.Id);
+                    browse.Click += async (_, _) =>
+                    {
+                        var files = await StorageProvider.OpenFilePickerAsync(new() { Title = field.Label, AllowMultiple = false });
+                        if (files.Count > 0) text.Text = files[0].Path.LocalPath;
+                    };
+                    fieldPanel.Children.Add(browse);
+                }
             }
             AutomationProperties.SetName(input, field.Label);
             AutomationProperties.SetAutomationId(input, field.Id);

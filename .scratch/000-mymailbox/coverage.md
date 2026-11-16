@@ -44,5 +44,5 @@ REQ 是原始用户需求及后续确认，SUP 为必要支撑，OPT 为尚未�
 - 所有产品能力采用内置插件，同类第二实现与外部接入由 [扩展性验收](issues/94-extensibility-audit.md) 核对。
 
 <!-- implementation-status -->
-当前已完成实现与定向检查：01、02、03、04、05、06。实际 UI 与整体回归统一验收；证据见 [验收记录](../../docs/validation/framework-plugins.md)。
+当前已完成实现与定向检查：01、02、03、04、05、06、07。实际 UI 与整体回归统一验收；证据见 [验收记录](../../docs/validation/framework-plugins.md)。
 <!-- /implementation-status -->
