@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MyMailBox.Builtins/MyMailBox.Builtins.csproj" />
+    <Project Path="src/MyMailBox.Contracts/MyMailBox.Contracts.csproj" />
+    <Project Path="src/MyMailBox.Desktop/MyMailBox.Desktop.csproj" />
+    <Project Path="src/MyMailBox.Runtime/MyMailBox.Runtime.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/MyMailBox.Checks/MyMailBox.Checks.csproj" />
+  </Folder>
+</Solution>
