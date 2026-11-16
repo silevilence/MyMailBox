@@ -2,7 +2,7 @@ using MyMailBox.Contracts;
 
 namespace MyMailBox.Runtime;
 
-public sealed class PluginScope(string instanceId, Contributions pages, EventHub events) : IPluginHost, IDisposable
+public sealed class PluginScope(string instanceId, Contributions pages, EventHub events, PermissionPolicy permissions, HostOperations operations, Diagnostics? diagnostics) : IPluginHost, IDisposable
 {
     private readonly List<IDisposable> _owned = [];
     private readonly Dictionary<string, Func<CancellationToken, Task<string>>> _commands = [];
@@ -18,7 +18,22 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
     public IReadOnlyCollection<string> Commands => _commands.Keys;
     public IDisposable Add(Page page) => Own(pages.Add(page with { Id = InstanceId + "/" + page.Id, Execute = (values, action) => Run(_ => page.Execute(values, action)) }));
     public IDisposable AddSelector(Selector selector) => Own(pages.AddSelector(selector));
-    public IDisposable AddNative(NativePage page) => Own(pages.AddNative(page with { Id = InstanceId + "/" + page.Id }));
+    public IDisposable AddNative(NativePage page)
+    {
+        permissions.Require("ui.native");
+        return Own(pages.AddNative(page with { Id = InstanceId + "/" + page.Id }));
+    }
+    public Task<string> Invoke(string capability, string? account = null, CancellationToken cancellation = default)
+    {
+        try { permissions.Require(capability, account); }
+        catch (UnauthorizedAccessException)
+        {
+            var id = diagnostics?.Record(InstanceId, capability, "denied", "permission-denied");
+            throw new UnauthorizedAccessException($"未授予权限：{capability}；关联 ID：{id}");
+        }
+        diagnostics?.Record(InstanceId, capability, "authorized");
+        return operations.Invoke(capability, account, cancellation);
+    }
     public IDisposable Command(string id, Func<CancellationToken, Task<string>> execute)
     {
         _commands.Add(id, execute);

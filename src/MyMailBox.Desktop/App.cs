@@ -6,7 +6,6 @@ using CordiSharp;
 using MyMailBox.Builtins;
 using MyMailBox.Contracts;
 using MyMailBox.Runtime;
-using System.Text.Json;
 
 namespace MyMailBox.Desktop;
 
@@ -28,16 +27,18 @@ public sealed class App : Application
                 if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess()) action();
                 else Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(action).GetAwaiter().GetResult();
             });
-            var runtime = new PluginRuntime(pages);
+            var workspace = Environment.GetEnvironmentVariable("MYMAILBOX_HOME")
+                ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MyMailBox");
+            var diagnostics = new Diagnostics(Path.Combine(workspace, "logs"));
+            var runtime = new PluginRuntime(pages, diagnostics: diagnostics);
             HotConfiguration? hotConfiguration = null;
             IDisposable? settings = null;
             IDisposable? manager = null;
+            IDisposable? diagnosticsPage = null;
             context.Provide<IContributions>("mailbox.ui", pages);
             desktop.MainWindow = new ShellWindow(pages);
             Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
             {
-                var workspace = Environment.GetEnvironmentVariable("MYMAILBOX_HOME")
-                    ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MyMailBox");
                 var directory = Path.Combine(workspace, "profiles", "default");
                 try
                 {
@@ -55,6 +56,7 @@ public sealed class App : Application
                         settings = PluginSettings.Register(pages, hotConfiguration);
                         await hotConfiguration.Reload();
                         manager = PluginManager.Register(pages, packages, catalog, hotConfiguration, Path.Combine(directory, "core.json"), runtime);
+                        diagnosticsPage = DiagnosticsPage.Register(pages, runtime, hotConfiguration, catalog, diagnostics, workspace);
                         if (packageErrors.Count > 0) pages.Notice = string.Join("\n", packageErrors);
                     }
                 }
@@ -64,6 +66,7 @@ public sealed class App : Application
             {
                 settings?.Dispose();
                 manager?.Dispose();
+                diagnosticsPage?.Dispose();
                 hotConfiguration?.DisposeAsync().AsTask().GetAwaiter().GetResult();
                 runtime.DisposeAsync().AsTask().GetAwaiter().GetResult();
                 context.Fiber.DisposeAsync().AsTask().GetAwaiter().GetResult();

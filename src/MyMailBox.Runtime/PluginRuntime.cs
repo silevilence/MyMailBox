@@ -8,7 +8,7 @@ public sealed record PluginDefinition(PluginManifest Manifest, PluginOrigin Orig
     Action<Context, PluginOptions>? Builtin = null);
 
 /// <summary>Project policy around CordiSharp; assembly loading and fiber cleanup remain upstream.</summary>
-public sealed class PluginRuntime(Contributions pages) : IAsyncDisposable
+public sealed class PluginRuntime(Contributions pages, HostOperations? operations = null, Diagnostics? diagnostics = null) : IAsyncDisposable
 {
     private readonly Dictionary<string, RunningPlugin> _running = [];
     private readonly Dictionary<string, string> _states = [];
@@ -24,7 +24,7 @@ public sealed class PluginRuntime(Contributions pages) : IAsyncDisposable
         if (_running.ContainsKey(options.InstanceId)) throw new InvalidOperationException("实例已启用：" + options.InstanceId);
         var root = Context.Create();
         _states[options.InstanceId] = "正在启用";
-        var scope = new PluginScope(options.InstanceId, pages, Events);
+        var scope = new PluginScope(options.InstanceId, pages, Events, new(definition.Manifest.Permissions ?? [], options.Grants), operations ?? new(), diagnostics);
         root.Provide<IPluginHost>("mailbox.host", scope);
         AssemblyPluginSet? set = null;
         try
@@ -41,10 +41,12 @@ public sealed class PluginRuntime(Contributions pages) : IAsyncDisposable
             }
             _running.Add(options.InstanceId, new(root, scope, set, definition.Manifest));
             _states[options.InstanceId] = "已启用 " + definition.Manifest.Version;
+            diagnostics?.Record(options.InstanceId, "activate", "success");
         }
         catch (Exception error)
         {
             _states[options.InstanceId] = "启用失败：" + error.Message;
+            diagnostics?.Record(options.InstanceId, "activate", "failed", "activation-failed");
             scope.Dispose();
             if (set is not null) await set.DisposeAsync();
             await root.Fiber.DisposeAsync();
@@ -57,7 +59,7 @@ public sealed class PluginRuntime(Contributions pages) : IAsyncDisposable
         if (!_running.TryGetValue(instance, out var running)) return;
         _states[instance] = "正在排空在途操作";
         try { await running.Scope.Drain(cancel, timeout ?? TimeSpan.FromSeconds(5)); }
-        catch (Exception e) { _states[instance] = e.Message; throw; }
+        catch (Exception e) { _states[instance] = e.Message; diagnostics?.Record(instance, "drain", "failed", "drain-timeout"); throw; }
         try
         {
             running.Scope.Dispose();
@@ -65,8 +67,9 @@ public sealed class PluginRuntime(Contributions pages) : IAsyncDisposable
             await running.Root.Fiber.DisposeAsync();
             _running.Remove(instance);
             _states[instance] = "已停用并释放";
+            diagnostics?.Record(instance, "unload", "success");
         }
-        catch (Exception e) { _states[instance] = "资源/程序集释放失败，需要重启：" + e.Message; throw; }
+        catch (Exception e) { _states[instance] = "资源/程序集释放失败，需要重启：" + e.Message; diagnostics?.Record(instance, "unload", "failed", "assembly-retained"); throw; }
     }
     public bool Uses(string plugin, string version) => _running.Values.Any(p => p.Manifest.Id == plugin && p.Manifest.Version == version);
 

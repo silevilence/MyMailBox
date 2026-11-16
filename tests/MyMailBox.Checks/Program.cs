@@ -18,3 +18,4 @@ if (args.Length == 0 || args.Contains("prototype")) await PrototypeChecks.Run();
 if (args.Length == 0 || args.Contains("contributions")) await ContributionChecks.Run();
 if (args.Length == 0 || args.Contains("packages")) await PackageChecks.Run();
 if (args.Length == 0 || args.Contains("upgrade")) await UpgradeChecks.Run();
+if (args.Length == 0 || args.Contains("diagnostics")) await DiagnosticChecks.Run();

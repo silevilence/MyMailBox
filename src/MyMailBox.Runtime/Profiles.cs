@@ -114,6 +114,7 @@ public sealed class CoreProfile(PluginRuntime runtime, PluginCatalog catalog, st
     public static PluginOptions Options(PluginInstance instance) => new()
     {
         InstanceId = instance.Id, Greeting = instance.Options?.Greeting ?? "你好",
-        FailInitialization = instance.Options?.FailInitialization ?? false
+        FailInitialization = instance.Options?.FailInitialization ?? false,
+        Grants = instance.Grants ?? []
     };
 }

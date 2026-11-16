@@ -11,6 +11,7 @@ public sealed class PluginOptions
     public string InstanceId { get; set; } = "";
     public string Greeting { get; set; } = "你好";
     public bool FailInitialization { get; set; }
+    public string[] Grants { get; set; } = [];
 }
 
 public interface IPluginHost : IContributions
@@ -19,4 +20,5 @@ public interface IPluginHost : IContributions
     IDisposable Command(string id, Func<CancellationToken, Task<string>> execute);
     IDisposable Subscribe(Action<string> listener);
     void Notify(string value);
+    Task<string> Invoke(string capability, string? account = null, CancellationToken cancellation = default);
 }
