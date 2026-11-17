@@ -21,7 +21,8 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
     {
         Id = InstanceId + "/" + page.Id, Execute = (values, action) => Run(_ => page.Execute(values, action)),
         Reader = page.Reader is { } reader ? new(new ScopedMailStore(this, reader.Store), new ScopedMimeReader(this, reader.Parser)) : null,
-        Accounts = page.Accounts is { } accounts ? new ScopedAccounts(this, accounts) : null
+        Accounts = page.Accounts is { } accounts ? new ScopedAccounts(this, accounts) : null,
+        Selections = page.Selections is { } selections ? new ScopedSelections(this, selections) : null
     }));
     public IDisposable AddSelector(Selector selector) => Own(pages.AddSelector(selector));
     public IDisposable AddNative(NativePage page)
@@ -115,6 +116,14 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         public Task<IReadOnlyList<MailAccount>> List(CancellationToken cancellation = default) => scope.Run(accounts.List, cancellation);
         public Task<MailAccount> Save(AccountEdit edit, string? newCredential = null, CancellationToken cancellation = default) => scope.Run(t => accounts.Save(edit, newCredential, t), cancellation);
         public async Task Remove(Guid id, CancellationToken cancellation = default) => await scope.Run(async t => { await accounts.Remove(id, t); return true; }, cancellation);
+    }
+
+    private sealed class ScopedSelections(PluginScope scope, ISelectionService selections) : ISelectionService
+    {
+        public Task<IReadOnlyList<SelectionChoice>> Query(SelectionQuery query, CancellationToken cancellation = default) => scope.Run(t => selections.Query(query, t), cancellation);
+        public async Task Save(string slot, SavedSelection selection, CancellationToken cancellation = default) => await scope.Run(async t => { await selections.Save(slot, selection, t); return true; }, cancellation);
+        public Task<SavedSelection?> Load(string slot, CancellationToken cancellation = default) => scope.Run(t => selections.Load(slot, t), cancellation);
+        public Task<ResolvedSelection> Resolve(SavedSelection selection, CancellationToken cancellation = default) => scope.Run(t => selections.Resolve(selection, t), cancellation);
     }
 }
 

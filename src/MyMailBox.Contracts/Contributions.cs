@@ -1,7 +1,7 @@
 namespace MyMailBox.Contracts;
 
 public sealed record Page(string Id, string Title, string Description, IReadOnlyList<Field> Fields,
-    IReadOnlyList<PageAction> Actions, Func<IReadOnlyDictionary<string, string>, string, Task<string>> Execute, MailReader? Reader = null, IAccountService? Accounts = null);
+    IReadOnlyList<PageAction> Actions, Func<IReadOnlyDictionary<string, string>, string, Task<string>> Execute, MailReader? Reader = null, IAccountService? Accounts = null, ISelectionService? Selections = null);
 public sealed record Field(string Id, string Label, string Value = "", IReadOnlyList<Choice>? Choices = null, bool Multiline = false, string? Selector = null, bool FilePicker = false);
 public sealed record Choice(string Id, string Label);
 public sealed record PageAction(string Id, string Label);

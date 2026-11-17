@@ -7,13 +7,20 @@ namespace MyMailBox.Builtins;
 public static class DefaultProfile
 {
     public static PluginConfiguration Core => new(1, [new("platform", "core.platform", "1.0.0")]);
-    public static PluginConfiguration Ordinary => new(1, [new("welcome", "welcome", "1.0.0"), new("prototype", "prototype", "1.0.0"), new("selector", "selector", "1.0.0"), new("local-mail", "local-mail", "1.0.0"), new("accounts", "accounts", "1.0.0")]);
+    public static PluginConfiguration Ordinary => new(1, [new("welcome", "welcome", "1.0.0"), new("prototype", "prototype", "1.0.0"), new("selector", "selector", "1.0.0"), new("local-mail", "local-mail", "1.0.0"), new("accounts", "accounts", "1.0.0"), new("mail-selectors", "mail-selectors", "1.0.0")]);
 
     public static PluginCatalog Catalog(string? workspace = null, IMailStore? mailStore = null, IMimeReader? mimeReader = null)
     {
         var catalog = new PluginCatalog();
         var location = workspace ?? Environment.GetEnvironmentVariable("MYMAILBOX_HOME")
             ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MyMailBox");
+        catalog.Add(new(new("mail-selectors", "1.0.0", 1, 1, PluginKind.Ordinary, "mail-selectors"), PluginOrigin.Builtin, "", (ctx, _) =>
+        {
+            var host = ctx.Get<IPluginHost>("mailbox.host")!;
+            var store = new Mail.SqliteMailStore(Path.Combine(location, "mail"));
+            var service = new Mail.SelectionService(store, new Mail.AccountService(store));
+            ctx.Effect(() => host.Add(new Page("choose", "写信与整理", "", [], [], (_, _) => Task.FromResult(""), Selections: service)));
+        }));
         catalog.Add(new(new("accounts", "1.0.0", 1, 1, PluginKind.Ordinary, "accounts"), PluginOrigin.Builtin, "", (ctx, _) =>
         {
             var host = ctx.Get<IPluginHost>("mailbox.host")!;
