@@ -11,12 +11,17 @@ public sealed record ExportOptions
     public string[] AttachmentExtensions { get; init; } = [];
     public string AttachmentNameTemplate { get; init; } = "{subject}-{name}";
     public bool IncludeInline { get; init; }
+    public bool SaveAttachments { get; init; }
 }
 public sealed record ExportItemResult(Guid MessageId, string Status, string? Path, string Detail)
 {
     public string? Part { get; init; }
 }
 public sealed record ExportSource(IMailStore Store, ISelectionService Selections);
+public interface IMailPdfPrinter
+{
+    Task Print(string documentUri, SafeMailDocument document, string path, CancellationToken cancellation = default);
+}
 public sealed record ExportReport(ExportItemResult[] Items);
 public interface IMessageExporter
 {

@@ -35,3 +35,4 @@ if (args.Length == 0 || args.Contains("attachments")) await AttachmentChecks.Run
 if (args.Length == 0 || args.Contains("encoding")) await EncodingChecks.Run();
 if (args.Length == 0 || args.Contains("bulk-export")) await BulkExportChecks.Run();
 if (args.Length == 0 || args.Contains("local-mailboxes")) await LocalMailboxChecks.Run();
+if (args.Length == 0 || args.Contains("readable-export")) await ReadableExportChecks.Run();

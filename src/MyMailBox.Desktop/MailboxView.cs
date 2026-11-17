@@ -100,7 +100,7 @@ public sealed class MailboxView : UserControl, IDisposable
             return Task.CompletedTask;
         }));
         var exportPanel = new StackPanel { Spacing = 8 };
-        exportPanel.Children.Add(new TextBlock { Text = "Ctrl/Shift 多选当前页邮件；同名文件保留，重复导出复用相同原文。", TextWrapping = TextWrapping.Wrap });
+        exportPanel.Children.Add(new TextBlock { Text = "Ctrl/Shift 多选当前页邮件；同名文件保留，重复 EML 导出复用相同原文。PDF/HTML/纯文本是阅读副本，此入口不另存附件；需要附件选项与结果预览时请使用“批量导出”。", TextWrapping = TextWrapping.Wrap });
         AutomationProperties.SetAutomationId(_exportDirectory, "mail-export-directory"); AutomationProperties.SetName(_exportDirectory, "导出目录");
         AutomationProperties.SetAutomationId(_exportFormat, "mail-export-format"); AutomationProperties.SetName(_exportFormat, "导出格式");
         exportPanel.Children.Add(new TextBlock { Text = "导出目录" }); exportPanel.Children.Add(_exportDirectory); exportPanel.Children.Add(_exportFormat);
@@ -219,7 +219,7 @@ public sealed class MailboxView : UserControl, IDisposable
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token); _exporting = cancellation;
         try
         {
-            var report = await _exporters[_exportFormat.SelectedIndex].Export(new(selected, _exportDirectory.Text), new Progress<ExportItemResult>(r => { if (!_disposed) _status.Text = "导出中：" + r.Detail; }), cancellation.Token);
+            var report = await _exporters[_exportFormat.SelectedIndex].Export(new(selected, _exportDirectory.Text), new Progress<ExportItemResult>(r => { if (!_disposed && ReferenceEquals(_exporting, cancellation)) _status.Text = "导出中：" + r.Detail; }), cancellation.Token);
             if (!_disposed) _status.Text = string.Join("\n", report.Items.Select(r => r.Detail + (r.Path is null ? "" : " " + r.Path)));
         }
         finally { _exporting = null; }

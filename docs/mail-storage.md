@@ -15,3 +15,5 @@ HTML 经 AngleSharp 解析与允许列表清理，移除脚本、表单、frame�
 导出格式通过 IMessageExporter 注册，外部 example-exporter 示例包贡献 JSONL 主题列表，同一导出向导自动显示。导出器卸载排空在途操作并清除实现引用；示例只序列化共享类型，避免通用 JSON 缓存持有可回收程序集类型。
 
 本地邮箱管理支持新建、关闭和重新打开工作空间内的本地邮箱，创建多级目录并接收完整 EML。邮箱拥有独立 UUID、名称、alias 和标签，其他元数据在账户管理编辑。关闭/移除账户只改变可用状态，不删除归档；阅读和导出入口过滤不可用邮箱。重新打开保留原 UUID，alias 冲突时可明确改用新 alias。跨工作空间搬运使用邮件归档包导入，整个工作空间搬迁使用备份恢复；不要直接复制正在写入的 mail.db。
+
+PDF、HTML 和纯文本为独立注册的阅读副本导出器，保留主题、From/To/Cc、带偏移的发送时间及正文，明确不等于完整备份。批量向导可选择另存附件并用系统默认应用预览首个结果。HTML 复用阅读清理器，内联资源嵌入 data URI，CSP 禁止脚本和联网；远程资源始终不自动加载。PDF 复用同一隔离 WebView2 视图，以 A4、中文字体和分页样式打印到临时文件后发布。取消等待当前 PDF 写入结束，再停止后续邮件并清理未提交文件，遵循 [WebView2 PrintToPdfAsync 的完成语义](https://learn.microsoft.com/en-us/dotnet/api/microsoft.web.webview2.core.corewebview2.printtopdfasync?view=webview2-dotnet-1.0.3179.45)。实际中文及分页验收留到本轮集中窗口测试，控制台只验证打印契约。

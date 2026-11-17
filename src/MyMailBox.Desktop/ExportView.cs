@@ -20,10 +20,12 @@ public sealed class ExportView : UserControl, IDisposable
     private readonly ComboBox _format = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly CheckBox _addresses = new() { Content = "包含发件人、收件人和抄送地址（敏感信息）" };
     private readonly CheckBox _attachmentNames = new() { Content = "包含附件名称（可能有敏感信息）" }, _inline = new() { Content = "附件导出包含内联 CID 内容" };
+    private readonly CheckBox _saveAttachments = new() { Content = "PDF / HTML / 纯文本导出时另存附件（默认不另存）" };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap };
     private readonly TextBox _results = new() { IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, MinHeight = 160 };
     private readonly Button _execute;
     private ExportItem[]? _preview;
+    private string? _previewFile;
     private bool _disposed;
 
     public ExportView(ExportSource source, IReadOnlyList<IMessageExporter> exporters)
@@ -40,6 +42,8 @@ public sealed class ExportView : UserControl, IDisposable
         var options = new StackPanel { Spacing = 8 };
         options.Children.Add(new TextBlock { Text = "CSV / JSON 默认只包含稳定 ID、主题、时间和原文大小；不导出正文或账户凭据。", TextWrapping = TextWrapping.Wrap });
         options.Children.Add(_addresses); options.Children.Add(_attachmentNames);
+        options.Children.Add(new TextBlock { Text = "阅读副本包含必要邮件头和正文，不等同完整备份。完整备份请使用 EML 或邮件归档包；远程跟踪资源不自动下载。", TextWrapping = TextWrapping.Wrap });
+        options.Children.Add(_saveAttachments); AutomationProperties.SetAutomationId(_saveAttachments, "export-save-attachments");
         options.Children.Add(new TextBlock { Text = "附件扩展名（逗号分隔，留空为全部，例如 pdf,jpg）" }); options.Children.Add(_extensions);
         options.Children.Add(new TextBlock { Text = "附件命名模板：{subject} 主题、{name} 原文件名、{id} 邮件 ID。自动保留扩展名，重名另存。", TextWrapping = TextWrapping.Wrap }); options.Children.Add(_template); options.Children.Add(_inline);
         _form.Children.Add(new Expander { Header = "格式选项与敏感字段", Content = options, HorizontalAlignment = HorizontalAlignment.Stretch });
@@ -54,6 +58,11 @@ public sealed class ExportView : UserControl, IDisposable
             if (folders.Count > 0) _directory.Text = folders[0].Path.LocalPath;
         }));
         _execute = Action("按预览导出", "export-execute", Export); _execute.IsEnabled = false; _form.Children.Add(_execute);
+        _form.Children.Add(Action("预览首个阅读副本（使用系统默认应用）", "export-open-preview", () =>
+        {
+            if (_previewFile is null) throw new InvalidOperationException("请先导出 PDF、HTML 或纯文本阅读副本。");
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(_previewFile) { UseShellExecute = true }); return Task.CompletedTask;
+        }));
         var footer = new StackPanel { Spacing = 8 }; footer.Children.Add(Action("取消当前操作", "export-cancel", () => { _operation?.Cancel(); return Task.CompletedTask; }));
         AutomationProperties.SetAutomationId(_status, "export-status"); footer.Children.Add(_status);
         AutomationProperties.SetAutomationId(_results, "export-results"); AutomationProperties.SetName(_results, "逐项导出结果"); _form.Children.Add(_results);
@@ -108,13 +117,15 @@ public sealed class ExportView : UserControl, IDisposable
         var fields = new List<string> { "subject", "date", "size" }; if (_addresses.IsChecked == true) fields.AddRange(["from", "to", "cc"]); if (_attachmentNames.IsChecked == true) fields.Add("attachments");
         var request = new ExportRequest(_preview, _directory.Text) { Options = new() { MetadataFields = fields.ToArray(),
             AttachmentExtensions = (_extensions.Text ?? "").Split([',', '，'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries),
-            AttachmentNameTemplate = _template.Text ?? "{subject}-{name}", IncludeInline = _inline.IsChecked == true } };
+            AttachmentNameTemplate = _template.Text ?? "{subject}-{name}", IncludeInline = _inline.IsChecked == true, SaveAttachments = _saveAttachments.IsChecked == true } };
         using var operation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token); _operation = operation; _form.IsEnabled = false;
         try
         {
-            var report = await _exporters[_format.SelectedIndex].Export(request, new Progress<ExportItemResult>(r => { if (!_disposed) _status.Text = "导出中：" + r.Detail; }), operation.Token);
+            _previewFile = null; _status.Text = "正在导出；PDF 取消会等待当前文件写入结束。";
+            var report = await _exporters[_format.SelectedIndex].Export(request, new Progress<ExportItemResult>(r => { if (!_disposed && ReferenceEquals(_operation, operation)) _status.Text = "导出中：" + r.Detail; }), operation.Token);
             if (_disposed) return;
             _results.Text = string.Join("\n", report.Items.Select(r => $"{r.Status} · {r.MessageId} {r.Part}\n{r.Path ?? r.Detail}"));
+            _previewFile = report.Items.FirstOrDefault(r => r.Status == "success" && r.Part is null && Path.GetExtension(r.Path ?? "") is ".pdf" or ".html" or ".txt")?.Path;
             _status.Text = $"导出结束：{report.Items.Count(i => i.Status is "success" or "existing")} 成功，{report.Items.Count(i => i.Status == "failed")} 失败，{report.Items.Count(i => i.Status == "canceled")} 取消，{report.Items.Count(i => i.Status == "skipped")} 跳过。";
         }
         finally { _operation = null; _form.IsEnabled = true; }

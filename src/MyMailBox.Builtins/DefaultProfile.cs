@@ -9,7 +9,7 @@ public static class DefaultProfile
     public static PluginConfiguration Core => new(1, [new("platform", "core.platform", "1.0.0")]);
     public static PluginConfiguration Ordinary => new(1, [new("welcome", "welcome", "1.0.0"), new("prototype", "prototype", "1.0.0"), new("selector", "selector", "1.0.0"), new("local-mail", "local-mail", "1.0.0"), new("accounts", "accounts", "1.0.0"), new("mail-selectors", "mail-selectors", "1.0.0")]);
 
-    public static PluginCatalog Catalog(string? workspace = null, IMailStore? mailStore = null, IMimeReader? mimeReader = null, Action<string>? openWorkspace = null)
+    public static PluginCatalog Catalog(string? workspace = null, IMailStore? mailStore = null, IMimeReader? mimeReader = null, Action<string>? openWorkspace = null, IMailPdfPrinter? printer = null)
     {
         var catalog = new PluginCatalog();
         var location = workspace ?? Environment.GetEnvironmentVariable("MYMAILBOX_HOME")
@@ -32,7 +32,7 @@ public static class DefaultProfile
             var localStore = new Mail.SqliteMailStore(Path.Combine(location, "mail"));
             var remote = new Mail.RemoteContentService(localStore); ctx.Effect(() => remote);
             var available = mailStore ?? new Mail.AvailableMailStore(localStore);
-            LocalMailPlugin.Apply(ctx, available, mimeReader ?? new Mail.MimeReader(), remote);
+            LocalMailPlugin.Apply(ctx, available, mimeReader ?? new Mail.MimeReader(), remote, printer);
             var exportHost = ctx.Get<IPluginHost>("mailbox.host")!;
             ctx.Effect(() => exportHost.Add(new Page("export", "批量导出", "", [], [], (_, _) => Task.FromResult(""))
                 { Export = new(available, new Mail.SelectionService(localStore, new Mail.AccountService(localStore))) }));

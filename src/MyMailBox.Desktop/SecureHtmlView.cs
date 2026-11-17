@@ -82,6 +82,14 @@ public sealed class SecureHtmlView(string documentUri, SafeMailDocument document
         _controller.NotifyParentWindowPositionChanged();
     }
     public void Zoom(double delta) { if (_controller is not null) _controller.ZoomFactor = Math.Clamp(_controller.ZoomFactor + delta, 0.5, 2.5); }
+    public async Task PrintPdf(string path)
+    {
+        if (_controller is null || _environment is null) throw new InvalidOperationException("HTML 打印尚未就绪。");
+        var settings = _environment.CreatePrintSettings(); settings.ShouldPrintBackgrounds = true;
+        settings.ShouldPrintHeaderAndFooter = false; settings.PageWidth = 8.27; settings.PageHeight = 11.69;
+        settings.MarginTop = settings.MarginBottom = settings.MarginLeft = settings.MarginRight = 0.4;
+        if (!await _controller.CoreWebView2.PrintToPdfAsync(Path.GetFullPath(path), settings)) throw new IOException("PDF 未能写入，请检查目标目录或稍后重试。");
+    }
     protected override void DestroyNativeControlCore(IPlatformHandle control) { Dispose(); if (_window != 0) { DestroyWindow(_window); _window = 0; } }
     public void Dispose()
     {
