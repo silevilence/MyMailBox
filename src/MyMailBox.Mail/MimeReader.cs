@@ -38,8 +38,9 @@ public sealed class MimeReader(IEnumerable<IMimeContentDecoder>? decoders = null
             if (message.From.Count == 0) warnings.Add("发件人头缺失或无法解析，可查看原文。");
             Visit(message.Body, "1", 0);
             cancellation.ThrowIfCancellationRequested();
+            if (text.Length == 0) warnings.Add(html.Length > 0 ? "此邮件没有纯文本正文，请切换安全 HTML 阅读。" : "未找到可读取的正文，可查看原文或附件。");
             return new ParsedMail(message.Subject ?? "（无主题）", message.From.Count == 0 ? "（发件人未知）" : message.From.ToString(), message.To.ToString(),
-                message.Date, text.Length > 0 ? text.ToString() : "此邮件没有可读取的纯文本正文，请切换原文。", message.Cc.ToString(), html.ToString(), parts, warnings.Distinct().ToArray(), resources);
+                message.Date, text.ToString(), message.Cc.ToString(), html.ToString(), parts, warnings.Distinct().ToArray(), resources);
 
             void Visit(MimeEntity entity, string path, int depth)
             {

@@ -76,7 +76,7 @@ public sealed class PluginPackages(string root, PluginCatalog catalog)
                 VerifyDirectory(directory, manifest);
                 catalog.Add(new(manifest, PluginOrigin.External, directory));
             }
-            catch (Exception e) when (e is IOException or JsonException or ArgumentException) { errors.Add(path + "：" + e.Message); }
+            catch (Exception e) when (e is IOException or InvalidDataException or JsonException or ArgumentException) { errors.Add(path + "：" + e.Message); }
         }
         return errors;
     }

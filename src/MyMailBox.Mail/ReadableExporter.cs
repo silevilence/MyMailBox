@@ -47,9 +47,14 @@ public sealed class ReadableExporter(IMailStore store, IMimeReader parser, IHtml
                     }
                     else
                     {
-                        var portable = document.Html.Replace("img-src &#39;self&#39;", "img-src data:").Replace("media-src &#39;self&#39;", "media-src data:");
-                        foreach (var resource in document.Resources) portable = portable.Replace(origin + "resources/" + resource.Key, "data:" + resource.ContentType + ";base64," + Convert.ToBase64String(resource.Data));
-                        await File.WriteAllTextAsync(temporary, portable, new UTF8Encoding(false), cancellation);
+                        using var portable = await new AngleSharp.Html.Parser.HtmlParser().ParseDocumentAsync(document.Html, cancellation);
+                        var policy = portable.QuerySelector("meta[http-equiv='Content-Security-Policy']")!;
+                        policy.SetAttribute("content", policy.GetAttribute("content")!.Replace("img-src 'self'", "img-src data:").Replace("media-src 'self'", "media-src data:"));
+                        var resources = document.Resources.ToDictionary(r => origin + "resources/" + r.Key);
+                        foreach (var element in portable.QuerySelectorAll("[src]"))
+                            if (resources.TryGetValue(element.GetAttribute("src")!, out var resource))
+                                element.SetAttribute("src", "data:" + resource.ContentType + ";base64," + Convert.ToBase64String(resource.Data));
+                        await File.WriteAllTextAsync(temporary, "<!doctype html>\n" + portable.DocumentElement!.OuterHtml, new UTF8Encoding(false), cancellation);
                     }
                 }
                 cancellation.ThrowIfCancellationRequested(); File.Move(temporary, path); temporary = null;

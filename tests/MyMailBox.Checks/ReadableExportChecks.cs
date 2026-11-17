@@ -32,6 +32,19 @@ internal static class ReadableExportChecks
         var hostileId = await store.Import(SqliteMailStore.Inbox, hostile, await parser.Parse(hostile));
         var safe = (await new ReadableExporter(store, parser, renderer, "html").Export(new([new(hostileId, "tracking")], request.Directory))).Items.Single();
         var safeHtml = await File.ReadAllTextAsync(safe.Path!); MailChecks.Check(!safeHtml.Contains("tracker.example") && !safeHtml.Contains("<script") && safeHtml.Contains("远程多媒体已阻止"), "Export bypassed reader sanitizer");
+        var htmlOnlyText = (await new ReadableExporter(store, parser, renderer, "txt").Export(new([new(hostileId, "tracking")], request.Directory))).Items.Single();
+        var extracted = await File.ReadAllTextAsync(htmlOnlyText.Path!);
+        MailChecks.Check(extracted.Contains("中文正文") && !extracted.Contains("alert(1)"), "HTML-only TXT export lost body or retained script");
+        using var manyImages = new MimeKit.MimeMessage(); manyImages.From.Add(new MimeKit.MailboxAddress("Sender", "sender@example.test")); manyImages.Subject = "Twelve CID images";
+        var builder = new MimeKit.BodyBuilder { HtmlBody = string.Join("", Enumerable.Range(0, 12).Select(i => $"<img src='cid:picture-{i}' alt='image-{i}'>")) };
+        var imageBytes = Enumerable.Range(0, 12).Select(i => new byte[] { 137, 80, 78, 71, (byte)i }).ToArray();
+        for (var i = 0; i < imageBytes.Length; i++) { var resource = builder.LinkedResources.Add($"image-{i}.png", imageBytes[i], new MimeKit.ContentType("image", "png")); resource.ContentId = "picture-" + i; }
+        manyImages.Body = builder.ToMessageBody(); using var manyRaw = new MemoryStream(); manyImages.WriteTo(manyRaw);
+        var manyId = await store.Import(SqliteMailStore.Inbox, manyRaw.ToArray(), await parser.Parse(manyRaw.ToArray()));
+        var manyExport = (await new ReadableExporter(store, parser, renderer, "html").Export(new([new(manyId, manyImages.Subject)], request.Directory))).Items.Single();
+        using var imageDocument = await new HtmlParser().ParseDocumentAsync(await File.ReadAllTextAsync(manyExport.Path!));
+        var imageElements = imageDocument.QuerySelectorAll("img"); MailChecks.Check(imageElements.Length == 12, "CID images missing");
+        for (var i = 0; i < 12; i++) MailChecks.Check(imageElements[i].GetAttribute("src") == "data:image/png;base64," + Convert.ToBase64String(imageBytes[i]), "CID URL prefix collision: " + i);
         var attached = await new ReadableExporter(store, parser, renderer, "txt").Export(request with { Options = new() { SaveAttachments = true } });
         MailChecks.Check(attached.Items.Any(i => i.Part is not null && i.Status == "success") && File.ReadAllText(attached.Items[0].Path!).Contains("附件另存"), "Explicit attachment option missing");
         MailChecks.Check(!Directory.EnumerateFiles(request.Directory, "*.partial-*", SearchOption.AllDirectories).Any(), "Partial files left behind");

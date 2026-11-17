@@ -1,5 +1,6 @@
 using CordiSharp;
 using CordiSharp.Loading;
+using CordiSharp.Registry;
 using MyMailBox.Contracts;
 using System.Collections.Concurrent;
 
@@ -29,19 +30,24 @@ public sealed class PluginRuntime(Contributions pages, HostOperations? operation
         var scope = new PluginScope(options.InstanceId, pages, Events, new(definition.Manifest.Permissions ?? [], options.Grants), operations ?? new(), diagnostics);
         root.Provide<IPluginHost>("mailbox.host", scope);
         AssemblyPluginSet? set = null;
+        PluginHandle? handle = null;
         try
         {
             if (definition.Origin == PluginOrigin.Builtin)
-                await root.Inject(["mailbox.host"], (ctx, _) => { definition.Builtin!(ctx, options); return null; });
+            {
+                handle = root.Inject(["mailbox.host"], (ctx, _) => { definition.Builtin!(ctx, options); return null; });
+                await handle;
+            }
             else
             {
-                await root.Plugin(typeof(AssemblyLoaderService));
+                handle = root.Plugin(typeof(AssemblyLoaderService));
+                await handle;
                 var loader = root.Get<AssemblyLoaderService>("loader")!;
                 set = loader.LoadAssembly(Path.Combine(definition.Directory, definition.Manifest.Assembly!));
                 if (set.IsUnloaded) throw new InvalidOperationException("程序集装入失败：" + definition.Manifest.Assembly);
                 await set.LoadPlugin(definition.Manifest.Entry, options);
             }
-            if (!_running.TryAdd(options.InstanceId, new(root, scope, set, definition.Manifest, Interlocked.Increment(ref _sequence)))) throw new InvalidOperationException("实例重复启用");
+            if (!_running.TryAdd(options.InstanceId, new(root, scope, set, handle, definition.Manifest, Interlocked.Increment(ref _sequence)))) throw new InvalidOperationException("实例重复启用");
             _states[options.InstanceId] = "已启用 " + definition.Manifest.Version;
             diagnostics?.Record(options.InstanceId, "activate", "success");
         }
@@ -51,6 +57,7 @@ public sealed class PluginRuntime(Contributions pages, HostOperations? operation
             _states[options.InstanceId] = "启用失败：" + error.Message + (correlation is null ? "" : "；关联 ID：" + correlation);
             scope.Dispose();
             if (set is not null) await set.DisposeAsync();
+            if (handle is not null) await handle.DisposeAsync();
             await root.Fiber.DisposeAsync();
             throw new InvalidOperationException(_states[options.InstanceId]);
         }
@@ -67,6 +74,9 @@ public sealed class PluginRuntime(Contributions pages, HostOperations? operation
         {
             running.Scope.Dispose();
             if (running.Assembly is not null) await running.Assembly.UnloadAsync(verify: true);
+            // Dispose the child handle first: CordiSharp 0.2.0 root disposal restarts its fiber,
+            // whose notification walk otherwise races the pump removing child fibers.
+            await running.Handle.DisposeAsync();
             await running.Root.Fiber.DisposeAsync();
             _running.TryRemove(instance, out _);
             _states[instance] = "已停用并释放";
@@ -84,9 +94,12 @@ public sealed class PluginRuntime(Contributions pages, HostOperations? operation
             await running.Scope.Drain(false, TimeSpan.FromSeconds(5));
             running.Scope.Dispose();
             if (running.Assembly is not null) await running.Assembly.DisposeAsync();
+            // Dispose the child handle first: CordiSharp 0.2.0 root disposal restarts its fiber,
+            // whose notification walk otherwise races the pump removing child fibers.
+            await running.Handle.DisposeAsync();
             await running.Root.Fiber.DisposeAsync();
             _running.TryRemove(id, out _);
         }
     }
-    private sealed record RunningPlugin(Context Root, PluginScope Scope, AssemblyPluginSet? Assembly, PluginManifest Manifest, long Sequence);
+    private sealed record RunningPlugin(Context Root, PluginScope Scope, AssemblyPluginSet? Assembly, PluginHandle Handle, PluginManifest Manifest, long Sequence);
 }

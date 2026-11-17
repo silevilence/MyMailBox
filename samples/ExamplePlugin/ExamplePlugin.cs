@@ -80,3 +80,23 @@ public sealed class ExampleExportPlugin : IPlugin<PluginOptions>
         }
     }
 }
+
+// A typed contribution also exercises the host's unload boundary.
+[Plugin("typed")]
+[Inject("mailbox.host")]
+public sealed class TypedExample : IPlugin<PluginOptions>
+{
+    public void Load(Context context, PluginOptions options)
+    {
+        var host = context.Get<IPluginHost>("mailbox.host")!;
+        context.Effect(() => host.Add(new Page("typed", "类型化服务示例", "用于验证服务卸载。", [], [],
+            (_, _) => Task.FromResult("ready")) { Updates = new Updates() }));
+    }
+    private sealed class Updates : IUpdateService
+    {
+        public Task<UpdateSnapshot> Snapshot(CancellationToken cancellation = default) => Task.FromResult(new UpdateSnapshot("1.0.0", new("test/local"), new(UpdateCheckState.NotChecked, "ready", DateTimeOffset.MinValue)));
+        public Task Save(UpdateSettings settings, CancellationToken cancellation = default) => Task.CompletedTask;
+        public Task<UpdateCheck> Check(bool manual, CancellationToken cancellation = default) => Task.FromResult(new UpdateCheck(UpdateCheckState.Current, "ready", DateTimeOffset.MinValue));
+        public Task Skip(string? version, CancellationToken cancellation = default) => Task.CompletedTask;
+    }
+}

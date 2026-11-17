@@ -5,6 +5,8 @@ using MyMailBox.Runtime;
 
 if (args.Length > 0 && args[0] == "crash-writer") { StorageChecks.CrashWriter(args[1], int.Parse(args[2]), args[3]); return; }
 if (args.Length > 0 && args[0] == "schedule-crash-worker") { await ScheduleRecoveryChecks.CrashWorker(args[1], args[2]); return; }
+// Every full or targeted run uses disposable test data, even when the caller has a real workspace configured.
+Environment.SetEnvironmentVariable("MYMAILBOX_HOME", Path.Combine(PluginChecks.Repository, "artifacts/checks/default-" + Guid.NewGuid().ToString("N")));
 var context = Context.Create();
 var pages = new Contributions();
 context.Provide<IContributions>("mailbox.ui", pages);

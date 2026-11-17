@@ -25,6 +25,14 @@ internal static class PackageChecks
         { zip.GetEntry("ExamplePlugin.dll")!.Delete(); using var writer = new StreamWriter(zip.CreateEntry("ExamplePlugin.dll").Open()); writer.Write("corrupt"); }
         await PluginChecks.Reject(() => Task.Run(() => packages.Inspect(corrupt)), "完整性");
         PluginChecks.Check(packages.Discover().Count == 0, "Installed manifest discovery failed");
+        var assembly = Path.Combine(definition.Directory, "ExamplePlugin.dll"); var validAssembly = File.ReadAllBytes(assembly);
+        File.WriteAllText(assembly, "corrupt installed plugin");
+        var recoveredCatalog = DefaultProfile.Catalog(); var recoveredPackages = new PluginPackages(root, recoveredCatalog);
+        var failures = recoveredPackages.Discover();
+        PluginChecks.Check(failures.Count == 1 && failures[0].Contains("完整性") && recoveredCatalog.All.All(p => p.Manifest.Id != "example"), "Corrupt installed plugin aborted discovery or remained available");
+        await runtime.Start(recoveredCatalog.Find(new("welcome", "welcome", "1.0.0")), new() { InstanceId = "welcome" });
+        await runtime.Stop("welcome"); File.WriteAllBytes(assembly, validAssembly);
+        PluginChecks.Check(recoveredPackages.Discover().Count == 0, "Repaired plugin failed rediscovery");
         packages.Remove(definition, new(1, []), new(1, []));
         PluginChecks.Check(!Directory.Exists(definition.Directory) && File.Exists(bad), "Removed unrelated data");
         Console.WriteLine("PASS packages: hash/path checks, installed activation, private dependency, duplicate version refusal, referenced removal refusal, scoped removal");
