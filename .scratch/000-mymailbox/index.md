@@ -1,6 +1,6 @@
 # 000-mymailbox · MyMailBox 开发任务索引
 
-日期：2026 年 11 月 17 日。**37 项完成（01–20、22、31、43、48、50、55–58、69–72、86–88、90）；4 项进行中（32、89、91–92）；1 项等待真实接入条件（35，blocked）；其余 66 项未开始。** 50 的 ANSI 中文及正文修复通过，研究选型完成；32 已实现只读接入，用户已完成注册并提供 Client ID，待个人账户真实登录/读取验收；35 的 EWS 自动协商和显式 NTLM 均为 401，两种账号格式均失败，但手机可读列表。ActiveSync 匿名 OPTIONS 返回 401/Basic，已交付只查询能力的脚本，待用户本机认证结果，未确认协议版本或完整收发。证据见 [PST 修复](../../docs/validation/2026-11-17-pst-ansi-fix.md)、[Outlook.com 配置](../../docs/validation/outlook-com-setup.md)、[公司端点调查](../../docs/validation/2026-11-17-exchange-discovery.md)。
+日期：2026 年 11 月 17 日。**37 项完成（01–20、22、31、43、48、50、55–58、69–72、86–88、90）；4 项进行中（32、89、91–92）；1 项等待真实接入条件（35，blocked）；其余 66 项未开始。** 50 的 ANSI 中文及正文修复通过，研究选型完成；32 已内置发布者应用注册，普通用户直接登录，无需输入 Client ID，待个人账户真实登录/读取验收；35 的 EWS 认证仍失败，但 ActiveSync 带凭据 OPTIONS 已返回 200，声明最高协议 16.1，待部署、设备策略及测试目录读写验收。Exchange 产品须由用户逐账户填写服务器及身份，不绑定验收公司域名。证据见 [PST 修复](../../docs/validation/2026-11-17-pst-ansi-fix.md)、[Outlook.com 配置](../../docs/validation/outlook-com-setup.md)、[公司端点调查](../../docs/validation/2026-11-17-exchange-discovery.md)。
 
 - [000-mymailbox 开发规格与完成标准](spec.md)
 - [全部规格索引](../index.md)

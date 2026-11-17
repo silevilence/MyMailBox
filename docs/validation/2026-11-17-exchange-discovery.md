@@ -1,6 +1,6 @@
 # 35：公司 Exchange 端点初步验证
 
-最新结论：EWS 自动协商及显式 NTLM 只读认证均返回 401，用户补充域账号和完整邮箱地址均已试过。手机邮件应用能读列表，新增 ActiveSync 路线调查：匿名 OPTIONS 返回 401/Basic，已交付仅查询能力的认证探测脚本，待用户本机执行。35 保持 blocked，不能据此认定 EWS 或完整收发已通过。
+最新结论：用户本机带凭据 ActiveSync OPTIONS 已返回 **200**，声明支持最高 **16.1**，能力查询成功。EWS 自动协商及显式 NTLM 仍为 401，域账号和完整邮箱地址均已试过。35 仍待部署确认、授权测试目录及实际读写验收，不能据此认定 EWS 或完整收发已通过。
 
 用户提供 `https://mail.example.invalid/owa` 并授权先做不影响服务的检查。2026-11-17 13:07、13:31（Asia/Shanghai）各执行两次普通无凭据 GET：一次 OWA，一次标准 EWS 路径。无扫描、口令尝试或自动重试。
 
@@ -48,8 +48,19 @@
 & 'C:\code\dotnet\MyMailBox\scripts\probe-activesync.ps1' -ServerUrl https://mail.example.invalid -PromptForCredential
 ```
 
-脚本离线 `-SelfTest` 已通过版本/命令解析、401 与缺失头判定、cookie/realm 不泄漏检查，无网络请求。尚未执行真实带凭据 OPTIONS；代理此前的交互凭据终端启动受命令策略限制，继续由用户本机输入，不绕过限制。
+脚本离线 `-SelfTest` 已通过版本/命令解析、401 与缺失头判定、cookie/realm 不泄漏检查，无网络请求。真实带凭据 OPTIONS 已由用户本机执行，结果如下；代理此前的交互凭据终端启动受命令策略限制，继续由用户本机输入，不绕过限制。
 
 结果解释：200 且返回版本/命令表示 OPTIONS 能力查询成功，不能代替邮箱访问授权与收发验收；401 仍是认证未通过，403 需检查服务端策略；重定向不自动跟随。EAS 14.x/16.x 是协议版本，不是 Exchange 2016/2019 等产品版本。
 
 依据：[OPTIONS 响应规定](https://learn.microsoft.com/en-us/openspecs/exchange_server_protocols/ms-ashttp/bc92056f-5c48-4775-9f0d-b16b86998e55)、[ActiveSync 认证](https://learn.microsoft.com/en-us/openspecs/exchange_server_protocols/ms-ashttp/7b7fabb9-910c-4f1c-9396-57d7ca579a31)。
+
+### 用户返回的真实能力结果
+
+证据来源为用户贴回的脚本 JSON，时间 **2026-11-17T06:24:39.1431771Z**；`CredentialSupplied=true`、`TlsValidated=true`、`Status=200`、`CapabilitiesReturned=true`。认证成功响应没有继续附带 WWW-Authenticate 挑战，因此 `Authentication=[]` 不表示此前未使用认证。
+
+- Versions：`2.0, 2.1, 2.5, 12.0, 12.1, 14.0, 14.1, 16.0, 16.1`。
+- Commands：`Sync, SendMail, SmartForward, SmartReply, GetAttachment, GetHierarchy, CreateCollection, DeleteCollection, MoveCollection, FolderSync, FolderCreate, FolderDelete, FolderUpdate, MoveItems, GetItemEstimate, MeetingResponse, Search, Settings, Ping, ItemOperations, Provision, ResolveRecipients, ValidateCert, Find`。
+
+此证据确认带凭据能力查询成功，并提供可行的 EAS 候选路径；命令列表是服务器声明，不是这些操作逐项执行成功。尚未使用脚本读取目录/正文/附件，也未执行同步、Provision、发送、已读或移动。仍不能确定 Exchange 产品精确版本、部署类型，以及设备策略是否允许本项目客户端读写。下一步应在明确测试范围后验证目录和测试邮件，遇到设备注册/策略要求时先说明其具体影响，不自动接受策略。
+
+产品约束已同步到规格及 36：Exchange 是通用功能，服务器地址、用户名及认证配置按账户输入/发现，不把本公司域名写入产品源码、默认配置或共享注册。该地址只留在验收证据和用户本地配置。当前提供的是通用参数探测脚本，不是已交付的 Exchange 邮箱界面。
