@@ -42,6 +42,8 @@ Blocked by: 86, 09
 
 `dotnet run --project tests/MyMailBox.Checks --no-restore -- updater-spike` 通过：真实包加载、Strict 签名 appcast/本地下载与复用、损坏 appcast 和安装器拒绝、退出否决、版本前缀及元数据排序。NuGet 组件本机原无缓存，首次获取后后续验证全部复用。详细选型见 `docs/updater.md`。勾选表示选型实现与定向检查完成；两个本地可执行 NSIS 版本的实际升级统一留到本轮末集中验收，尚未声称安装成功。
 
+2026-11-17 最终集中验收：本项纳入整体 Standards/Spec 审核与完整控制台回归；适用的桌面、PDF、插件或安装场景已在复用本机资源的 Windows 沙盒中验证。具体范围、缺口与日志见 [整体验收记录](../../../docs/validation/2026-11-17-independent-tasks.md)，本项 Progress 保持 done。 实际双版本 0.1.0→0.1.1 NSIS 升级及两种卸载数据策略通过；签名仅使用临时测试密钥，未发布正式版本。
+
 ## Comments
 
 - 2026-11-16：用户确认任务拆分后创建，尚未开始开发。

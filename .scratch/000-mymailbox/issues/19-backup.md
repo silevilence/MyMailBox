@@ -40,6 +40,8 @@ Blocked by: 18, 11
 
 2026-11-17：通过 IWorkspaceBackup 与内置备份页面生成版本化 ZIP。SQLite BackupDatabase 在线快照覆盖 WAL 已提交内容；配置/插件/插件数据以一致性快照检查复制，逐文件 SHA-256，账户凭据及可丢弃缓存从备份副本移除并 VACUUM。仅恢复到不存在的新目录，经清单、路径、哈希与数据库完整性检查后切换；失败保留隔离诊断目录与原备份。界面可在新窗口打开成功恢复的工作空间。`dotnet run --project tests/MyMailBox.Checks --no-restore -- backup` 通过活跃写入、恢复身份/配置/原文、凭据排除、损坏、冲突、取消与重建检查。窗口验收集中执行。
 
+2026-11-17 最终集中验收：本项纳入整体 Standards/Spec 审核与完整控制台回归；适用的桌面、PDF、插件或安装场景已在复用本机资源的 Windows 沙盒中验证。具体范围、缺口与日志见 [整体验收记录](../../../docs/validation/2026-11-17-independent-tasks.md)，本项 Progress 保持 done。
+
 ## Comments
 
 - 2026-11-16：用户确认任务拆分后创建，尚未开始开发。

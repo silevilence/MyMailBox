@@ -6,7 +6,7 @@
 
 选择 [NetSparkleUpdater.SparkleUpdater 3.1.0](https://github.com/NetSparkleUpdater/NetSparkle/releases/tag/3.1.0)，官方稳定发布包含 .NET 10 支持。NuGet flat-container 版本清单已核对，后续 3.1.1 / 4.0.0 preview 不作为稳定能力。只依赖核心包，沿用宿主 Avalonia UI 与 NSIS，不引入上游 UI 包或运行时捆绑。
 
-[Octokit 14.0.0](https://www.nuget.org/packages/Octokit/14.0.0) 是 GitHub API SDK，不提供安装、签名校验或应用排空。此次更新只需少量公开 Release GET 请求，使用 HttpClient 完成发现与缓存，NetSparkle 负责签名 appcast、软件下载和安装接口。没有另建更新服务。
+[Octokit 14.0.0](https://www.nuget.org/packages/Octokit/14.0.0) 是 GitHub API SDK，不提供安装、签名校验或应用排空。此次更新只需少量公开 Release GET 请求，使用 HttpClient 完成发现与缓存，NetSparkle 负责签名 appcast 与软件下载；安装由项目独立更新助手调用 NSIS。没有另建更新服务。
 
 NetSparkle 读取 appcast，不直接读取普通 GitHub Releases。发布流程须上传安装包、`appcast.xml` 与 `appcast.xml.signature`；enclosure 内再携带安装器 Ed25519 签名。客户端固定可信公钥，以 Strict 模式检查。测试私钥仅在测试进程内随机生成；正式私钥应由 CI Secrets 提供，不能从下载的清单建立新的信任根。未配置正式公钥时可检查版本，但不得执行自动下载安装。
 
@@ -16,7 +16,7 @@ NetSparkle 读取 appcast，不直接读取普通 GitHub Releases。发布流程
 
 `dotnet run --project tests/MyMailBox.Checks -- updater-spike` 已通过真实 3.1.0 包的签名 appcast 解析、本地文件下载、相同已验证文件复用、篡改安装器拒绝、篡改 appcast 返回无法检查、宿主退出否决及 SemVer 边界。测试载荷是随机字节，**没有将它当作可运行安装包或声称真实升级通过**。
 
-本轮末集中使用两个本地 NSIS 应用版本完成实际升级；复用本机 SDK、运行时、NSIS、WebView2 与已生成产物。安装阶段须先保存工作并排空插件，退出失败不启动安装；新版启动/迁移失败保留诊断和独立工作空间备份，回滚程序文件不能代替数据恢复。正式 GitHub Release/appcast 发布仍属于任务 92 的真实验收。
+本轮集中验收已使用两个本地 NSIS 应用版本完成实际升级（0.1.0→0.1.1）；复用本机 SDK、运行时、NSIS、WebView2 与已生成产物。安装阶段须先保存工作并排空插件，退出失败不启动安装；新版启动/迁移失败保留诊断和独立工作空间备份，回滚程序文件不能代替数据恢复。正式 GitHub Release/appcast 发布仍属于任务 92 的真实验收。
 
 ## 检查设置
 
@@ -34,4 +34,4 @@ NetSparkle 读取 appcast，不直接读取普通 GitHub Releases。发布流程
 
 MyMailBox.UpdateHost 与主程序采用相同的 .NET 10 win-x64 framework-dependent JIT 发布方式。宿主把助手复制到工作空间独立目录，避免锁住安装目录 DLL。助手等待精确父进程退出（最多 90 秒）、再次验签，以直接进程调用执行 NSIS `/S /D=<原安装目录>`，不通过 shell 拼接命令；成功后检查运行时并启动新应用。安装执行与网络检查分层。升级状态写入 updates/upgrade-state.json，包含备份路径；主程序核对目标版本、配置和工作空间初始化后才确认完成。失败不删除邮件/插件数据、不自动回滚数据库；从备份恢复到新工作空间，在线账户可能需要重新授权。
 
-`update-install` 定向组不运行安装器，验证签名/SDK/哈希/重启/取消与失败边界。真实安装升级单独列在最终实机记录中；正式公钥和 Actions 签名 Secrets 尚未准备，不应把当前开发构建当作已部署的自动更新通道。
+`update-install` 定向组不运行安装器，验证签名/SDK/哈希/重启/取消与失败边界。真实安装升级、保存原文/插件数据及备份证据见 [整体验收](validation/2026-11-17-independent-tasks.md)；正式公钥和 Actions 签名 Secrets 尚未准备，不应把当前开发构建当作已部署的自动更新通道。

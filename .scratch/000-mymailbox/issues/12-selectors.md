@@ -40,6 +40,8 @@ Blocked by: 11, 06
 
 2026-11-17：公开 ISelectionService 与内置 mail-selectors 插件提供账户、目录树和发送身份选择；搜索、标签、最近使用、固定/动态集合、能力说明与稳定引用持久化均已实现。`dotnet run --project tests/MyMailBox.Checks --no-restore -- selectors` 验证重命名、删除失效、重启、动态标签变化及能力拒绝。写信入口保存一个发送身份，整理入口支持多选；实际邮件发送和动作执行由后续任务交付。窗口验收留待本轮集中执行。
 
+2026-11-17 最终集中验收：本项纳入整体 Standards/Spec 审核与完整控制台回归；适用的桌面、PDF、插件或安装场景已在复用本机资源的 Windows 沙盒中验证。具体范围、缺口与日志见 [整体验收记录](../../../docs/validation/2026-11-17-independent-tasks.md)，本项 Progress 保持 done。
+
 ## Comments
 
 - 2026-11-16：用户确认任务拆分后创建，尚未开始开发。

@@ -40,6 +40,8 @@ Blocked by: 10, 09
 
 2026-11-17：账户管理页面与 IAccountService 已实现；SQLite 保存稳定 ID、唯一 alias、标签/颜色/备注/排序、能力与凭据引用，凭据使用 Windows 当前用户 DPAPI 加密。`dotnet run --project tests/MyMailBox.Checks --no-restore -- accounts` 通过创建/重命名/停用/移除、同类型账户、冲突恢复、凭据重开及更新、独立归档保留检查。在线提供者接入属于后续任务，页面明确标注待接入，不声称真实登录通过。窗口验收留待本轮集中执行。
 
+2026-11-17 最终集中验收：本项纳入整体 Standards/Spec 审核与完整控制台回归；适用的桌面、PDF、插件或安装场景已在复用本机资源的 Windows 沙盒中验证。具体范围、缺口与日志见 [整体验收记录](../../../docs/validation/2026-11-17-independent-tasks.md)，本项 Progress 保持 done。
+
 ## Comments
 
 - 2026-11-16：用户确认任务拆分后创建，尚未开始开发。

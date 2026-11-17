@@ -40,6 +40,8 @@ Blocked by: 13, 12
 
 2026-11-17：IMessageExporter 统一格式契约及宿主注册表已接入插件生命周期。阅读页支持当前页 Ctrl/Shift 多选导出 EML、逐项结果与取消；安全中文文件名、UUID 后缀、重名保留、相同内容复用、临时文件完成后发布。`dotnet run --project tests/MyMailBox.Checks --no-restore -- export mail` 验证原文字节/附件再导入、危险/保留/长路径名称、部分失败、取消与临时产物清理。磁盘/写入 IO 失败由同一逐项错误路径处理，已完成文件不回滚，重复执行可恢复。窗口验收集中执行。
 
+2026-11-17 最终集中验收：本项纳入整体 Standards/Spec 审核与完整控制台回归；适用的桌面、PDF、插件或安装场景已在复用本机资源的 Windows 沙盒中验证。具体范围、缺口与日志见 [整体验收记录](../../../docs/validation/2026-11-17-independent-tasks.md)，本项 Progress 保持 done。
+
 ## Comments
 
 - 2026-11-16：用户确认任务拆分后创建，尚未开始开发。

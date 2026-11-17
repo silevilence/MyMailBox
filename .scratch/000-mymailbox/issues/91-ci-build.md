@@ -42,6 +42,8 @@ Blocked by: 86, 90
 
 PowerShell 语法解析通过，Actions tag/SHA 与官方仓库逐一核对；完整本地镜像构建留到本轮统一验收。真实 Actions 尚未执行：本轮调用的 start-tasks 要求只本地提交、不推送，因此不把本地脚本或 YAML 审核当作真实 CI 完成，验收项暂不勾选。
 
+2026-11-17 集中验收补充：完整 scripts/ci-build.ps1 本地镜像通过，包括锁定依赖、所有控制台检查、发布启动、版本/上传夹具和真实 NSIS 打包；真实 GitHub Actions 未触发，Progress 保持 in-progress，不把本地通过冒充远端 CI。 证据见 [整体验收记录](../../../docs/validation/2026-11-17-independent-tasks.md)。
+
 ## Comments
 
 - 2026-11-16：用户确认任务拆分后创建，尚未开始开发。

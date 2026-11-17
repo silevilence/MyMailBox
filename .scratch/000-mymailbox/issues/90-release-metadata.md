@@ -39,6 +39,8 @@ Blocked by: 02
 
 2026-11-17：scripts/check-release.ps1 校验严格 SemVer、V/v 归一化与重复、Prepare/Tagged 阶段、Tag 精确提交及干净工作区、根 Version 与全部 src 子项目的 MSBuild 有效 Version；依赖包版本不参与一致性比较。正文只提取对应 changelog 条目，首发仅新功能，空分类省略；可写 release-body.md 与 JSON 元数据。`pwsh -NoProfile -File scripts/test-release.ps1` 全部夹具通过。仅在临时仓库创建测试 Tag；未生成真实 changelog、未对本仓库打 Tag 或发布。
 
+2026-11-17 最终集中验收：本项纳入整体 Standards/Spec 审核与完整控制台回归；适用的桌面、PDF、插件或安装场景已在复用本机资源的 Windows 沙盒中验证。具体范围、缺口与日志见 [整体验收记录](../../../docs/validation/2026-11-17-independent-tasks.md)，本项 Progress 保持 done。
+
 ## Comments
 
 - 2026-11-16：用户确认任务拆分后创建，尚未开始开发。

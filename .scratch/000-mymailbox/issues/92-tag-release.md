@@ -42,6 +42,8 @@ Blocked by: 91, 87
 
 `release-signing` 定向组与 `scripts/test-publish-release.ps1` 通过：真实 Ed25519 包与 CLI、客户端公钥匹配、V/v 下载地址、完整摘要；模拟 API 验证上传失败保持草稿、重跑复用、公开后禁止覆盖和精确提交。所有用例仅操作本地夹具，没有创建远程 Release、推送或 Tag。正式发布仍需用户授权、已提交的 changelog/版本、正式公钥与 CI Secret，且 91 真实 Actions 尚未验收，因此本项保持 in-progress、验收框未勾选。
 
+2026-11-17 集中验收补充：整体审核及本地签名/草稿发布状态机检查通过。未推送、未对本仓库打正式 Tag、未创建或修改 GitHub Release；缺少正式签名 Secret/公钥及发布授权，Progress 保持 in-progress。 证据见 [整体验收记录](../../../docs/validation/2026-11-17-independent-tasks.md)。
+
 ## Comments
 
 - 2026-11-16：用户确认任务拆分后创建，尚未开始开发。

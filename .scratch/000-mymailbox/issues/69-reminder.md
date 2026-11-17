@@ -41,6 +41,8 @@ Blocked by: 12, 18, 06
 
 2026-11-17：实现普通提醒插件、持久计划与幂等通知 outbox、应用内横幅/静默、关闭/取消/延后、指定时区和稳定邮件引用。IReminderService/INotificationSink 契约可替换，TimeProvider 可注入。dotnet build 和 reminders 定向检查通过，覆盖虚拟时钟、重启补一次、投递确认中断不重复、关联邮件移动/删除/账户移除、夏令时歧义拒绝及停止循环释放。docs/scheduling.md 明确 GUI/插件运行前提。真实提醒窗口和横幅待本轮末集中验收。
 
+2026-11-17 最终集中验收：本项纳入整体 Standards/Spec 审核与完整控制台回归；适用的桌面、PDF、插件或安装场景已在复用本机资源的 Windows 沙盒中验证。具体范围、缺口与日志见 [整体验收记录](../../../docs/validation/2026-11-17-independent-tasks.md)，本项 Progress 保持 done。
+
 ## Comments
 
 - 2026-11-16：用户确认任务拆分后创建，尚未开始开发。

@@ -40,6 +40,8 @@ Blocked by: 55, 16
 
 2026-11-17：实现账户/目录组合与主题筛选预览、附件筛选/模板、CSV/JSON 显式敏感字段选择和逐项结果。外部 example-exporter 格式通过相同契约注册，包含真实加载/导出/停用/程序集释放测试。修复导出器释放实现引用及示例 JSON 缓存引用；保留原始 Page 六参数构造 ABI。dotnet build 与 dotnet run --project tests/MyMailBox.Checks --no-restore -- bulk-export 通过。覆盖跨账户去重、公式注入、重名/越界、缺失/失败/取消及已完成结果保留。窗口向导验收留到本轮末集中执行。
 
+2026-11-17 最终集中验收：本项纳入整体 Standards/Spec 审核与完整控制台回归；适用的桌面、PDF、插件或安装场景已在复用本机资源的 Windows 沙盒中验证。具体范围、缺口与日志见 [整体验收记录](../../../docs/validation/2026-11-17-independent-tasks.md)，本项 Progress 保持 done。
+
 ## Comments
 
 - 2026-11-16：用户确认任务拆分后创建，尚未开始开发。

@@ -42,6 +42,8 @@ Blocked by: 87, 06
 
 `dotnet run --project tests/MyMailBox.Checks --no-restore -- update-checks update-live` 通过：SemVer 数字排序/元数据、draft/prerelease、缺少 x64/签名资产、304、429 Retry-After、407 代理、超时/坏 JSON、重启缓存、跳过恢复及第二测试源通过插件调用。真实公开仓库当前无 Release，实读返回 Current；未下载任何资产。窗口操作仍留到本轮末集中验收，说明见 docs/updater.md。
 
+2026-11-17 最终集中验收：本项纳入整体 Standards/Spec 审核与完整控制台回归；适用的桌面、PDF、插件或安装场景已在复用本机资源的 Windows 沙盒中验证。具体范围、缺口与日志见 [整体验收记录](../../../docs/validation/2026-11-17-independent-tasks.md)，本项 Progress 保持 done。
+
 ## Comments
 
 - 2026-11-16：用户确认任务拆分后创建，尚未开始开发。

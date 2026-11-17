@@ -64,4 +64,4 @@ SDK 固定在 global.json，包版本和依赖闭包记录在各项目及 packag
 
 构建与发布契约见 [release.md](docs/release.md)，更新机制和当前限制见 [updater.md](docs/updater.md)。正式发布必须经过版本与 changelog 准备、提交、Tag 和推送；本地验证不会发布 Release。
 
-验收范围、修复和高级控件限制见 [验收记录](docs/validation/framework-plugins.md)，交互规范见 [ux-flows.md](docs/ux-flows.md)，插件依赖及上游边界见 [cordisharp.md](docs/cordisharp.md)。
+本轮完整结果见 [2026-11-17 整体验收](docs/validation/2026-11-17-independent-tasks.md)，早期插件基线见 [01–09 验收记录](docs/validation/framework-plugins.md)，交互规范见 [ux-flows.md](docs/ux-flows.md)，插件依赖及上游边界见 [cordisharp.md](docs/cordisharp.md)。

@@ -39,6 +39,8 @@ Blocked by: 10
 
 2026-11-17：IMimeReader 使用固定 MimeKit 4.17.0 提供编码头部、多段正文、嵌套邮件、Cc、附件/CID 部件树和警告。宿主提供纯文本、MIME 结构及原文预览切换，原文完整保存，预览超过 128 KiB 时明确提示截断。解析限 25 MiB、32 层、2048 部件和单类正文 1 Mi 字符，可取消。`dotnet run --project tests/MyMailBox.Checks --no-restore -- mime mail` 通过全部定向检查。真实窗口验收集中执行。
 
+2026-11-17 最终集中验收：本项纳入整体 Standards/Spec 审核与完整控制台回归；适用的桌面、PDF、插件或安装场景已在复用本机资源的 Windows 沙盒中验证。具体范围、缺口与日志见 [整体验收记录](../../../docs/validation/2026-11-17-independent-tasks.md)，本项 Progress 保持 done。
+
 ## Comments
 
 - 2026-11-16：用户确认任务拆分后创建，尚未开始开发。

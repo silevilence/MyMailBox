@@ -39,6 +39,8 @@ Blocked by: 07
 
 宿主能力入口先检查声明与授予范围（含账户粒度），未授权操作零执行；诊断只导出白名单元数据，含关联 ID，轮转最多 3 个约 256 KiB 文件；脱敏与轮转检查通过。 完整回归与集中 UI 验收已完成，详见 [统一验收记录](../../../docs/validation/framework-plugins.md)。
 
+2026-11-17 最终集中验收：本项纳入整体 Standards/Spec 审核与完整控制台回归；适用的桌面、PDF、插件或安装场景已在复用本机资源的 Windows 沙盒中验证。具体范围、缺口与日志见 [整体验收记录](../../../docs/validation/2026-11-17-independent-tasks.md)，本项 Progress 保持 done。
+
 ## Comments
 
 - 2026-11-16：用户确认任务拆分后创建，尚未开始开发。

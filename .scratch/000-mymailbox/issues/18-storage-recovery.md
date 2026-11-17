@@ -40,6 +40,8 @@ Blocked by: 10, 13
 
 2026-11-17：原文/元数据/SQLite 索引在同一事务提交，新增版本 0→1 原子迁移、未来版本拒绝、SHA-256、完整性与孤立引用诊断、原文驱动的摘要/索引重建。独立 disposable_cache 表清理不会触及唯一原文；当前本地邮件均为唯一副本。`dotnet run --project tests/MyMailBox.Checks --no-restore -- storage mail` 通过三个阶段子进程强制终止后重开、实际 SQLITE_FULL（限制数据库页数）、缓存隔离、损坏诊断、迁移和重建检查。未提交事务自动回滚，源 EML 始终保留，可重新导入。窗口验收集中执行。
 
+2026-11-17 最终集中验收：本项纳入整体 Standards/Spec 审核与完整控制台回归；适用的桌面、PDF、插件或安装场景已在复用本机资源的 Windows 沙盒中验证。具体范围、缺口与日志见 [整体验收记录](../../../docs/validation/2026-11-17-independent-tasks.md)，本项 Progress 保持 done。
+
 ## Comments
 
 - 2026-11-16：用户确认任务拆分后创建，尚未开始开发。

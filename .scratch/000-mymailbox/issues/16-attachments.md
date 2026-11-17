@@ -39,6 +39,8 @@ Blocked by: 15
 
 2026-11-17：IAttachmentService/IAttachmentPreviewer 提供附件/CID/嵌入邮件选择、受限预览、带进度的流式解码保存及取消。保存名称去路径与非法字符，重名另存；临时文件仅在成功后改为最终名。危险执行/脚本类型仅可保存，其他类型外部打开仍须单独显式操作。预览上限 2 MiB，未知格式提供保存。`dotnet run --project tests/MyMailBox.Checks --no-restore -- attachments` 通过字节核对、重名、危险名称、CID/嵌入邮件、第二预览器及 3 MiB 附件中途取消/清理/来源保留。原邮件仍受 25 MiB 阅读存储上限；输出为流式，无未完成文件冒充成品。窗口验收集中执行。
 
+2026-11-17 最终集中验收：本项纳入整体 Standards/Spec 审核与完整控制台回归；适用的桌面、PDF、插件或安装场景已在复用本机资源的 Windows 沙盒中验证。具体范围、缺口与日志见 [整体验收记录](../../../docs/validation/2026-11-17-independent-tasks.md)，本项 Progress 保持 done。
+
 ## Comments
 
 - 2026-11-16：用户确认任务拆分后创建，尚未开始开发。

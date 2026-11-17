@@ -39,6 +39,8 @@ Blocked by: 06
 
 2026-11-17：已交付内置本地邮箱插件、宿主阅读页面、SQLite 原文/摘要原子存储、50 封分页和按需纯文本读取。`dotnet run --project tests/MyMailBox.Checks --no-restore -- mail` 通过重开、重复 Message-ID、分页、失败回滚、取消、第二存储实现与插件生命周期检查。真实窗口验收留待本轮集中执行。当前导入上限为 25 MiB；HTML 和完整 MIME 展示由后续工单交付。
 
+2026-11-17 最终集中验收：本项纳入整体 Standards/Spec 审核与完整控制台回归；适用的桌面、PDF、插件或安装场景已在复用本机资源的 Windows 沙盒中验证。具体范围、缺口与日志见 [整体验收记录](../../../docs/validation/2026-11-17-independent-tasks.md)，本项 Progress 保持 done。
+
 ## Comments
 
 - 2026-11-16：用户确认任务拆分后创建，尚未开始开发。

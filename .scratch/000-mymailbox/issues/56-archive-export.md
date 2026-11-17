@@ -40,6 +40,8 @@ Blocked by: 19, 55
 
 2026-11-17：IMailArchive 与邮件归档包页面交付选定账户/目录范围导出和导入；版本化清单保存目录层级、账户说明/标签、邮件元数据、原文及 SHA-256，不带设置和凭据。导入在单个事务内验证，转换为独立本地账户；UUID 冲突重新映射并报告，alias 冲突自动采用显式 import 别名。`dotnet run --project tests/MyMailBox.Checks --no-restore -- archive` 通过范围、保真、标签、无凭据、无冲突保留 ID、冲突映射、损坏全事务回滚及取消检查。窗口验收集中执行。
 
+2026-11-17 最终集中验收：本项纳入整体 Standards/Spec 审核与完整控制台回归；适用的桌面、PDF、插件或安装场景已在复用本机资源的 Windows 沙盒中验证。具体范围、缺口与日志见 [整体验收记录](../../../docs/validation/2026-11-17-independent-tasks.md)，本项 Progress 保持 done。
+
 ## Comments
 
 - 2026-11-16：用户确认任务拆分后创建，尚未开始开发。

@@ -39,6 +39,8 @@ Blocked by: 14
 
 2026-11-17：IRemoteContentService 支持本封、实际发件地址、精确域规则的预览/持久化/撤销。宿主显示范围后显式放行，所有下载经受限 HTTP 客户端，拒绝重定向、脚本类型、本机/私网目标，单项 10 MiB、单封 30 MiB/30 项及 20 秒超时；已加载资源缓存 24 小时，撤销后缓存不再绕过策略。WebView 仍只读取隔离本地响应，CSS/字体/iframe 等子请求不放行。`dotnet run --project tests/MyMailBox.Checks --no-restore -- remote html` 通过默认零请求、作用域、伪造显示名、重启撤销、各多媒体类型、缓存与失败/取消检查；HTTP 测试使用内存响应，无重复在线下载。真实窗口验证集中执行。
 
+2026-11-17 最终集中验收：本项纳入整体 Standards/Spec 审核与完整控制台回归；适用的桌面、PDF、插件或安装场景已在复用本机资源的 Windows 沙盒中验证。具体范围、缺口与日志见 [整体验收记录](../../../docs/validation/2026-11-17-independent-tasks.md)，本项 Progress 保持 done。
+
 ## Comments
 
 - 2026-11-16：用户确认任务拆分后创建，尚未开始开发。

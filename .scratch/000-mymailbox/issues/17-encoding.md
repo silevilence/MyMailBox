@@ -40,6 +40,8 @@ Blocked by: 13, 14
 
 2026-11-17：阅读器注册系统代码页，支持自动编码及 UTF-8、GB18030/GBK、Big5、Shift-JIS、Windows-1252 手动正文覆盖，保留纯文本/原文切换。未知 charset 与替代字符明确提示。RTF/TNEF 未转换时报告限制并在附件入口保留可保存的正文.rtf/winmail.dat，不伪称已展开其附件；IMimeContentDecoder 可替换处理。`dotnet run --project tests/MyMailBox.Checks --no-restore -- encoding` 覆盖各语言、错误声明、编码主题、坏 HTML、损坏 MIME 和第二处理器。窗口验收集中执行。
 
+2026-11-17 最终集中验收：本项纳入整体 Standards/Spec 审核与完整控制台回归；适用的桌面、PDF、插件或安装场景已在复用本机资源的 Windows 沙盒中验证。具体范围、缺口与日志见 [整体验收记录](../../../docs/validation/2026-11-17-independent-tasks.md)，本项 Progress 保持 done。
+
 ## Comments
 
 - 2026-11-16：用户确认任务拆分后创建，尚未开始开发。
