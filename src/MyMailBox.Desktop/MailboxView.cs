@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Controls.Templates;
 using Avalonia.Layout;
 using Avalonia.Media;
@@ -31,6 +32,7 @@ public sealed class MailboxView : UserControl, IDisposable
     private int _htmlRevision;
     private Uri? _pendingLink;
     private readonly TextBlock _linkPrompt = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly Button _linkOpen;
     private readonly ComboBox _remoteScope = new() { ItemsSource = new[] { "仅本封（记住选择）", "此发件地址（整个工作空间）", "此域名（仅精确域，整个工作空间）" }, SelectedIndex = 0 };
     private readonly TextBlock _remoteExplanation = new() { TextWrapping = TextWrapping.Wrap };
     private Guid? _messageId;
@@ -92,13 +94,33 @@ public sealed class MailboxView : UserControl, IDisposable
         buttons.Children.Add(Button("取消读取", "mail-cancel", () => { _reading?.Cancel(); return Task.CompletedTask; }));
         buttons.Children.Add(Button("缩小", "mail-zoom-out", () => { _htmlView?.Zoom(-0.1); return Task.CompletedTask; }));
         buttons.Children.Add(Button("放大", "mail-zoom-in", () => { _htmlView?.Zoom(0.1); return Task.CompletedTask; }));
-        footer.Children.Add(buttons); footer.Children.Add(_status);
-        footer.Children.Add(_linkPrompt);
-        footer.Children.Add(Button("确认在浏览器打开上方链接", "mail-open-link", () =>
+        var toolButtons = new WrapPanel { Orientation = Orientation.Horizontal };
+        var toolContent = new ScrollViewer { IsVisible = false, MaxHeight = 200 };
+        var toolToggles = new List<ToggleButton>();
+        void AddTool(string title, Control panel)
         {
-            if (_pendingLink is { } link) { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(link.AbsoluteUri) { UseShellExecute = true }); _pendingLink = null; _linkPrompt.Text = ""; }
+            var toggle = new ToggleButton { Content = title, Margin = new Thickness(0, 0, 8, 0) };
+            toolToggles.Add(toggle); toolButtons.Children.Add(toggle);
+            toggle.IsCheckedChanged += (_, _) =>
+            {
+                if (toggle.IsChecked == true)
+                {
+                    foreach (var other in toolToggles.Where(t => t != toggle)) other.IsChecked = false;
+                    toolContent.Content = panel; toolContent.IsVisible = true;
+                }
+                else if (ReferenceEquals(toolContent.Content, panel)) { toolContent.Content = null; toolContent.IsVisible = false; }
+            };
+        }
+        SizeChanged += (_, _) => toolContent.MaxHeight = Math.Max(100, Bounds.Height * 0.35);
+        footer.Children.Add(buttons); footer.Children.Add(toolButtons); footer.Children.Add(toolContent);
+        footer.Children.Add(new ScrollViewer { Content = _status, MaxHeight = 64 });
+        footer.Children.Add(_linkPrompt);
+        _linkOpen = Button("确认在浏览器打开上方链接", "mail-open-link", () =>
+        {
+            if (_pendingLink is { } link) { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(link.AbsoluteUri) { UseShellExecute = true }); _pendingLink = null; _linkPrompt.Text = ""; _linkOpen!.IsVisible = false; }
             return Task.CompletedTask;
-        }));
+        });
+        _linkOpen.IsVisible = false; footer.Children.Add(_linkOpen);
         var exportPanel = new StackPanel { Spacing = 8 };
         exportPanel.Children.Add(new TextBlock { Text = "Ctrl/Shift 多选当前页邮件；同名文件保留，重复 EML 导出复用相同原文。PDF/HTML/纯文本是阅读副本，此入口不另存附件；需要附件选项与结果预览时请使用“批量导出”。", TextWrapping = TextWrapping.Wrap });
         AutomationProperties.SetAutomationId(_exportDirectory, "mail-export-directory"); AutomationProperties.SetName(_exportDirectory, "导出目录");
@@ -107,7 +129,7 @@ public sealed class MailboxView : UserControl, IDisposable
         var exportActions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         exportActions.Children.Add(Button("导出所选邮件", "mail-export", Export));
         exportActions.Children.Add(Button("取消导出", "mail-export-cancel", () => { _exporting?.Cancel(); return Task.CompletedTask; })); exportPanel.Children.Add(exportActions);
-        footer.Children.Insert(1, new Expander { Header = "导出邮件", Content = exportPanel, HorizontalAlignment = HorizontalAlignment.Stretch });
+        AddTool("导出邮件", exportPanel);
         var remotePanel = new StackPanel { Spacing = 8 };
         AutomationProperties.SetAutomationId(_remoteScope, "mail-remote-scope"); AutomationProperties.SetName(_remoteScope, "远程内容放行范围");
         AutomationProperties.SetAutomationId(_remoteExplanation, "mail-remote-preview");
@@ -117,7 +139,7 @@ public sealed class MailboxView : UserControl, IDisposable
         remoteActions.Children.Add(Button("预览范围", "mail-remote-preview-action", PreviewRemote));
         remoteActions.Children.Add(Button("按所选范围放行并加载", "mail-remote-allow", () => SetRemote(true)));
         remoteActions.Children.Add(Button("撤销所选范围", "mail-remote-revoke", () => SetRemote(false))); remotePanel.Children.Add(remoteActions);
-        footer.Children.Insert(1, new Expander { Header = "远程多媒体", Content = remotePanel, HorizontalAlignment = HorizontalAlignment.Stretch });
+        AddTool("远程多媒体", remotePanel);
         var attachmentPanel = new StackPanel { Spacing = 8 };
         AutomationProperties.SetAutomationId(_attachments, "mail-attachments"); AutomationProperties.SetName(_attachments, "附件和内联内容");
         _attachments.ItemTemplate = new FuncDataTemplate<MimePartInfo>((p, _) => new TextBlock { Text = p is null ? "" : $"{(p.Name.Length == 0 ? p.ContentType : p.Name)} · {(p.ContentId is not null ? "内联 CID" : p.ContentType == "message/rfc822" ? "嵌入邮件" : "附件")}" });
@@ -133,7 +155,7 @@ public sealed class MailboxView : UserControl, IDisposable
             if (_savedAttachment is { CanOpenExternally: true } saved) System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(saved.Path) { UseShellExecute = true });
             return Task.CompletedTask;
         }); _attachmentOpen.IsEnabled = false; attachmentActions.Children.Add(_attachmentOpen);
-        attachmentPanel.Children.Add(attachmentActions); footer.Children.Insert(1, new Expander { Header = "附件", Content = attachmentPanel, HorizontalAlignment = HorizontalAlignment.Stretch });
+        attachmentPanel.Children.Add(attachmentActions); AddTool("附件", attachmentPanel);
         var content = new Grid { ColumnDefinitions = new("2*,3*"), ColumnSpacing = 12, Margin = new Thickness(0, 12, 0, 0) };
         _readingContent.Content = _body; content.Children.Add(_messages); Grid.SetColumn(_readingContent, 1); content.Children.Add(_readingContent);
         var layout = new DockPanel(); DockPanel.SetDock(header, Dock.Top); layout.Children.Add(header); DockPanel.SetDock(footer, Dock.Bottom); layout.Children.Add(footer); layout.Children.Add(content); Content = layout;
@@ -261,7 +283,7 @@ public sealed class MailboxView : UserControl, IDisposable
         }
         if (_disposed || revision != _htmlRevision || _mode.SelectedIndex != 3 || !ReferenceEquals(mail, _parsed)) return;
         _htmlView = new SecureHtmlView(baseUri + "index.html", document);
-        _htmlView.ExternalLink += uri => { _pendingLink = uri; _linkPrompt.Text = "即将在浏览器打开：" + uri.AbsoluteUri; };
+        _htmlView.ExternalLink += uri => { _pendingLink = uri; _linkPrompt.Text = "即将在浏览器打开：" + uri.AbsoluteUri; _linkOpen.IsVisible = true; };
         _htmlView.Failed += error => { if (!_disposed) _status.Text = error; };
         _htmlView.DocumentLoaded += () => { if (!_disposed) _status.Text = "HTML 已加载。" + (loadResults.Length > 0 ? loadResults : string.Join("；", document.Warnings)); };
         _readingContent.Content = _htmlView;
@@ -316,7 +338,7 @@ public sealed class MailboxView : UserControl, IDisposable
     private void ReleaseHtml()
     {
         _htmlCancellation?.Cancel();
-        _htmlRevision++; _htmlView?.Dispose(); _htmlView = null; _readingContent.Content = _body; _pendingLink = null; _linkPrompt.Text = "";
+        _htmlRevision++; _htmlView?.Dispose(); _htmlView = null; _readingContent.Content = _body; _pendingLink = null; _linkPrompt.Text = ""; _linkOpen.IsVisible = false;
     }
 
     public void Dispose() { if (_disposed) return; _disposed = true; ReleaseHtml(); _reading?.Cancel(); _exporting?.Cancel(); _savingAttachment?.Cancel(); _lifetime.Cancel(); _lifetime.Dispose(); _messages.ItemsSource = null; _folders.ItemsSource = null; _raw = null; _parsed = null; }

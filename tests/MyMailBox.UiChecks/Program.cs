@@ -14,8 +14,12 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        Console.OutputEncoding = System.Text.Encoding.UTF8;
         System.Windows.Forms.Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
         if (args.Length > 0 && args[0] == "upgrade") { UpgradeUiChecks.Run(args[1], args[2], args[3]); return; }
+        if (args.Length > 0 && args[0] == "uninstall-delete") { UninstallUiChecks.Run(args[1], args[2]); return; }
+        var readingOnly = args.FirstOrDefault() == "reading";
+        if (readingOnly) args = [];
         var repo = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../"));
         var output = Environment.GetEnvironmentVariable("MYMAILBOX_UI_OUTPUT") ?? Path.Combine(repo, "artifacts/ui-acceptance"); Directory.CreateDirectory(output);
         var workspace = args.Length > 0 ? Path.GetFullPath(args[0]) : Path.Combine(output, "workspace-" + Guid.NewGuid().ToString("N"));
@@ -38,6 +42,15 @@ internal static class Program
             if (window is null) throw new Exception("No desktop window");
             var ui = new Ui(window);
             ui.Find("nav-welcome/welcome");
+            ui.Find("nav-diagnostics"); // Startup contributes pages incrementally; wait for the last registration.
+            if (readingOnly)
+            {
+                features!.Run(ui, window, true);
+                var readingProcess = Process.GetProcessById(app.ProcessId); window.Close();
+                if (!readingProcess.WaitForExit(15000)) throw new Exception("Reading verification shutdown failed");
+                File.WriteAllText(Path.Combine(output, "reading-result.txt"), "PASS reading layout, HTML, attachments and exports after manifest/layout fixes");
+                return;
+            }
             if (args.Length > 1 && args[1] == "finish")
             {
                 ui.Click("nav-plugin-settings"); ui.Text("instance-id", "example"); ui.Text("greeting", "设置页已更新");
@@ -168,14 +181,20 @@ internal sealed class Ui(Window window)
     public AutomationElement Find(string id) => Wait(() => window.FindFirstDescendant(cf => cf.ByAutomationId(id)), e => e is not null, id)!;
     public void Click(string id) { Find(id).AsButton().Invoke(); Thread.Sleep(100); }
     public void Text(string id, string value) => Find(id).AsTextBox().Text = value;
-    public void Select(string id, int index) => Find(id).AsComboBox().Select(index);
+    public void Select(string id, int index) { var combo = Find(id).AsComboBox(); combo.Select(index); combo.Collapse(); }
     public void Status(string id, string value) => Wait(() => window.FindFirstDescendant(cf => cf.ByAutomationId(id))?.Name, text => text?.Contains(value) == true, id + ": " + value);
     public void Body(string value) => Wait(() => Find("mail-body").AsTextBox().Text, text => text.Contains(value), "body: " + value);
     public void Check(string id, bool value = true) => Find(id).AsCheckBox().IsChecked = value;
     public void Expand(string name, bool expanded = true)
     {
-        var element = Wait(() => window.FindFirstDescendant(cf => cf.ByName(name)), e => e?.Patterns.ExpandCollapse.IsSupported == true, "expander: " + name)!;
-        if (expanded) element.Patterns.ExpandCollapse.Pattern.Expand(); else element.Patterns.ExpandCollapse.Pattern.Collapse();
+        var element = Wait(() => window.FindFirstDescendant(cf => cf.ByName(name)), e => e is not null, "expander: " + name)!;
+        if (element.Patterns.ExpandCollapse.IsSupported)
+        { if (expanded) element.Patterns.ExpandCollapse.Pattern.Expand(); else element.Patterns.ExpandCollapse.Pattern.Collapse(); }
+        else
+        {
+            var toggle = element.Patterns.Toggle.Pattern;
+            if ((toggle.ToggleState.Value == FlaUI.Core.Definitions.ToggleState.On) != expanded) toggle.Toggle();
+        }
     }
     public void SelectList(string id, int index) => Wait(() => Find(id).AsListBox().Items, items => items.Length > index, id + " items")[index].Select();
     public void ListContains(string id, string value) => Wait(() => Find(id).FindAllDescendants().Select(e => e.Name).ToArray(), names => names.Any(n => n.Contains(value)), id + ": " + value);
@@ -184,8 +203,13 @@ internal sealed class Ui(Window window)
     public void Gone(string id) => Wait(() => window.FindFirstDescendant(cf => cf.ByAutomationId(id)), e => e is null, "gone: " + id);
     private static T Wait<T>(Func<T> read, Func<T, bool> accept, string description)
     {
-        var deadline = DateTime.UtcNow.AddSeconds(20); T value;
-        do { value = read(); if (accept(value)) return value; Thread.Sleep(80); } while (DateTime.UtcNow < deadline);
+        var deadline = DateTime.UtcNow.AddSeconds(20); T value = default!;
+        do
+        {
+            try { value = read(); if (accept(value)) return value; }
+            catch (System.Runtime.InteropServices.COMException) { /* UIA tree may be replaced during page/config changes. */ }
+            Thread.Sleep(80);
+        } while (DateTime.UtcNow < deadline);
         throw new Exception("UI timeout " + description + "; actual=" + value);
     }
 }

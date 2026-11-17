@@ -50,20 +50,23 @@ internal sealed class FeatureUiChecks : IDisposable
         }
     }
 
-    public void Run(Ui ui, Window window)
+    public void Run(Ui ui, Window window, bool readingOnly = false)
     {
         ui.Click("nav-local-mail/inbox"); ui.Text("mail-file", _eml); ui.Click("mail-import");
         ui.ListContains("mail-list", "集中验收"); ui.SelectList("mail-list", 0); ui.Body("中文纯文本正文");
         ui.Click("mail-next"); ui.ListContains("mail-list", "Paging"); ui.Click("mail-previous"); ui.SelectList("mail-list", 0); ui.Body("中文纯文本正文");
         ui.Select("mail-mode", 1); ui.Body("CID:logo"); ui.Select("mail-mode", 2); ui.Body("MIME-Version"); ui.Select("mail-mode", 0);
         ui.Select("mail-encoding", 1); ui.Body("中文纯文本正文"); ui.Select("mail-encoding", 0);
-        ui.Select("mail-mode", 3); Thread.Sleep(2500);
+        ui.Select("mail-mode", 3); ui.Status("mail-status", "HTML 已加载");
+        Thread.Sleep(400); // Navigation completion precedes WebView's first compositor frame.
+        NativeWindowEvidence.Write(window, Path.Combine(_output, "native-windows.txt"));
         if (ui.Find("mail-status").Name.Contains("不可用")) throw new Exception("WebView2 HTML unavailable");
         Capture.Element(window).ToFile(Path.Combine(_output, "10-html.png"));
+        if (ui.Find("mail-list").BoundingRectangle.Height < window.BoundingRectangle.Height * 0.25) throw new Exception("Mail tools leave too little reading space");
         ui.Click("mail-zoom-in"); ui.Click("mail-zoom-out");
         if (Volatile.Read(ref _requests) != 0) throw new Exception("Mail content contacted remote tracker");
-        ui.Expand("远程多媒体"); ui.Click("mail-remote-preview-action"); ui.Status("mail-remote-preview", "本封");
-        ui.Click("mail-remote-allow"); Thread.Sleep(300); ui.Click("mail-remote-revoke"); ui.Expand("远程多媒体", false);
+        ui.Expand("远程多媒体"); ui.Click("mail-remote-preview-action"); ui.Status("mail-remote-preview", "默认阻止");
+        ui.Click("mail-remote-allow"); ui.Status("mail-remote-preview", "本封"); ui.Click("mail-remote-revoke"); ui.Status("mail-remote-preview", "默认阻止"); ui.Expand("远程多媒体", false);
         if (Volatile.Read(ref _requests) != 0) throw new Exception("Private network resource bypassed policy");
         ui.Select("mail-mode", 0); ui.Expand("附件"); ui.Select("mail-attachments", 1);
         ui.Click("mail-attachment-preview"); ui.Body("附件中文内容");
@@ -77,6 +80,7 @@ internal sealed class FeatureUiChecks : IDisposable
         ui.Expand("导出邮件", false);
         if (!File.ReadAllBytes(Directory.GetFiles(exportDirectory, "*.eml").Single()).SequenceEqual(File.ReadAllBytes(_eml))) throw new Exception("UI EML export changed raw bytes");
         Console.WriteLine("PASS UI local MIME import/read/paging/encoding, HTML isolation, attachment preview/save, EML/PDF/HTML/TXT exports");
+        if (readingOnly) return;
 
         ui.Click("nav-accounts/manage"); ui.Click("account-new"); ui.Text("account-name", "验收本地账户"); ui.Text("account-alias", "ui-local"); ui.Text("account-tags", "验收,归档"); ui.Click("account-save"); ui.Status("account-status", "已保存");
         ui.Text("account-name", "验收账户已改名"); ui.Click("account-save"); ui.Status("account-status", "已保存");
