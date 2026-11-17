@@ -15,8 +15,9 @@ internal static class Program
     private static void Main(string[] args)
     {
         System.Windows.Forms.Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
+        if (args.Length > 0 && args[0] == "upgrade") { UpgradeUiChecks.Run(args[1], args[2], args[3]); return; }
         var repo = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../"));
-        var output = Path.Combine(repo, "artifacts/ui-acceptance"); Directory.CreateDirectory(output);
+        var output = Environment.GetEnvironmentVariable("MYMAILBOX_UI_OUTPUT") ?? Path.Combine(repo, "artifacts/ui-acceptance"); Directory.CreateDirectory(output);
         var workspace = args.Length > 0 ? Path.GetFullPath(args[0]) : Path.Combine(output, "workspace-" + Guid.NewGuid().ToString("N"));
         var profile = Path.Combine(workspace, "profiles/default"); DefaultProfile.Ensure(profile);
         if (args.Length > 0)
@@ -25,7 +26,8 @@ internal static class Program
             var existing = ConfigurationFiles.Read(Path.Combine(profile, "plugins.json"));
             ConfigurationFiles.Save(Path.Combine(profile, "plugins.json"), existing with { Instances = existing.Instances.Where(p => p.Id is not "alternative" and not "native").ToArray() });
         }
-        var exe = Path.Combine(repo, "artifacts/publish/MyMailBox.Desktop.exe");
+        using var features = args.Length == 0 ? new FeatureUiChecks(workspace, output) : null;
+        var exe = Environment.GetEnvironmentVariable("MYMAILBOX_UI_EXE") ?? Path.Combine(repo, "artifacts/publish/MyMailBox.Desktop.exe");
         var start = new ProcessStartInfo(exe) { UseShellExecute = false }; start.Environment["MYMAILBOX_HOME"] = workspace;
         using var automation = new UIA3Automation();
         using var app = Application.Launch(start);
@@ -68,6 +70,8 @@ internal static class Program
             Capture.Element(window).ToFile(Path.Combine(output, "02-automation.png"));
             ui.Click("fail-plan"); ui.Result("来源全部保留"); ui.Click("nav-prototype/recovery"); ui.Click("resume-plan"); ui.Result("仅继续第 3 封");
             Console.WriteLine("PASS UI prototype + keyboard");
+
+            features!.Run(ui, window);
 
             ui.Click("nav-plugin-manager");
             foreach (var name in new[] { "example-1.0.0", "example-2.0.0", "alternative-selector-1.0.0", "native-1.0.0" })
@@ -165,6 +169,16 @@ internal sealed class Ui(Window window)
     public void Click(string id) { Find(id).AsButton().Invoke(); Thread.Sleep(100); }
     public void Text(string id, string value) => Find(id).AsTextBox().Text = value;
     public void Select(string id, int index) => Find(id).AsComboBox().Select(index);
+    public void Status(string id, string value) => Wait(() => window.FindFirstDescendant(cf => cf.ByAutomationId(id))?.Name, text => text?.Contains(value) == true, id + ": " + value);
+    public void Body(string value) => Wait(() => Find("mail-body").AsTextBox().Text, text => text.Contains(value), "body: " + value);
+    public void Check(string id, bool value = true) => Find(id).AsCheckBox().IsChecked = value;
+    public void Expand(string name, bool expanded = true)
+    {
+        var element = Wait(() => window.FindFirstDescendant(cf => cf.ByName(name)), e => e?.Patterns.ExpandCollapse.IsSupported == true, "expander: " + name)!;
+        if (expanded) element.Patterns.ExpandCollapse.Pattern.Expand(); else element.Patterns.ExpandCollapse.Pattern.Collapse();
+    }
+    public void SelectList(string id, int index) => Wait(() => Find(id).AsListBox().Items, items => items.Length > index, id + " items")[index].Select();
+    public void ListContains(string id, string value) => Wait(() => Find(id).FindAllDescendants().Select(e => e.Name).ToArray(), names => names.Any(n => n.Contains(value)), id + ": " + value);
     public void Result(string value) => Wait(() => window.FindFirstDescendant(cf => cf.ByAutomationId("action-result"))?.Name, text => text?.Contains(value) == true, "result: " + value);
     public void Notice(string value) => Wait(() => window.FindFirstDescendant(cf => cf.ByAutomationId("global-notice"))?.Name, text => text?.Contains(value) == true, "notice: " + value);
     public void Gone(string id) => Wait(() => window.FindFirstDescendant(cf => cf.ByAutomationId(id)), e => e is null, "gone: " + id);
