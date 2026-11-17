@@ -2,7 +2,7 @@
 
 Spec: 000-mymailbox
 Status: ready-for-agent
-Progress: not-started
+Progress: done
 Type: task
 Scope: 必做
 Estimate: 2–3 人日
@@ -21,9 +21,9 @@ Blocked by: 18, 11
 
 ## Acceptance criteria
 
-- [ ] 活跃写入时生成一致性备份，覆盖数据库日志/对象文件，校验损坏可报告。
-- [ ] 恢复保留稳定 ID 和引用，冲突策略清楚，索引可重建。
-- [ ] 迁移失败可恢复到备份；不把直接复制 SQLite 主文件当完整备份。
+- [x] 活跃写入时生成一致性备份，覆盖数据库日志/对象文件，校验损坏可报告。
+- [x] 恢复保留稳定 ID 和引用，冲突策略清楚，索引可重建。
+- [x] 迁移失败可恢复到备份；不把直接复制 SQLite 主文件当完整备份。
 
 ## Blocked by
 
@@ -38,7 +38,7 @@ Blocked by: 18, 11
 
 ## 验证与交付记录
 
-实施时记录演示步骤或检查命令、结果、适用环境和已知限制；目前未执行，所有验收项保持未勾选。若发现超出预计粒度，先拆为完整可验收子场景；环境不足时保留具体缺口，不标完成。
+2026-11-17：通过 IWorkspaceBackup 与内置备份页面生成版本化 ZIP。SQLite BackupDatabase 在线快照覆盖 WAL 已提交内容；配置/插件/插件数据以一致性快照检查复制，逐文件 SHA-256，账户凭据及可丢弃缓存从备份副本移除并 VACUUM。仅恢复到不存在的新目录，经清单、路径、哈希与数据库完整性检查后切换；失败保留隔离诊断目录与原备份。界面可在新窗口打开成功恢复的工作空间。`dotnet run --project tests/MyMailBox.Checks --no-restore -- backup` 通过活跃写入、恢复身份/配置/原文、凭据排除、损坏、冲突、取消与重建检查。窗口验收集中执行。
 
 ## Comments
 

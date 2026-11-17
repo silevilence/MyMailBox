@@ -26,3 +26,4 @@ if (args.Length == 0 || args.Contains("accounts")) await AccountChecks.Run();
 if (args.Length == 0 || args.Contains("selectors")) await SelectionChecks.Run();
 if (args.Length == 0 || args.Contains("mime")) await MimeChecks.Run();
 if (args.Length == 0 || args.Contains("storage")) await StorageChecks.Run();
+if (args.Length == 0 || args.Contains("backup")) await BackupChecks.Run();

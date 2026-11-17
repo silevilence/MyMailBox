@@ -40,7 +40,12 @@ public sealed class App : Application
                 try
                 {
                     DefaultProfile.Ensure(directory);
-                    var catalog = DefaultProfile.Catalog(workspace);
+                    var catalog = DefaultProfile.Catalog(workspace, openWorkspace: restored =>
+                    {
+                        var start = new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = false };
+                        start.Environment["MYMAILBOX_HOME"] = restored;
+                        System.Diagnostics.Process.Start(start);
+                    });
                     var pluginDirectory = Path.Combine(workspace, "plugins");
                     var packages = new PluginPackages(pluginDirectory, catalog);
                     var packageErrors = packages.Discover();

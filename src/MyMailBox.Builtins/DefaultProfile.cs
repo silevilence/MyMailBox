@@ -9,7 +9,7 @@ public static class DefaultProfile
     public static PluginConfiguration Core => new(1, [new("platform", "core.platform", "1.0.0")]);
     public static PluginConfiguration Ordinary => new(1, [new("welcome", "welcome", "1.0.0"), new("prototype", "prototype", "1.0.0"), new("selector", "selector", "1.0.0"), new("local-mail", "local-mail", "1.0.0"), new("accounts", "accounts", "1.0.0"), new("mail-selectors", "mail-selectors", "1.0.0")]);
 
-    public static PluginCatalog Catalog(string? workspace = null, IMailStore? mailStore = null, IMimeReader? mimeReader = null)
+    public static PluginCatalog Catalog(string? workspace = null, IMailStore? mailStore = null, IMimeReader? mimeReader = null, Action<string>? openWorkspace = null)
     {
         var catalog = new PluginCatalog();
         var location = workspace ?? Environment.GetEnvironmentVariable("MYMAILBOX_HOME")
@@ -32,6 +32,21 @@ public static class DefaultProfile
             LocalMailPlugin.Apply(ctx, mailStore ?? new Mail.SqliteMailStore(Path.Combine(location, "mail")), mimeReader ?? new Mail.MimeReader());
             var maintenance = new Mail.StorageMaintenance(new Mail.SqliteMailStore(Path.Combine(location, "mail")), mimeReader ?? new Mail.MimeReader());
             var host = ctx.Get<IPluginHost>("mailbox.host")!;
+            var backup = new Mail.WorkspaceBackup(location, new Mail.SqliteMailStore(Path.Combine(location, "mail")));
+            string? restoredWorkspace = null;
+            ctx.Effect(() => host.Add(new Page("backup", "工作空间备份", "备份包含账户、原文、目录、选择与插件配置；不包含账户凭据和可丢弃缓存。恢复到新的空位置，保留稳定引用，在线账户需重新授权。", 
+                [new("backup-file", "备份文件（新建时填新文件名；恢复时选择已有文件）", FilePicker: true), new("restore-directory", "恢复到尚不存在的新目录")],
+                [new("backup-create", "创建一致性备份"), new("backup-restore", "校验并恢复到新目录"), new("backup-open", "在新窗口打开恢复工作空间")], async (values, action) =>
+                {
+                    if (action == "backup-create") return "备份已完成：" + await backup.Create(values["backup-file"]);
+                    if (action == "backup-restore")
+                    {
+                        restoredWorkspace = await backup.Restore(values["backup-file"], values["restore-directory"]);
+                        return "已恢复到：" + restoredWorkspace + "。可在新窗口打开并检查恢复结果；当前工作空间保持不变。";
+                    }
+                    if (restoredWorkspace is null || openWorkspace is null) return "请先成功恢复一个工作空间，再打开它。";
+                    openWorkspace(restoredWorkspace); return "恢复工作空间已在新窗口打开。";
+                })));
             ctx.Effect(() => host.Add(new Page("storage", "存储与恢复", "检查原文与索引。清理仅删除可重新生成的缓存，所有本地原文和独立归档均保留。", [],
                 [new("storage-check", "检查完整性"), new("storage-rebuild", "从原文重建摘要与索引"), new("storage-clear", "清理可丢弃缓存")], async (_, action) => action switch
                 {
