@@ -2,7 +2,7 @@
 
 Spec: 000-mymailbox
 Status: ready-for-agent
-Progress: in-progress
+Progress: done
 Type: research
 Scope: 必做验证
 Estimate: 2–3 人日
@@ -21,9 +21,9 @@ Blocked by: 02
 
 ## Acceptance criteria
 
-- [ ] 覆盖 ANSI/Unicode、大文件、嵌套目录、RTF/HTML、嵌入邮件和异常项目样本。
+- [x] 覆盖 ANSI/Unicode、大文件、嵌套目录、RTF/HTML、嵌入邮件和异常项目样本。
 - [x] 记录 Windows x64 构建、许可/分发条件、吞吐和内存；不因有格式规范就承诺完整实现。
-- [ ] 输出可采用库及限制，商业方案需要预算决定；原始 PST 始终保留。
+- [x] 输出可采用库及限制，商业方案需要预算决定；原始 PST 始终保留。
 
 ## Blocked by
 
@@ -40,6 +40,8 @@ Blocked by: 02
 实施时记录演示步骤或检查命令、结果、适用环境和已知限制；目前未执行，所有验收项保持未勾选。若发现超出预计粒度，先拆为完整可验收子场景；环境不足时保留具体缺口，不标完成。
 
 ## Comments
+
+- 2026-11-17 后续修复：复用原样本，修复 String8 代码页/零终止边界、PC 主题前缀及 RTF-only 正文恢复。ANSI 18 项、Unicode 51 项通过；单邮件 CRC 损坏隔离及截断文件拒绝通过，原文件哈希不变，构建 0 警告。研究选型完成；多 GiB、任意损坏恢复及产品分发许可条件明确保留，未提前完成 51–53。详见 [修复与选型报告](../../../docs/validation/2026-11-17-pst-ansi-fix.md)。
 
 - 2026-11-16：用户确认任务拆分后创建，尚未开始开发。
 

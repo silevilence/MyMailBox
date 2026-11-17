@@ -5,11 +5,14 @@ using System.Text.Json;
 using XstReader;
 
 Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
-if (args.Length != 2) throw new ArgumentException("Usage: MyMailBox.PstProbe <pst> <report.json>");
+if (args is ["--self-test"]) { FidelityChecks.Run(); return 0; }
+if (args is ["--corrupt-rtf-copy", var original, var damaged]) { CorruptFixture.Create(original, damaged); return 0; }
+if (args.Length is < 2 or > 3) throw new ArgumentException("Usage: MyMailBox.PstProbe <pst> <report.json> [source-ansi-code-page]");
+int? ansiCodePage = args.Length == 3 ? int.Parse(args[2]) : null;
 var path = Path.GetFullPath(args[0]);
 string Hash() { using var stream = File.OpenRead(path); return Convert.ToHexString(SHA256.HashData(stream)); }
 var before = Hash(); var clock = Stopwatch.StartNew(); var errors = new List<string>();
-var folders = new List<object>(); var messages = new List<object>(); var file = new XstFile(path);
+var folders = new List<object>(); var messages = new List<object>(); var file = new XstFile(path, ansiCodePage);
 var messageCount = 0; var attachments = 0; long attachmentBytes = 0; var embedded = 0;
 object Inspect(Message message, string folder, int depth)
 {
@@ -38,12 +41,20 @@ object Inspect(Message message, string folder, int depth)
     string rtf = null;
     if (message.RtfCompressed is { Length: > 0 })
     {
-        using var stream = new RtfDecompressor().Decompress(message.RtfCompressed, true);
+        using var compressed = new MemoryStream(message.RtfCompressed, false);
+        using var stream = new RtfDecompressor().Decompress(compressed, true);
         stream.Position = 0;
         using var reader = new StreamReader(stream); rtf = reader.ReadToEnd();
     }
+    var text = message.Body;
+    var textSource = text is null ? "absent" : "PidTagBody";
+    if (text is null && rtf is not null)
+    {
+        text = PstBodyText.FromRtf(rtf);
+        textSource = "PidTagRtfCompressed";
+    }
     var messageClass = (string)(message.Properties.FirstOrDefault(p => (ushort)p.Tag == 0x001a)?.Value ?? "unknown");
-    return new { folder, messageClass, nonMail = !messageClass.StartsWith("IPM.Note", StringComparison.OrdinalIgnoreCase), subject = message.Subject, text = message.Body, html = message.GetBodyAsHtmlString(), rtf,
+    return new { folder, messageClass, nonMail = !messageClass.StartsWith("IPM.Note", StringComparison.OrdinalIgnoreCase), subject = message.Subject, text, textSource, html = message.GetBodyAsHtmlString(), rtf,
         recipients = message.Recipients.Select(r => new { type = r.RecipientType.ToString(), name = r.DisplayName, address = r.EmailAddress }).ToArray(), files };
 }
 void Walk(Folder folder)
@@ -65,7 +76,7 @@ void Walk(Folder folder)
 try { Walk(file.ReadFolderTree()); } catch (Exception error) { errors.Add($"File: {error.GetType().Name}: {error.Message}"); }
 clock.Stop(); var after = Hash();
 var report = new { file = Path.GetFileName(path), bytes = new FileInfo(path).Length, sourceSha256 = before, sourceUnchanged = before == after,
-    sourceCommit = "3b7856c8b3d01bdf8aa13744e476d1ef7761b832", runtime = Environment.Version.ToString(), architecture = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture.ToString(),
+    sourceCommit = "3b7856c8b3d01bdf8aa13744e476d1ef7761b832", ansiCodePage, runtime = Environment.Version.ToString(), architecture = System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture.ToString(),
     seconds = clock.Elapsed.TotalSeconds, peakWorkingSet = Process.GetCurrentProcess().PeakWorkingSet64, messageCount, attachments, attachmentBytes, embedded, folders, messages, errors };
 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(args[1]))!);
 File.WriteAllText(args[1], JsonSerializer.Serialize(report, new JsonSerializerOptions { WriteIndented = true }));

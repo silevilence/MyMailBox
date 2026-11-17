@@ -1,6 +1,6 @@
 # 000-mymailbox · MyMailBox 开发任务索引
 
-日期：2026 年 11 月 17 日。**36 项完成（01–20、22、31、43、48、55–58、69–72、86–88、90）；4 项进行中（50、89、91–92）；2 项暂缓（32/35，保留 blocked）；其余 66 项未开始。** 本轮 GreenMail 收发与独立 Outlook 调查通过；50 已有真实独立 PST 样本，候选库 ANSI 保真失败，继续进行中。证据见 [协议与 Outlook/PST 集中验收](../../docs/validation/2026-11-17-protocol-outlook.md)。
+日期：2026 年 11 月 17 日。**37 项完成（01–20、22、31、43、48、50、55–58、69–72、86–88、90）；3 项进行中（89、91–92）；2 项等待真实接入条件（32/35，blocked）；其余 66 项未开始。** 50 已复用样本修复 ANSI 中文及正文，ANSI 18 项、Unicode 51 项通过，研究选型完成。32/35 已获授权恢复推进，外部验收条件仍需落实。证据见 [PST 修复报告](../../docs/validation/2026-11-17-pst-ansi-fix.md)及[前次专项验收](../../docs/validation/2026-11-17-protocol-outlook.md)。
 
 - [000-mymailbox 开发规格与完成标准](spec.md)
 - [全部规格索引](../index.md)
@@ -24,7 +24,7 @@
 
 1. [01 验证阅读、写信与自动化的交互原型](issues/01-ux-prototype.md) 与 [02 启动并发布第一个插件化桌面应用](issues/02-app-bootstrap.md) 无开发前置，可并行开展。
 2. 桌面入口具备后，推进 [03 用 CordiSharp 加载并卸载一个外部插件](issues/03-cordisharp-spike.md)；同时准备 [48 验证本机 Outlook 配置读取及位数边界](issues/48-outlook-discovery.md) 与 [50 用真实 PST 样本验证解析库和保真范围](issues/50-pst-spike.md) 的验证，真实样本不足时保留缺口。
-3. [11 管理账户身份及仅收仅发能力](issues/11-accounts.md) 已完成；[35 验证公司 Exchange 的真实接入路径](issues/35-exchange-discovery.md) 当前按用户要求暂缓，恢复该路线后优先判断真实接入条件。
+3. [11 管理账户身份及仅收仅发能力](issues/11-accounts.md) 已完成；[35 验证公司 Exchange 的真实接入路径](issues/35-exchange-discovery.md) 已恢复推进，先验证已提供端点，再落实授权测试条件。
 4. 在各自依赖满足后，收发、迁移、搜索和发布基础工作可分别推进；自动化建立在相同条件与可靠动作上。
 5. [98 按原始需求逐项完成发布前验收](issues/98-acceptance.md) 是原始需求总验收，只有必做和已选条件范围通过后才可完成；它不会自动触发发布。
 
@@ -123,7 +123,7 @@ flowchart TD
 | --- | --- | --- | --- | --- |
 | [48 验证本机 Outlook 配置读取及位数边界](issues/48-outlook-discovery.md) | 必做验证 | [02](issues/02-app-bootstrap.md) | needs-info | 完成 |
 | [49 预览并导入 Outlook 在线账户配置](issues/49-account-import.md) | 必做 | [48](issues/48-outlook-discovery.md)、[11](issues/11-accounts.md)、[12](issues/12-selectors.md) | needs-info | 未开始 |
-| [50 用真实 PST 样本验证解析库和保真范围](issues/50-pst-spike.md) | 必做验证 | [02](issues/02-app-bootstrap.md) | needs-info | 进行中 |
+| [50 用真实 PST 样本验证解析库和保真范围](issues/50-pst-spike.md) | 必做验证 | [02](issues/02-app-bootstrap.md) | ready-for-agent | 完成 |
 | [51 导入 PST 目录和邮件并查看进度](issues/51-pst-import.md) | 必做 | [50](issues/50-pst-spike.md)、[43](issues/43-local-archive.md)、[13](issues/13-mime-baseline.md) | ready-for-agent | 未开始 |
 | [52 完成 PST 复杂邮件的保真与异常报告](issues/52-pst-fidelity.md) | 必做 | [51](issues/51-pst-import.md)、[17](issues/17-encoding.md)、[16](issues/16-attachments.md) | ready-for-agent | 未开始 |
 | [53 在重启和插件停用后继续导入](issues/53-import-resume.md) | 必做 | [49](issues/49-account-import.md)、[51](issues/51-pst-import.md)、[08](issues/08-plugin-upgrade.md) | ready-for-agent | 未开始 |

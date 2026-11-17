@@ -6,7 +6,8 @@
     <XstSource>../../artifacts/tools/xstreader/Dijji-XstReader-3b7856c/XstReader.Base</XstSource>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="$(XstSource)/*.cs" Link="Upstream/%(Filename)%(Extension)" />
+    <Compile Include="$(XstSource)/*.cs" Exclude="$(XstSource)/LTP.cs;$(XstSource)/XstFile.cs;$(XstSource)/Map.cs;$(XstSource)/NDB.cs;$(XstSource)/RtfDecompressor.cs" Link="Upstream/%(Filename)%(Extension)" />
+    <PackageReference Include="MimeKit.Core" Version="5.0.0" />
     <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.0" />
   </ItemGroup>
   <Target Name="RequireCachedSource" BeforeTargets="BeforeBuild" Condition="!Exists('$(XstSource)/XstFile.cs')">
