@@ -9,6 +9,13 @@ public sealed class Contributions(Action<Action>? dispatch = null) : IContributi
     private readonly Dictionary<string, Selector> _selectors = [];
     private readonly Dictionary<string, NativePage> _native = [];
     private readonly Dictionary<string, IMessageExporter> _exporters = [];
+    private readonly Dictionary<string, UpdatePreparation> _preparations = [];
+    public IReadOnlyList<UpdatePreparation> UpdatePreparations { get { lock (_gate) return _preparations.Values.ToArray(); } }
+    public IDisposable AddUpdatePreparation(UpdatePreparation preparation)
+    {
+        lock (_gate) _preparations.Add(preparation.Id, preparation);
+        return new Cleanup(() => { lock (_gate) _preparations.Remove(preparation.Id); });
+    }
     public int ExporterRevision { get; private set; }
     public IReadOnlyList<IMessageExporter> Exporters { get { lock (_gate) return _exporters.Values.ToArray(); } }
     public int SelectorRevision { get; private set; }

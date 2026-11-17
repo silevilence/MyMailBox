@@ -115,7 +115,7 @@ public sealed class ShellWindow : Window
         _renderedPage = page; _selectorRevision = _pages.SelectorRevision; _exporterRevision = _pages.ExporterRevision;
         if (page.Updates is { } updates)
         {
-            var view = new UpdateView(updates); _hostView = view; _body.Content = view; return;
+            var view = new UpdateView(updates, page.UpdateInstaller); _hostView = view; _body.Content = view; return;
         }
         if (page.Schedules is { } schedules)
         {

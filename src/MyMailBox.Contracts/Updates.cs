@@ -23,3 +23,12 @@ public interface IUpdateService
     Task<UpdateCheck> Check(bool manual, CancellationToken cancellation = default);
     Task Skip(string? version, CancellationToken cancellation = default);
 }
+public enum UpdateInstallState { NotConfigured, Idle, Downloading, Ready, Queued, Failed }
+public sealed record UpdateInstallStatus(UpdateInstallState State, string Message, string? Version = null, int Percent = 0);
+public interface IUpdateInstaller
+{
+    Task<UpdateInstallStatus> Status(CancellationToken cancellation = default);
+    Task<UpdateInstallStatus> Download(UpdateRelease release, IProgress<UpdateInstallStatus>? progress = null, CancellationToken cancellation = default);
+    Task RequestInstall(CancellationToken cancellation = default);
+}
+public sealed record UpdatePreparation(string Id, Func<CancellationToken, Task> Save);

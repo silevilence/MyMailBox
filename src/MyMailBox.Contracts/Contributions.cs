@@ -8,6 +8,7 @@ public sealed record Page(string Id, string Title, string Description, IReadOnly
     public ReminderPage? Reminders { get; init; }
     public IScheduleService? Schedules { get; init; }
     public IUpdateService? Updates { get; init; }
+    public IUpdateInstaller? UpdateInstaller { get; init; }
     // Preserve the original SDK constructor for already compiled page plugins.
     public Page(string id, string title, string description, IReadOnlyList<Field> fields,
         IReadOnlyList<PageAction> actions, Func<IReadOnlyDictionary<string, string>, string, Task<string>> execute)
@@ -27,6 +28,7 @@ public interface IContributions
     IDisposable AddSelector(Selector selector);
     IDisposable AddNative(NativePage page);
     IDisposable AddExporter(IMessageExporter exporter);
+    IDisposable AddUpdatePreparation(UpdatePreparation preparation) => throw new NotSupportedException("宿主尚不支持更新保存参与者。");
 }
 
 public sealed class Cleanup(Action dispose) : IDisposable

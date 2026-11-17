@@ -27,9 +27,12 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         LocalMailboxes = page.LocalMailboxes is { } local ? new ScopedLocalMailboxes(this, local) : null,
         Reminders = page.Reminders is { } reminders ? new(new ScopedReminders(this, reminders.Scheduler), new ScopedMailStore(this, reminders.Mail)) : null,
         Schedules = page.Schedules is { } schedules ? new ScopedSchedules(this, schedules) : null,
-        Updates = page.Updates is { } updates ? new ScopedUpdates(this, updates) : null
+        Updates = page.Updates is { } updates ? new ScopedUpdates(this, updates) : null,
+        UpdateInstaller = page.UpdateInstaller is { } installer ? new ScopedUpdateInstaller(this, installer) : null
     }));
     public IDisposable AddSelector(Selector selector) => Own(pages.AddSelector(selector));
+    public IDisposable AddUpdatePreparation(UpdatePreparation preparation) => Own(pages.AddUpdatePreparation(new(InstanceId + "/" + preparation.Id,
+        async token => await Run(async t => { await preparation.Save(t); return true; }, token))));
     public IDisposable AddExporter(IMessageExporter exporter)
     {
         var scoped = new ScopedExporter(this, exporter);
@@ -187,6 +190,12 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         public Task<UpdateCheck> Check(bool manual, CancellationToken cancellation = default) => scope.Run(t => service.Check(manual, t), cancellation);
         public async Task Save(UpdateSettings settings, CancellationToken cancellation = default) => await scope.Run(async t => { await service.Save(settings, t); return true; }, cancellation);
         public async Task Skip(string? version, CancellationToken cancellation = default) => await scope.Run(async t => { await service.Skip(version, t); return true; }, cancellation);
+    }
+    private sealed class ScopedUpdateInstaller(PluginScope scope, IUpdateInstaller service) : IUpdateInstaller
+    {
+        public Task<UpdateInstallStatus> Status(CancellationToken cancellation = default) => scope.Run(service.Status, cancellation);
+        public Task<UpdateInstallStatus> Download(UpdateRelease release, IProgress<UpdateInstallStatus>? progress = null, CancellationToken cancellation = default) => scope.Run(t => service.Download(release, progress, t), cancellation);
+        public async Task RequestInstall(CancellationToken cancellation = default) => await scope.Run(async t => { await service.RequestInstall(t); return true; }, cancellation);
     }
     private sealed class ScopedSchedules(PluginScope scope, IScheduleService service) : IScheduleService
     {

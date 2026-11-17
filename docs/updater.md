@@ -25,3 +25,13 @@ NetSparkle 读取 appcast，不直接读取普通 GitHub Releases。发布流程
 稳定通道同时过滤 GitHub prerelease 标志与 SemVer 预发布后缀，draft 不参与。只选择对应版本 win-x64 安装器、appcast 及签名全部齐备的版本；发现新版本但缺少资产单独显示，网络/代理/超时/限流分别给出可理解反馈。变更说明按纯文本显示，不执行 Release 中的 HTML。检查使用系统代理，无个人 token。
 
 `update-checks` 定向组覆盖 HTTP 模拟、持久化、限流/缓存、替换源和插件停止后的旧调用拒绝；`update-live` 单独读取真实公开仓库，不加入默认离线测试，不下载任何 Release 资产。2026-11-17 实际读取 silevilence/MyMailBox 返回空 Release 列表，与“没有更新版本”结果一致。
+
+## 下载与安装交接
+
+“下载并校验”使用 Strict 签名 appcast 中的版本、URL、长度和 `urn:mymailbox:update:v1` 命名空间下的 sdkVersion，必须与选定 Release 资产一致；已验证的本地文件复用。下载内容存于工作空间 updates/downloads，不进入正常工作空间备份。公钥为空时仅允许版本检查。下载中可取消；进入 Ready 前及用户点击“安装更新并退出”时重新检查文件长度、SHA256、Ed25519 和版本递增关系。
+
+更新前宿主先检查启用的外部插件 SDK 范围，依次调用 AddUpdatePreparation 注册的保存参与者，再停止配置监听、排空插件和后台计划，创建 updates/backups 下的一致性备份。任何一步失败不启动安装；若部分插件已停止，提示关闭后重启。真实写信草稿/发件箱能力尚未实现，不能以保存参与者测试声称这些数据已验收。
+
+MyMailBox.UpdateHost 与主程序采用相同的 .NET 10 win-x64 framework-dependent JIT 发布方式。宿主把助手复制到工作空间独立目录，避免锁住安装目录 DLL。助手等待精确父进程退出（最多 90 秒）、再次验签，以直接进程调用执行 NSIS `/S /D=<原安装目录>`，不通过 shell 拼接命令；成功后检查运行时并启动新应用。安装执行与网络检查分层。升级状态写入 updates/upgrade-state.json，包含备份路径；主程序核对目标版本、配置和工作空间初始化后才确认完成。失败不删除邮件/插件数据、不自动回滚数据库；从备份恢复到新工作空间，在线账户可能需要重新授权。
+
+`update-install` 定向组不运行安装器，验证签名/SDK/哈希/重启/取消与失败边界。真实安装升级单独列在最终实机记录中；正式公钥和 Actions 签名 Secrets 尚未准备，不应把当前开发构建当作已部署的自动更新通道。

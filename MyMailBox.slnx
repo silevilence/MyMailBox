@@ -12,6 +12,7 @@
     <Project Path="src/MyMailBox.Mail/MyMailBox.Mail.csproj" />
     <Project Path="src/MyMailBox.Runtime/MyMailBox.Runtime.csproj" />
     <Project Path="src/MyMailBox.Updates/MyMailBox.Updates.csproj" />
+    <Project Path="src/MyMailBox.UpdateHost/MyMailBox.UpdateHost.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/MyMailBox.Checks/MyMailBox.Checks.csproj" />

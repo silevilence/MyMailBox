@@ -44,3 +44,4 @@ if (args.Length == 0 || args.Contains("schedule-recovery")) await ScheduleRecove
 if (args.Length == 0 || args.Contains("updater-spike")) await UpdaterSpikeChecks.Run();
 if (args.Length == 0 || args.Contains("update-checks")) await UpdateCheckChecks.Run();
 if (args.Contains("update-live")) await UpdateCheckChecks.Live();
+if (args.Length == 0 || args.Contains("update-install")) await UpdateInstallChecks.Run();

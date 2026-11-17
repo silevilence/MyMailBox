@@ -1,0 +1,4 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>WinExe</OutputType><RuntimeIdentifier>win-x64</RuntimeIdentifier></PropertyGroup>
+  <ItemGroup><ProjectReference Include="../MyMailBox.Updates/MyMailBox.Updates.csproj" /></ItemGroup>
+</Project>
