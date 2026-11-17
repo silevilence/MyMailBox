@@ -8,6 +8,9 @@ public sealed class Contributions(Action<Action>? dispatch = null) : IContributi
     private readonly object _gate = new();
     private readonly Dictionary<string, Selector> _selectors = [];
     private readonly Dictionary<string, NativePage> _native = [];
+    private readonly Dictionary<string, IMessageExporter> _exporters = [];
+    public int ExporterRevision { get; private set; }
+    public IReadOnlyList<IMessageExporter> Exporters { get { lock (_gate) return _exporters.Values.ToArray(); } }
     public int SelectorRevision { get; private set; }
     private void Notify() { if (dispatch is null) Changed?.Invoke(); else dispatch(() => Changed?.Invoke()); }
     public event Action? Changed;
@@ -28,6 +31,11 @@ public sealed class Contributions(Action<Action>? dispatch = null) : IContributi
         lock (_gate) _native.Add(page.Id, page);
         Notify();
         return new Cleanup(() => { lock (_gate) _native.Remove(page.Id); Notify(); });
+    }
+    public IDisposable AddExporter(IMessageExporter exporter)
+    {
+        lock (_gate) { _exporters.Add(exporter.FormatId, exporter); ExporterRevision++; } Notify();
+        return new Cleanup(() => { lock (_gate) { _exporters.Remove(exporter.FormatId); ExporterRevision++; } Notify(); });
     }
 
     public IDisposable Add(Page page)

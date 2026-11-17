@@ -34,7 +34,7 @@ public static class DefaultProfile
             var host = ctx.Get<IPluginHost>("mailbox.host")!;
             var backup = new Mail.WorkspaceBackup(location, new Mail.SqliteMailStore(Path.Combine(location, "mail")));
             string? restoredWorkspace = null;
-            ctx.Effect(() => host.Add(new Page("backup", "工作空间备份", "备份包含账户、原文、目录、选择与插件配置；不包含账户凭据和可丢弃缓存。恢复到新的空位置，保留稳定引用，在线账户需重新授权。", 
+            ctx.Effect(() => host.Add(new Page("backup", "工作空间备份", "备份包含账户、原文、目录、选择与插件配置；不包含账户凭据和可丢弃缓存。恢复到新的空位置，保留稳定引用，在线账户需重新授权。",
                 [new("backup-file", "备份文件（新建时填新文件名；恢复时选择已有文件）", FilePicker: true), new("restore-directory", "恢复到尚不存在的新目录")],
                 [new("backup-create", "创建一致性备份"), new("backup-restore", "校验并恢复到新目录"), new("backup-open", "在新窗口打开恢复工作空间")], async (values, action) =>
                 {

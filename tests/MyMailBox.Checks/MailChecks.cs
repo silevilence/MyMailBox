@@ -41,9 +41,11 @@ internal static class MailChecks
         var catalog = DefaultProfile.Catalog(directory, new MemoryStore(), parser);
         await runtime.Start(catalog.Find(new("mail-test", "local-mail", "1.0.0")), new PluginOptions { InstanceId = "mail-test" });
         var reader = contributions.Pages.Single(p => p.Reader is not null).Reader!;
+        Check(contributions.Exporters.Single().FormatId == "eml", "Exporter not registered");
         await Exercise(reader.Store, reader.Parser);
         await runtime.Stop("mail-test");
         Check(contributions.Pages.Count == 0, "Mail plugin page leaked");
+        Check(contributions.Exporters.Count == 0, "Exporter registration leaked");
         var rejected = false;
         try { await reader.Store.Folders(); } catch (InvalidOperationException) { rejected = true; }
         Check(rejected, "Unloaded store still accepts work");

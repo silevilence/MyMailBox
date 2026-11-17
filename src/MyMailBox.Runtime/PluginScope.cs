@@ -25,6 +25,7 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         Selections = page.Selections is { } selections ? new ScopedSelections(this, selections) : null
     }));
     public IDisposable AddSelector(Selector selector) => Own(pages.AddSelector(selector));
+    public IDisposable AddExporter(IMessageExporter exporter) => Own(pages.AddExporter(new ScopedExporter(this, exporter)));
     public IDisposable AddNative(NativePage page)
     {
         permissions.Require("ui.native");
@@ -124,6 +125,12 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         public async Task Save(string slot, SavedSelection selection, CancellationToken cancellation = default) => await scope.Run(async t => { await selections.Save(slot, selection, t); return true; }, cancellation);
         public Task<SavedSelection?> Load(string slot, CancellationToken cancellation = default) => scope.Run(t => selections.Load(slot, t), cancellation);
         public Task<ResolvedSelection> Resolve(SavedSelection selection, CancellationToken cancellation = default) => scope.Run(t => selections.Resolve(selection, t), cancellation);
+    }
+    private sealed class ScopedExporter(PluginScope scope, IMessageExporter exporter) : IMessageExporter
+    {
+        public string FormatId => exporter.FormatId;
+        public string Name => exporter.Name;
+        public Task<ExportReport> Export(ExportRequest request, IProgress<ExportItemResult>? progress = null, CancellationToken cancellation = default) => scope.Run(t => exporter.Export(request, progress, t), cancellation);
     }
 }
 

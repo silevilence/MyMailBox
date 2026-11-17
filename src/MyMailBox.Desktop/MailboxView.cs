@@ -16,7 +16,7 @@ public sealed class MailboxView : UserControl, IDisposable
     private readonly CancellationTokenSource _lifetime = new();
     private CancellationTokenSource? _reading;
     private readonly ComboBox _folders = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
-    private readonly ListBox _messages = new();
+    private readonly ListBox _messages = new() { SelectionMode = Avalonia.Controls.SelectionMode.Multiple };
     private readonly TextBox _file = new() { PlaceholderText = "EML 文件路径", MinWidth = 200 };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap };
     private readonly TextBox _body = new() { IsReadOnly = true, AcceptsReturn = true, TextWrapping = TextWrapping.Wrap };
@@ -29,10 +29,15 @@ public sealed class MailboxView : UserControl, IDisposable
     private int _offset;
     private int _listVersion;
     private bool _disposed;
+    private CancellationTokenSource? _exporting;
+    private readonly TextBox _exportDirectory = new();
+    private readonly ComboBox _exportFormat = new();
+    private readonly IReadOnlyList<IMessageExporter> _exporters;
 
-    public MailboxView(MailReader reader)
+    public MailboxView(MailReader reader, IReadOnlyList<IMessageExporter> exporters)
     {
         _reader = reader;
+        _exporters = exporters; _exportFormat.ItemsSource = exporters.Select(e => e.Name).ToArray(); _exportFormat.SelectedIndex = exporters.Count > 0 ? 0 : -1;
         AutomationProperties.SetAutomationId(_file, "mail-file"); AutomationProperties.SetName(_file, "EML 文件路径");
         AutomationProperties.SetAutomationId(_folders, "mail-folders"); AutomationProperties.SetName(_folders, "邮件目录");
         AutomationProperties.SetAutomationId(_messages, "mail-list"); AutomationProperties.SetName(_messages, "邮件列表");
@@ -67,6 +72,15 @@ public sealed class MailboxView : UserControl, IDisposable
         buttons.Children.Add(_previous); buttons.Children.Add(_next); buttons.Children.Add(Button("刷新", "mail-refresh", () => LoadPage(_offset)));
         buttons.Children.Add(Button("取消读取", "mail-cancel", () => { _reading?.Cancel(); return Task.CompletedTask; }));
         footer.Children.Add(buttons); footer.Children.Add(_status);
+        var exportPanel = new StackPanel { Spacing = 8 };
+        exportPanel.Children.Add(new TextBlock { Text = "Ctrl/Shift 多选当前页邮件；同名文件保留，重复导出复用相同原文。", TextWrapping = TextWrapping.Wrap });
+        AutomationProperties.SetAutomationId(_exportDirectory, "mail-export-directory"); AutomationProperties.SetName(_exportDirectory, "导出目录");
+        AutomationProperties.SetAutomationId(_exportFormat, "mail-export-format"); AutomationProperties.SetName(_exportFormat, "导出格式");
+        exportPanel.Children.Add(new TextBlock { Text = "导出目录" }); exportPanel.Children.Add(_exportDirectory); exportPanel.Children.Add(_exportFormat);
+        var exportActions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        exportActions.Children.Add(Button("导出所选邮件", "mail-export", Export));
+        exportActions.Children.Add(Button("取消导出", "mail-export-cancel", () => { _exporting?.Cancel(); return Task.CompletedTask; })); exportPanel.Children.Add(exportActions);
+        footer.Children.Insert(1, new Expander { Header = "导出邮件", Content = exportPanel, HorizontalAlignment = HorizontalAlignment.Stretch });
         var content = new Grid { ColumnDefinitions = new("2*,3*"), ColumnSpacing = 12, Margin = new Thickness(0, 12, 0, 0) };
         content.Children.Add(_messages); Grid.SetColumn(_body, 1); content.Children.Add(_body);
         var layout = new DockPanel(); DockPanel.SetDock(header, Dock.Top); layout.Children.Add(header); DockPanel.SetDock(footer, Dock.Bottom); layout.Children.Add(footer); layout.Children.Add(content); Content = layout;
@@ -139,6 +153,21 @@ public sealed class MailboxView : UserControl, IDisposable
         finally { if (ReferenceEquals(_reading, cancellation)) _reading = null; }
     }
 
+    private async Task Export()
+    {
+        if (_exportFormat.SelectedIndex < 0) throw new InvalidOperationException("没有可用导出插件。");
+        var selected = _messages.SelectedItems?.OfType<MailSummary>().Select(m => new ExportItem(m.Id, m.Subject)).ToArray() ?? [];
+        if (selected.Length == 0) throw new InvalidDataException("请先选择要导出的邮件。");
+        if (string.IsNullOrWhiteSpace(_exportDirectory.Text)) throw new InvalidDataException("请填写导出目录。");
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token); _exporting = cancellation;
+        try
+        {
+            var report = await _exporters[_exportFormat.SelectedIndex].Export(new(selected, _exportDirectory.Text), new Progress<ExportItemResult>(r => { if (!_disposed) _status.Text = "导出中：" + r.Detail; }), cancellation.Token);
+            if (!_disposed) _status.Text = string.Join("\n", report.Items.Select(r => r.Detail + (r.Path is null ? "" : " " + r.Path)));
+        }
+        finally { _exporting = null; }
+    }
+
     private void ShowContent()
     {
         if (_parsed is not { } mail || _raw is null) return;
@@ -151,5 +180,5 @@ public sealed class MailboxView : UserControl, IDisposable
         };
     }
 
-    public void Dispose() { if (_disposed) return; _disposed = true; _reading?.Cancel(); _lifetime.Cancel(); _lifetime.Dispose(); _messages.ItemsSource = null; _folders.ItemsSource = null; _raw = null; _parsed = null; }
+    public void Dispose() { if (_disposed) return; _disposed = true; _reading?.Cancel(); _exporting?.Cancel(); _lifetime.Cancel(); _lifetime.Dispose(); _messages.ItemsSource = null; _folders.ItemsSource = null; _raw = null; _parsed = null; }
 }

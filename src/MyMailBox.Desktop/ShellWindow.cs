@@ -21,6 +21,7 @@ public sealed class ShellWindow : Window
     private Page? _renderedPage;
     private IDisposable? _hostView;
     private int _selectorRevision;
+    private int _exporterRevision;
     private readonly List<Action> _viewCleanup = [];
     private readonly TextBlock _notice = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(16), Foreground = Brush.Parse("#7C2D12") };
 
@@ -78,7 +79,8 @@ public sealed class ShellWindow : Window
         var selectedPage = pages.FirstOrDefault(p => p.Id == _selected);
         var selectedNative = _pages.NativePages.FirstOrDefault(p => p.Id == _selected);
         if (selectedPage is not null && ReferenceEquals(selectedPage, _renderedPage) &&
-            (!selectedPage.Fields.Any(f => f.Selector is not null) || _selectorRevision == _pages.SelectorRevision)) return;
+            (!selectedPage.Fields.Any(f => f.Selector is not null) || _selectorRevision == _pages.SelectorRevision) &&
+            (selectedPage.Reader is null || _exporterRevision == _pages.ExporterRevision)) return;
         if (selectedNative is not null && ReferenceEquals(selectedNative, _nativePage)) return;
         Show(selectedPage is not null || selectedNative is not null ? _selected! : pages.FirstOrDefault()?.Id);
     }
@@ -107,7 +109,7 @@ public sealed class ShellWindow : Window
         }
         var page = _pages.Pages.FirstOrDefault(p => p.Id == id);
         if (page is null) return;
-        _renderedPage = page; _selectorRevision = _pages.SelectorRevision;
+        _renderedPage = page; _selectorRevision = _pages.SelectorRevision; _exporterRevision = _pages.ExporterRevision;
         if (page.Selections is { } selections)
         {
             var view = new SelectionView(selections); _hostView = view; _body.Content = view; return;
@@ -118,7 +120,7 @@ public sealed class ShellWindow : Window
         }
         if (page.Reader is { } reader)
         {
-            var view = new MailboxView(reader); _hostView = view; _body.Content = view; return;
+            var view = new MailboxView(reader, _pages.Exporters); _hostView = view; _body.Content = view; return;
         }
         var panel = new StackPanel { Spacing = 16, MaxWidth = 800, HorizontalAlignment = HorizontalAlignment.Stretch };
         panel.Children.Add(new TextBlock { Text = page.Title, FontSize = 28, FontWeight = FontWeight.SemiBold });

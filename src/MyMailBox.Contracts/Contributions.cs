@@ -15,6 +15,7 @@ public interface IContributions
     IDisposable Add(Page page);
     IDisposable AddSelector(Selector selector);
     IDisposable AddNative(NativePage page);
+    IDisposable AddExporter(IMessageExporter exporter);
 }
 
 public sealed class Cleanup(Action dispose) : IDisposable
