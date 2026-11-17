@@ -42,6 +42,11 @@ public sealed class MailboxView : UserControl, IDisposable
     private readonly TextBox _exportDirectory = new();
     private readonly ComboBox _exportFormat = new();
     private readonly IReadOnlyList<IMessageExporter> _exporters;
+    private readonly ComboBox _attachments = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly TextBox _attachmentDirectory = new();
+    private readonly Button _attachmentOpen;
+    private SavedAttachment? _savedAttachment;
+    private CancellationTokenSource? _savingAttachment;
 
     public MailboxView(MailReader reader, IReadOnlyList<IMessageExporter> exporters)
     {
@@ -108,6 +113,22 @@ public sealed class MailboxView : UserControl, IDisposable
         remoteActions.Children.Add(Button("按所选范围放行并加载", "mail-remote-allow", () => SetRemote(true)));
         remoteActions.Children.Add(Button("撤销所选范围", "mail-remote-revoke", () => SetRemote(false))); remotePanel.Children.Add(remoteActions);
         footer.Children.Insert(1, new Expander { Header = "远程多媒体", Content = remotePanel, HorizontalAlignment = HorizontalAlignment.Stretch });
+        var attachmentPanel = new StackPanel { Spacing = 8 };
+        AutomationProperties.SetAutomationId(_attachments, "mail-attachments"); AutomationProperties.SetName(_attachments, "附件和内联内容");
+        _attachments.ItemTemplate = new FuncDataTemplate<MimePartInfo>((p, _) => new TextBlock { Text = p is null ? "" : $"{(p.Name.Length == 0 ? p.ContentType : p.Name)} · {(p.ContentId is not null ? "内联 CID" : p.ContentType == "message/rfc822" ? "嵌入邮件" : "附件")}" });
+        _attachments.SelectionChanged += (_, _) => { _savedAttachment = null; if (_attachmentOpen is not null) _attachmentOpen.IsEnabled = false; };
+        attachmentPanel.Children.Add(_attachments); attachmentPanel.Children.Add(new TextBlock { Text = "保存目录（重名自动另存，不覆盖已有文件）" });
+        AutomationProperties.SetAutomationId(_attachmentDirectory, "mail-attachment-directory"); AutomationProperties.SetName(_attachmentDirectory, "附件保存目录"); attachmentPanel.Children.Add(_attachmentDirectory);
+        var attachmentActions = new WrapPanel { Orientation = Orientation.Horizontal };
+        attachmentActions.Children.Add(Button("受限预览", "mail-attachment-preview", PreviewAttachment));
+        attachmentActions.Children.Add(Button("保存附件", "mail-attachment-save", SaveAttachment));
+        attachmentActions.Children.Add(Button("取消保存", "mail-attachment-cancel", () => { _savingAttachment?.Cancel(); return Task.CompletedTask; }));
+        _attachmentOpen = Button("确认打开已保存附件", "mail-attachment-open", () =>
+        {
+            if (_savedAttachment is { CanOpenExternally: true } saved) System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(saved.Path) { UseShellExecute = true });
+            return Task.CompletedTask;
+        }); _attachmentOpen.IsEnabled = false; attachmentActions.Children.Add(_attachmentOpen);
+        attachmentPanel.Children.Add(attachmentActions); footer.Children.Insert(1, new Expander { Header = "附件", Content = attachmentPanel, HorizontalAlignment = HorizontalAlignment.Stretch });
         var content = new Grid { ColumnDefinitions = new("2*,3*"), ColumnSpacing = 12, Margin = new Thickness(0, 12, 0, 0) };
         _readingContent.Content = _body; content.Children.Add(_messages); Grid.SetColumn(_readingContent, 1); content.Children.Add(_readingContent);
         var layout = new DockPanel(); DockPanel.SetDock(header, Dock.Top); layout.Children.Add(header); DockPanel.SetDock(footer, Dock.Bottom); layout.Children.Add(footer); layout.Children.Add(content); Content = layout;
@@ -141,7 +162,7 @@ public sealed class MailboxView : UserControl, IDisposable
     {
         if (_folders.SelectedItem is not MailFolder folder) return;
         var version = ++_listVersion;
-        _reading?.Cancel(); ReleaseHtml(); _body.Text = ""; _parsed = null; _raw = null; _messageId = null; _remoteExplanation.Text = ""; _status.Text = "正在加载邮件列表…";
+        _reading?.Cancel(); ReleaseHtml(); _body.Text = ""; _parsed = null; _raw = null; _messageId = null; _remoteExplanation.Text = ""; _attachments.ItemsSource = null; _savedAttachment = null; _attachmentOpen.IsEnabled = false; _status.Text = "正在加载邮件列表…";
         var page = await _reader.Store.List(folder.Id, offset, 50, _lifetime.Token);
         if (_disposed || version != _listVersion) return;
         _offset = offset; _messages.ItemsSource = page.Items; _previous.IsEnabled = offset > 0; _next.IsEnabled = page.HasMore;
@@ -176,7 +197,10 @@ public sealed class MailboxView : UserControl, IDisposable
             var raw = await _reader.Store.Read(summary.Id, cancellation.Token);
             var mail = await _reader.Parser.Parse(raw, cancellation.Token);
             if (_disposed || cancellation.IsCancellationRequested) return;
-            _parsed = mail; _raw = raw; _messageId = summary.Id; await PreviewRemote(); ShowContent();
+            _parsed = mail; _raw = raw; _messageId = summary.Id;
+            _attachments.ItemsSource = (mail.Parts ?? []).Where(p => p.Attachment || p.ContentId is not null || p.Name.Length > 0 || p.ContentType == "message/rfc822").ToArray();
+            _attachments.SelectedIndex = _attachments.ItemCount > 0 ? 0 : -1; _savedAttachment = null; _attachmentOpen.IsEnabled = false;
+            await PreviewRemote(); ShowContent();
         }
         finally { if (ReferenceEquals(_reading, cancellation)) _reading = null; }
     }
@@ -247,6 +271,36 @@ public sealed class MailboxView : UserControl, IDisposable
         _remoteExplanation.Text = $"发件地址：{(preview.Sender.Length == 0 ? "无唯一有效地址" : preview.Sender)}\n精确域名：{preview.Domain}\n" +
             (preview.MatchingRules.Length == 0 ? "当前：默认阻止。" : "生效规则：" + string.Join("；", preview.MatchingRules.Select(r => r.Scope == RemoteContentScope.Message ? "本封" : r.Value)));
     }
+    private async Task SaveAttachment()
+    {
+        if (_reader.Attachments is null || _messageId is not { } id || _attachments.SelectedItem is not MimePartInfo part) throw new InvalidDataException("请选择附件。");
+        if (string.IsNullOrWhiteSpace(_attachmentDirectory.Text)) throw new InvalidDataException("请填写附件保存目录。");
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token); _savingAttachment = cancellation;
+        try
+        {
+            var saved = await _reader.Attachments.Save(id, part.Path, _attachmentDirectory.Text, new Progress<long>(bytes => { if (!_disposed) _status.Text = $"已保存 {bytes:N0} 字节…"; }), cancellation.Token);
+            if (_disposed || id != _messageId || !ReferenceEquals(part, _attachments.SelectedItem)) return;
+            _savedAttachment = saved; _attachmentOpen.IsEnabled = saved.CanOpenExternally; _status.Text = saved.Notice + "\n" + saved.Path;
+        }
+        finally { _savingAttachment = null; }
+    }
+    private async Task PreviewAttachment()
+    {
+        if (_reader.Attachments is null || _messageId is not { } id || _attachments.SelectedItem is not MimePartInfo part) throw new InvalidDataException("请选择附件。");
+        var preview = await _reader.Attachments.Preview(id, part.Path, _lifetime.Token);
+        if (_disposed || id != _messageId || !ReferenceEquals(part, _attachments.SelectedItem)) return;
+        ReleaseHtml();
+        if (preview.Kind == "image" && preview.Resource is { } resource)
+        {
+            var baseUri = "https://mail.mymailbox.invalid/" + Guid.NewGuid().ToString("N") + "/";
+            var mail = new ParsedMail("", "", "", DateTimeOffset.UtcNow, "", Html: "<img src=\"cid:preview\">", InlineResources: [resource]);
+            var document = await _reader.Html!.Render(mail, baseUri, cancellation: _lifetime.Token);
+            if (_disposed || id != _messageId) return;
+            _htmlView = new SecureHtmlView(baseUri + "index.html", document); _htmlView.Failed += error => _status.Text = error; _readingContent.Content = _htmlView;
+        }
+        else _body.Text = preview.Text;
+        _status.Text = "附件受限预览；返回邮件可重新选择阅读模式。";
+    }
     private async Task SetRemote(bool allow)
     {
         if (_reader.Remote is null || _parsed is not { } mail || _messageId is not { } id) throw new InvalidDataException("请先打开一封邮件。");
@@ -260,5 +314,5 @@ public sealed class MailboxView : UserControl, IDisposable
         _htmlRevision++; _htmlView?.Dispose(); _htmlView = null; _readingContent.Content = _body; _pendingLink = null; _linkPrompt.Text = "";
     }
 
-    public void Dispose() { if (_disposed) return; _disposed = true; ReleaseHtml(); _reading?.Cancel(); _exporting?.Cancel(); _lifetime.Cancel(); _lifetime.Dispose(); _messages.ItemsSource = null; _folders.ItemsSource = null; _raw = null; _parsed = null; }
+    public void Dispose() { if (_disposed) return; _disposed = true; ReleaseHtml(); _reading?.Cancel(); _exporting?.Cancel(); _savingAttachment?.Cancel(); _lifetime.Cancel(); _lifetime.Dispose(); _messages.ItemsSource = null; _folders.ItemsSource = null; _raw = null; _parsed = null; }
 }

@@ -31,3 +31,4 @@ if (args.Length == 0 || args.Contains("export")) await ExportChecks.Run();
 if (args.Length == 0 || args.Contains("archive")) await ArchiveChecks.Run();
 if (args.Length == 0 || args.Contains("html")) await HtmlChecks.Run();
 if (args.Length == 0 || args.Contains("remote")) await RemoteContentChecks.Run();
+if (args.Length == 0 || args.Contains("attachments")) await AttachmentChecks.Run();

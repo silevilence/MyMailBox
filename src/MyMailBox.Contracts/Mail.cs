@@ -21,4 +21,4 @@ public interface IMimeReader
     Task<ParsedMail> Parse(byte[] raw, CancellationToken cancellation = default);
 }
 
-public sealed record MailReader(IMailStore Store, IMimeReader Parser, IHtmlMailRenderer? Html = null, IRemoteContentService? Remote = null);
+public sealed record MailReader(IMailStore Store, IMimeReader Parser, IHtmlMailRenderer? Html = null, IRemoteContentService? Remote = null, IAttachmentService? Attachments = null);
