@@ -1,5 +1,7 @@
 # 000-mymailbox · MyMailBox 开发任务索引
 
+CI 修复验证：普通 push/PR 不再触发构建；修正 `runner.temp` 的上下文位置后，手动 Actions 运行 44037700219 已完成真实构建、检查、NSIS 打包和产物上传。见 [验收记录](../../docs/validation/2026-11-17-ci-workflow-fix.md)。
+
 推送前复核：Exchange 验收地址及应用 ID 已从待推送历史移除。真实 ID 仅在本地忽略配置保留，Actions 从 `MYMAILBOX_GRAPH_CLIENT_ID` Secret 注入；普通用户仍直接登录，不填写 ID。真实服务地址由用户逐账户提供。
 
 日期：2026 年 11 月 17 日。**37 项完成（01–20、22、31、43、48、50、55–58、69–72、86–88、90）；4 项进行中（32、89、91–92）；1 项等待真实接入条件（35，blocked）；其余 66 项未开始。** 50 的 ANSI 中文及正文修复通过，研究选型完成；32 已内置发布者应用注册，普通用户直接登录，无需输入 Client ID，待个人账户真实登录/读取验收；35 的 EWS 认证仍失败，但 ActiveSync 带凭据 OPTIONS 已返回 200，声明最高协议 16.1，待部署、设备策略及测试目录读写验收。Exchange 产品须由用户逐账户填写服务器及身份，不绑定验收公司域名。证据见 [PST 修复](../../docs/validation/2026-11-17-pst-ansi-fix.md)、[Outlook.com 配置](../../docs/validation/outlook-com-setup.md)、[公司端点调查](../../docs/validation/2026-11-17-exchange-discovery.md)。
