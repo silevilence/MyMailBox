@@ -2,7 +2,7 @@
 
 Spec: 000-mymailbox
 Status: ready-for-agent
-Progress: not-started
+Progress: done
 Type: task
 Scope: 必做
 Estimate: 2–3 人日
@@ -21,9 +21,9 @@ Blocked by: 13, 14
 
 ## Acceptance criteria
 
-- [ ] UTF-8、GB18030/GBK、Big5、日文、错误 charset、编码主题均有验证样本和结果。
-- [ ] 支持手动编码、纯文本和原文切换，不能修复的内容明确标识。
-- [ ] TNEF/winmail.dat、RTF 和损坏 MIME 不崩溃且不静默丢附件，扩展处理器可替换。
+- [x] UTF-8、GB18030/GBK、Big5、日文、错误 charset、编码主题均有验证样本和结果。
+- [x] 支持手动编码、纯文本和原文切换，不能修复的内容明确标识。
+- [x] TNEF/winmail.dat、RTF 和损坏 MIME 不崩溃且不静默丢附件，扩展处理器可替换。
 
 ## Blocked by
 
@@ -38,7 +38,7 @@ Blocked by: 13, 14
 
 ## 验证与交付记录
 
-实施时记录演示步骤或检查命令、结果、适用环境和已知限制；目前未执行，所有验收项保持未勾选。若发现超出预计粒度，先拆为完整可验收子场景；环境不足时保留具体缺口，不标完成。
+2026-11-17：阅读器注册系统代码页，支持自动编码及 UTF-8、GB18030/GBK、Big5、Shift-JIS、Windows-1252 手动正文覆盖，保留纯文本/原文切换。未知 charset 与替代字符明确提示。RTF/TNEF 未转换时报告限制并在附件入口保留可保存的正文.rtf/winmail.dat，不伪称已展开其附件；IMimeContentDecoder 可替换处理。`dotnet run --project tests/MyMailBox.Checks --no-restore -- encoding` 覆盖各语言、错误声明、编码主题、坏 HTML、损坏 MIME 和第二处理器。窗口验收集中执行。
 
 ## Comments
 

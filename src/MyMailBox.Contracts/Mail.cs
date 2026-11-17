@@ -18,7 +18,13 @@ public interface IMailStore
 
 public interface IMimeReader
 {
-    Task<ParsedMail> Parse(byte[] raw, CancellationToken cancellation = default);
+    Task<ParsedMail> Parse(byte[] raw, CancellationToken cancellation = default, string? charsetOverride = null);
+}
+
+public interface IMimeContentDecoder
+{
+    bool Supports(string contentType);
+    string Decode(string contentType, byte[] content, CancellationToken cancellation = default);
 }
 
 public sealed record MailReader(IMailStore Store, IMimeReader Parser, IHtmlMailRenderer? Html = null, IRemoteContentService? Remote = null, IAttachmentService? Attachments = null);

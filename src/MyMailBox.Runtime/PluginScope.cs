@@ -109,7 +109,7 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
 
     private sealed class ScopedMimeReader(PluginScope scope, IMimeReader reader) : IMimeReader
     {
-        public Task<ParsedMail> Parse(byte[] raw, CancellationToken cancellation = default) => scope.Run(t => reader.Parse(raw, t), cancellation);
+        public Task<ParsedMail> Parse(byte[] raw, CancellationToken cancellation = default, string? charsetOverride = null) => scope.Run(t => reader.Parse(raw, t, charsetOverride), cancellation);
     }
     private sealed class ScopedHtml(PluginScope scope, IHtmlMailRenderer renderer) : IHtmlMailRenderer
     {

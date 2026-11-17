@@ -24,6 +24,8 @@ public sealed class MailboxView : UserControl, IDisposable
     private readonly Button _next;
     private readonly Button _import;
     private readonly ComboBox _mode = new() { ItemsSource = new[] { "纯文本", "MIME 结构与附件", "原始邮件", "安全 HTML" }, SelectedIndex = 0 };
+    private readonly ComboBox _encoding = new() { ItemsSource = new[] { "自动编码", "UTF-8", "GB18030 / GBK", "Big5", "日文 Shift-JIS", "Western Windows-1252" }, SelectedIndex = 0 };
+    private static readonly string?[] Encodings = [null, "utf-8", "gb18030", "big5", "shift_jis", "windows-1252"];
     private readonly ContentControl _readingContent = new();
     private SecureHtmlView? _htmlView;
     private int _htmlRevision;
@@ -79,8 +81,11 @@ public sealed class MailboxView : UserControl, IDisposable
         var fileGrid = new Grid { ColumnDefinitions = new("*,Auto,Auto"), ColumnSpacing = 8 };
         fileGrid.Children.Add(_file); Grid.SetColumn(browse, 1); fileGrid.Children.Add(browse); Grid.SetColumn(_import, 2); fileGrid.Children.Add(_import);
         header.Children.Add(fileGrid);
-        AutomationProperties.SetAutomationId(_mode, "mail-mode"); AutomationProperties.SetName(_mode, "阅读模式"); header.Children.Add(_mode);
+        AutomationProperties.SetAutomationId(_mode, "mail-mode"); AutomationProperties.SetName(_mode, "阅读模式");
+        AutomationProperties.SetAutomationId(_encoding, "mail-encoding"); AutomationProperties.SetName(_encoding, "正文编码");
+        var readingOptions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 }; readingOptions.Children.Add(_mode); readingOptions.Children.Add(_encoding); header.Children.Add(readingOptions);
         _mode.SelectionChanged += (_, _) => ShowContent();
+        _encoding.SelectionChanged += async (_, _) => await Guard(ReadSelected);
         var footer = new StackPanel { Spacing = 8, Margin = new Thickness(0, 12, 0, 0) };
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         buttons.Children.Add(_previous); buttons.Children.Add(_next); buttons.Children.Add(Button("刷新", "mail-refresh", () => LoadPage(_offset)));
@@ -195,7 +200,7 @@ public sealed class MailboxView : UserControl, IDisposable
             ReleaseHtml(); _parsed = null; _raw = null;
             _body.Text = "正在读取…";
             var raw = await _reader.Store.Read(summary.Id, cancellation.Token);
-            var mail = await _reader.Parser.Parse(raw, cancellation.Token);
+            var mail = await _reader.Parser.Parse(raw, cancellation.Token, Encodings[Math.Max(0, _encoding.SelectedIndex)]);
             if (_disposed || cancellation.IsCancellationRequested) return;
             _parsed = mail; _raw = raw; _messageId = summary.Id;
             _attachments.ItemsSource = (mail.Parts ?? []).Where(p => p.Attachment || p.ContentId is not null || p.Name.Length > 0 || p.ContentType == "message/rfc822").ToArray();
