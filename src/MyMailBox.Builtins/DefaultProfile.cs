@@ -31,10 +31,13 @@ public static class DefaultProfile
         {
             var localStore = new Mail.SqliteMailStore(Path.Combine(location, "mail"));
             var remote = new Mail.RemoteContentService(localStore); ctx.Effect(() => remote);
-            LocalMailPlugin.Apply(ctx, mailStore ?? localStore, mimeReader ?? new Mail.MimeReader(), remote);
+            var available = mailStore ?? new Mail.AvailableMailStore(localStore);
+            LocalMailPlugin.Apply(ctx, available, mimeReader ?? new Mail.MimeReader(), remote);
             var exportHost = ctx.Get<IPluginHost>("mailbox.host")!;
             ctx.Effect(() => exportHost.Add(new Page("export", "批量导出", "", [], [], (_, _) => Task.FromResult(""))
-                { Export = new(mailStore ?? localStore, new Mail.SelectionService(localStore, new Mail.AccountService(localStore))) }));
+                { Export = new(available, new Mail.SelectionService(localStore, new Mail.AccountService(localStore))) }));
+            ctx.Effect(() => exportHost.Add(new Page("local-mailboxes", "本地邮箱管理", "", [], [], (_, _) => Task.FromResult(""))
+                { LocalMailboxes = new Mail.LocalMailboxService(localStore, new Mail.AccountService(localStore), mimeReader ?? new Mail.MimeReader()) }));
             ArchivePage.Apply(ctx, new Mail.SqliteMailStore(Path.Combine(location, "mail")));
             var maintenance = new Mail.StorageMaintenance(new Mail.SqliteMailStore(Path.Combine(location, "mail")), mimeReader ?? new Mail.MimeReader());
             var host = ctx.Get<IPluginHost>("mailbox.host")!;

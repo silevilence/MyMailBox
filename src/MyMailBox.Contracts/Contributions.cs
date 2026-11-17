@@ -4,6 +4,7 @@ public sealed record Page(string Id, string Title, string Description, IReadOnly
     IReadOnlyList<PageAction> Actions, Func<IReadOnlyDictionary<string, string>, string, Task<string>> Execute, MailReader? Reader = null, IAccountService? Accounts = null, ISelectionService? Selections = null)
 {
     public ExportSource? Export { get; init; }
+    public ILocalMailboxService? LocalMailboxes { get; init; }
     // Preserve the original SDK constructor for already compiled page plugins.
     public Page(string id, string title, string description, IReadOnlyList<Field> fields,
         IReadOnlyList<PageAction> actions, Func<IReadOnlyDictionary<string, string>, string, Task<string>> execute)

@@ -23,7 +23,8 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         Reader = page.Reader is { } reader ? new(new ScopedMailStore(this, reader.Store), new ScopedMimeReader(this, reader.Parser), reader.Html is { } html ? new ScopedHtml(this, html) : null, reader.Remote is { } remote ? new ScopedRemote(this, remote) : null, reader.Attachments is { } attachments ? new ScopedAttachments(this, attachments) : null) : null,
         Accounts = page.Accounts is { } accounts ? new ScopedAccounts(this, accounts) : null,
         Selections = page.Selections is { } selections ? new ScopedSelections(this, selections) : null,
-        Export = page.Export is { } export ? new(new ScopedMailStore(this, export.Store), new ScopedSelections(this, export.Selections)) : null
+        Export = page.Export is { } export ? new(new ScopedMailStore(this, export.Store), new ScopedSelections(this, export.Selections)) : null,
+        LocalMailboxes = page.LocalMailboxes is { } local ? new ScopedLocalMailboxes(this, local) : null
     }));
     public IDisposable AddSelector(Selector selector) => Own(pages.AddSelector(selector));
     public IDisposable AddExporter(IMessageExporter exporter)
@@ -157,6 +158,16 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         public string Name { get; }
         public void Release() => _exporter = null;
         public Task<ExportReport> Export(ExportRequest request, IProgress<ExportItemResult>? progress = null, CancellationToken cancellation = default) => _scope.Run(t => (_exporter ?? throw new InvalidOperationException("导出器已卸载。")).Export(request, progress, t), cancellation);
+    }
+    private sealed class ScopedLocalMailboxes(PluginScope scope, ILocalMailboxService service) : ILocalMailboxService
+    {
+        public string StorageDescription => service.StorageDescription;
+        public Task<IReadOnlyList<LocalMailboxInfo>> List(CancellationToken cancellation = default) => scope.Run(service.List, cancellation);
+        public Task<MailAccount> Create(AccountEdit edit, CancellationToken cancellation = default) => scope.Run(t => service.Create(edit, t), cancellation);
+        public async Task SetOpen(Guid id, bool open, string? alias, CancellationToken cancellation = default) => await scope.Run(async t => { await service.SetOpen(id, open, alias, t); return true; }, cancellation);
+        public Task<IReadOnlyList<MailFolder>> Folders(Guid id, CancellationToken cancellation = default) => scope.Run(t => service.Folders(id, t), cancellation);
+        public Task<MailFolder> CreateFolder(Guid account, Guid? parent, string name, CancellationToken cancellation = default) => scope.Run(t => service.CreateFolder(account, parent, name, t), cancellation);
+        public Task<Guid> Archive(Guid folder, byte[] raw, CancellationToken cancellation = default) => scope.Run(t => service.Archive(folder, raw, t), cancellation);
     }
 }
 
