@@ -29,6 +29,10 @@ public sealed class MailboxView : UserControl, IDisposable
     private int _htmlRevision;
     private Uri? _pendingLink;
     private readonly TextBlock _linkPrompt = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly ComboBox _remoteScope = new() { ItemsSource = new[] { "仅本封（记住选择）", "此发件地址（整个工作空间）", "此域名（仅精确域，整个工作空间）" }, SelectedIndex = 0 };
+    private readonly TextBlock _remoteExplanation = new() { TextWrapping = TextWrapping.Wrap };
+    private Guid? _messageId;
+    private CancellationTokenSource? _htmlCancellation;
     private ParsedMail? _parsed;
     private byte[]? _raw;
     private int _offset;
@@ -94,6 +98,16 @@ public sealed class MailboxView : UserControl, IDisposable
         exportActions.Children.Add(Button("导出所选邮件", "mail-export", Export));
         exportActions.Children.Add(Button("取消导出", "mail-export-cancel", () => { _exporting?.Cancel(); return Task.CompletedTask; })); exportPanel.Children.Add(exportActions);
         footer.Children.Insert(1, new Expander { Header = "导出邮件", Content = exportPanel, HorizontalAlignment = HorizontalAlignment.Stretch });
+        var remotePanel = new StackPanel { Spacing = 8 };
+        AutomationProperties.SetAutomationId(_remoteScope, "mail-remote-scope"); AutomationProperties.SetName(_remoteScope, "远程内容放行范围");
+        AutomationProperties.SetAutomationId(_remoteExplanation, "mail-remote-preview");
+        remotePanel.Children.Add(_remoteScope); remotePanel.Children.Add(_remoteExplanation);
+        remotePanel.Children.Add(new TextBlock { Text = "地址/域规则根据邮件头匹配，不代表身份已验证。加载可能向资源服务器透露网络地址；脚本和额外子请求仍被阻止。", TextWrapping = TextWrapping.Wrap });
+        var remoteActions = new WrapPanel { Orientation = Orientation.Horizontal };
+        remoteActions.Children.Add(Button("预览范围", "mail-remote-preview-action", PreviewRemote));
+        remoteActions.Children.Add(Button("按所选范围放行并加载", "mail-remote-allow", () => SetRemote(true)));
+        remoteActions.Children.Add(Button("撤销所选范围", "mail-remote-revoke", () => SetRemote(false))); remotePanel.Children.Add(remoteActions);
+        footer.Children.Insert(1, new Expander { Header = "远程多媒体", Content = remotePanel, HorizontalAlignment = HorizontalAlignment.Stretch });
         var content = new Grid { ColumnDefinitions = new("2*,3*"), ColumnSpacing = 12, Margin = new Thickness(0, 12, 0, 0) };
         _readingContent.Content = _body; content.Children.Add(_messages); Grid.SetColumn(_readingContent, 1); content.Children.Add(_readingContent);
         var layout = new DockPanel(); DockPanel.SetDock(header, Dock.Top); layout.Children.Add(header); DockPanel.SetDock(footer, Dock.Bottom); layout.Children.Add(footer); layout.Children.Add(content); Content = layout;
@@ -127,7 +141,7 @@ public sealed class MailboxView : UserControl, IDisposable
     {
         if (_folders.SelectedItem is not MailFolder folder) return;
         var version = ++_listVersion;
-        _reading?.Cancel(); ReleaseHtml(); _body.Text = ""; _parsed = null; _raw = null; _status.Text = "正在加载邮件列表…";
+        _reading?.Cancel(); ReleaseHtml(); _body.Text = ""; _parsed = null; _raw = null; _messageId = null; _remoteExplanation.Text = ""; _status.Text = "正在加载邮件列表…";
         var page = await _reader.Store.List(folder.Id, offset, 50, _lifetime.Token);
         if (_disposed || version != _listVersion) return;
         _offset = offset; _messages.ItemsSource = page.Items; _previous.IsEnabled = offset > 0; _next.IsEnabled = page.HasMore;
@@ -162,7 +176,7 @@ public sealed class MailboxView : UserControl, IDisposable
             var raw = await _reader.Store.Read(summary.Id, cancellation.Token);
             var mail = await _reader.Parser.Parse(raw, cancellation.Token);
             if (_disposed || cancellation.IsCancellationRequested) return;
-            _parsed = mail; _raw = raw; ShowContent();
+            _parsed = mail; _raw = raw; _messageId = summary.Id; await PreviewRemote(); ShowContent();
         }
         finally { if (ReferenceEquals(_reading, cancellation)) _reading = null; }
     }
@@ -201,17 +215,48 @@ public sealed class MailboxView : UserControl, IDisposable
         if (_reader.Html is null || _parsed is not { } mail) return;
         ReleaseHtml(); var revision = _htmlRevision;
         if (mail.Html.Length == 0) { _body.Text = "此邮件没有 HTML 正文，请切换纯文本。"; return; }
+        using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token); _htmlCancellation = cancellation;
+        try
+        {
         var baseUri = "https://mail.mymailbox.invalid/" + Guid.NewGuid().ToString("N") + "/";
-        var document = await _reader.Html.Render(mail, baseUri, cancellation: _lifetime.Token);
+        var document = await _reader.Html.Render(mail, baseUri, cancellation: cancellation.Token);
+        var loadResults = "";
+        if (_reader.Remote is { } remote && _messageId is { } messageId && document.RemoteResources.Count > 0)
+        {
+            var context = new RemoteContentContext(messageId, mail.From);
+            if ((await remote.Preview(context, cancellation.Token)).MatchingRules.Length > 0)
+            {
+                var loaded = await remote.Load(context, document.RemoteResources, cancellation.Token);
+                document = await _reader.Html.Render(mail, baseUri, loaded.Resources, cancellation.Token); loadResults = string.Join("；", loaded.Results);
+            }
+        }
         if (_disposed || revision != _htmlRevision || _mode.SelectedIndex != 3 || !ReferenceEquals(mail, _parsed)) return;
         _htmlView = new SecureHtmlView(baseUri + "index.html", document);
         _htmlView.ExternalLink += uri => { _pendingLink = uri; _linkPrompt.Text = "即将在浏览器打开：" + uri.AbsoluteUri; };
         _htmlView.Failed += error => { if (!_disposed) _status.Text = error; };
-        _htmlView.DocumentLoaded += () => { if (!_disposed) _status.Text = "HTML 已加载。" + string.Join("；", document.Warnings); };
+        _htmlView.DocumentLoaded += () => { if (!_disposed) _status.Text = "HTML 已加载。" + (loadResults.Length > 0 ? loadResults : string.Join("；", document.Warnings)); };
         _readingContent.Content = _htmlView;
+        }
+        finally { if (ReferenceEquals(_htmlCancellation, cancellation)) _htmlCancellation = null; }
+    }
+    private async Task PreviewRemote()
+    {
+        if (_reader.Remote is null || _parsed is not { } mail || _messageId is not { } id) return;
+        var preview = await _reader.Remote.Preview(new(id, mail.From), _lifetime.Token);
+        if (_disposed || !ReferenceEquals(mail, _parsed)) return;
+        _remoteExplanation.Text = $"发件地址：{(preview.Sender.Length == 0 ? "无唯一有效地址" : preview.Sender)}\n精确域名：{preview.Domain}\n" +
+            (preview.MatchingRules.Length == 0 ? "当前：默认阻止。" : "生效规则：" + string.Join("；", preview.MatchingRules.Select(r => r.Scope == RemoteContentScope.Message ? "本封" : r.Value)));
+    }
+    private async Task SetRemote(bool allow)
+    {
+        if (_reader.Remote is null || _parsed is not { } mail || _messageId is not { } id) throw new InvalidDataException("请先打开一封邮件。");
+        await _reader.Remote.SetRule(new(id, mail.From), (RemoteContentScope)_remoteScope.SelectedIndex, allow, _lifetime.Token);
+        await PreviewRemote();
+        if (_mode.SelectedIndex != 3) _mode.SelectedIndex = 3; else await ShowHtml();
     }
     private void ReleaseHtml()
     {
+        _htmlCancellation?.Cancel();
         _htmlRevision++; _htmlView?.Dispose(); _htmlView = null; _readingContent.Content = _body; _pendingLink = null; _linkPrompt.Text = "";
     }
 

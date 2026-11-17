@@ -20,7 +20,7 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
     public IDisposable Add(Page page) => Own(pages.Add(page with
     {
         Id = InstanceId + "/" + page.Id, Execute = (values, action) => Run(_ => page.Execute(values, action)),
-        Reader = page.Reader is { } reader ? new(new ScopedMailStore(this, reader.Store), new ScopedMimeReader(this, reader.Parser), reader.Html is { } html ? new ScopedHtml(this, html) : null) : null,
+        Reader = page.Reader is { } reader ? new(new ScopedMailStore(this, reader.Store), new ScopedMimeReader(this, reader.Parser), reader.Html is { } html ? new ScopedHtml(this, html) : null, reader.Remote is { } remote ? new ScopedRemote(this, remote) : null) : null,
         Accounts = page.Accounts is { } accounts ? new ScopedAccounts(this, accounts) : null,
         Selections = page.Selections is { } selections ? new ScopedSelections(this, selections) : null
     }));
@@ -114,6 +114,12 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
     private sealed class ScopedHtml(PluginScope scope, IHtmlMailRenderer renderer) : IHtmlMailRenderer
     {
         public Task<SafeMailDocument> Render(ParsedMail mail, string baseUri, IReadOnlyDictionary<string, MailResource>? loadedRemote = null, CancellationToken cancellation = default) => scope.Run(t => renderer.Render(mail, baseUri, loadedRemote, t), cancellation);
+    }
+    private sealed class ScopedRemote(PluginScope scope, IRemoteContentService service) : IRemoteContentService
+    {
+        public Task<RemoteContentPreview> Preview(RemoteContentContext context, CancellationToken cancellation = default) => scope.Run(t => service.Preview(context, t), cancellation);
+        public async Task SetRule(RemoteContentContext context, RemoteContentScope kind, bool allow, CancellationToken cancellation = default) => await scope.Run(async t => { await service.SetRule(context, kind, allow, t); return true; }, cancellation);
+        public Task<RemoteLoadResult> Load(RemoteContentContext context, IReadOnlyList<RemoteMailResource> resources, CancellationToken cancellation = default) => scope.Run(t => service.Load(context, resources, t), cancellation);
     }
 
     private sealed class ScopedAccounts(PluginScope scope, IAccountService accounts) : IAccountService

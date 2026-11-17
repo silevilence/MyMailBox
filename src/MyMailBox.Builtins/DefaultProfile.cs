@@ -29,7 +29,9 @@ public static class DefaultProfile
         }));
         catalog.Add(new(new("local-mail", "1.0.0", 1, 1, PluginKind.Ordinary, "local-mail"), PluginOrigin.Builtin, "", (ctx, _) =>
         {
-            LocalMailPlugin.Apply(ctx, mailStore ?? new Mail.SqliteMailStore(Path.Combine(location, "mail")), mimeReader ?? new Mail.MimeReader());
+            var localStore = new Mail.SqliteMailStore(Path.Combine(location, "mail"));
+            var remote = new Mail.RemoteContentService(localStore); ctx.Effect(() => remote);
+            LocalMailPlugin.Apply(ctx, mailStore ?? localStore, mimeReader ?? new Mail.MimeReader(), remote);
             ArchivePage.Apply(ctx, new Mail.SqliteMailStore(Path.Combine(location, "mail")));
             var maintenance = new Mail.StorageMaintenance(new Mail.SqliteMailStore(Path.Combine(location, "mail")), mimeReader ?? new Mail.MimeReader());
             var host = ctx.Get<IPluginHost>("mailbox.host")!;
