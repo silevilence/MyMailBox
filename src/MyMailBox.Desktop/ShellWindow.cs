@@ -113,6 +113,10 @@ public sealed class ShellWindow : Window
         var page = _pages.Pages.FirstOrDefault(p => p.Id == id);
         if (page is null) return;
         _renderedPage = page; _selectorRevision = _pages.SelectorRevision; _exporterRevision = _pages.ExporterRevision;
+        if (page.Updates is { } updates)
+        {
+            var view = new UpdateView(updates); _hostView = view; _body.Content = view; return;
+        }
         if (page.Schedules is { } schedules)
         {
             var view = new ScheduleView(schedules); _hostView = view; _body.Content = view; return;

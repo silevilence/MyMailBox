@@ -108,7 +108,8 @@
         "type": "Project",
         "dependencies": {
           "MyMailBox.Mail": "[0.1.0, )",
-          "MyMailBox.Runtime": "[0.1.0, )"
+          "MyMailBox.Runtime": "[0.1.0, )",
+          "MyMailBox.Updates": "[0.1.0, )"
         }
       },
       "mymailbox.contracts": {

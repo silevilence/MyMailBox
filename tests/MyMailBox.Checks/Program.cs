@@ -42,3 +42,5 @@ if (args.Length == 0 || args.Contains("recurrence")) await RecurrenceChecks.Run(
 if (args.Length == 0 || args.Contains("cron")) await CronChecks.Run();
 if (args.Length == 0 || args.Contains("schedule-recovery")) await ScheduleRecoveryChecks.Run();
 if (args.Length == 0 || args.Contains("updater-spike")) await UpdaterSpikeChecks.Run();
+if (args.Length == 0 || args.Contains("update-checks")) await UpdateCheckChecks.Run();
+if (args.Contains("update-live")) await UpdateCheckChecks.Live();

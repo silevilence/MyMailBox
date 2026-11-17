@@ -26,7 +26,8 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         Export = page.Export is { } export ? new(new ScopedMailStore(this, export.Store), new ScopedSelections(this, export.Selections)) : null,
         LocalMailboxes = page.LocalMailboxes is { } local ? new ScopedLocalMailboxes(this, local) : null,
         Reminders = page.Reminders is { } reminders ? new(new ScopedReminders(this, reminders.Scheduler), new ScopedMailStore(this, reminders.Mail)) : null,
-        Schedules = page.Schedules is { } schedules ? new ScopedSchedules(this, schedules) : null
+        Schedules = page.Schedules is { } schedules ? new ScopedSchedules(this, schedules) : null,
+        Updates = page.Updates is { } updates ? new ScopedUpdates(this, updates) : null
     }));
     public IDisposable AddSelector(Selector selector) => Own(pages.AddSelector(selector));
     public IDisposable AddExporter(IMessageExporter exporter)
@@ -179,6 +180,13 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         public async Task Dismiss(Guid id, CancellationToken cancellation = default) => await scope.Run(async t => { await service.Dismiss(id, t); return true; }, cancellation);
         public async Task Cancel(Guid id, CancellationToken cancellation = default) => await scope.Run(async t => { await service.Cancel(id, t); return true; }, cancellation);
         public Task<int> Tick(CancellationToken cancellation = default) => scope.Run(service.Tick, cancellation);
+    }
+    private sealed class ScopedUpdates(PluginScope scope, IUpdateService service) : IUpdateService
+    {
+        public Task<UpdateSnapshot> Snapshot(CancellationToken cancellation = default) => scope.Run(service.Snapshot, cancellation);
+        public Task<UpdateCheck> Check(bool manual, CancellationToken cancellation = default) => scope.Run(t => service.Check(manual, t), cancellation);
+        public async Task Save(UpdateSettings settings, CancellationToken cancellation = default) => await scope.Run(async t => { await service.Save(settings, t); return true; }, cancellation);
+        public async Task Skip(string? version, CancellationToken cancellation = default) => await scope.Run(async t => { await service.Skip(version, t); return true; }, cancellation);
     }
     private sealed class ScopedSchedules(PluginScope scope, IScheduleService service) : IScheduleService
     {

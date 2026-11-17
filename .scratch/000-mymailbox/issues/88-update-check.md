@@ -2,7 +2,7 @@
 
 Spec: 000-mymailbox
 Status: needs-info
-Progress: not-started
+Progress: done
 Type: task
 Scope: 必做
 Estimate: 2–3 人日
@@ -21,9 +21,9 @@ Blocked by: 87, 06
 
 ## Acceptance criteria
 
-- [ ] 正确处理 V/v 前缀、语义版本、draft/prerelease、稳定通道和 win-x64 资产，不做字符串大小比较。
-- [ ] 缺少资产、超时、代理、限流与无更新区分，缓存避免高频请求。
-- [ ] 真实仓库地址来自配置，不嵌入个人 token；以第二测试源证明更新检查是插件能力。
+- [x] 正确处理 V/v 前缀、语义版本、draft/prerelease、稳定通道和 win-x64 资产，不做字符串大小比较。
+- [x] 缺少资产、超时、代理、限流与无更新区分，缓存避免高频请求。
+- [x] 真实仓库地址来自配置，不嵌入个人 token；以第二测试源证明更新检查是插件能力。
 
 ## Blocked by
 
@@ -38,7 +38,9 @@ Blocked by: 87, 06
 
 ## 验证与交付记录
 
-实施时记录演示步骤或检查命令、结果、适用环境和已知限制；目前未执行，所有验收项保持未勾选。若发现超出预计粒度，先拆为完整可验收子场景；环境不足时保留具体缺口，不标完成。
+2026-11-17：内置普通更新插件提供宿主设置页、公开 GitHub Release 检查、后台开关/间隔/通道/跳过版本、持久化缓存和 ETag。仓库来自分发配置 update-source.json，默认值由本仓库 remote 确认，不含个人 token。契约 IUpdateSource / IUpdateService 可替换，插件停止后移除页面、停止后台循环并拒绝旧调用。
+
+`dotnet run --project tests/MyMailBox.Checks --no-restore -- update-checks update-live` 通过：SemVer 数字排序/元数据、draft/prerelease、缺少 x64/签名资产、304、429 Retry-After、407 代理、超时/坏 JSON、重启缓存、跳过恢复及第二测试源通过插件调用。真实公开仓库当前无 Release，实读返回 Current；未下载任何资产。窗口操作仍留到本轮末集中验收，说明见 docs/updater.md。
 
 ## Comments
 

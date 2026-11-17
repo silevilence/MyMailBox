@@ -207,6 +207,24 @@
           "System.Security.Cryptography.Pkcs": "10.0.0"
         }
       },
+      "NetSparkleUpdater.Chaos.NaCl": {
+        "type": "Transitive",
+        "resolved": "0.9.4",
+        "contentHash": "bGUdkGMW/CvKFm6AMsufYJB9XpoK0TlRfIJ5yANZKhFUTSJe2gf6EO32ZgF9rT+S4h2ETdWHN/33weOnVFjWDQ=="
+      },
+      "NetSparkleUpdater.SparkleUpdater": {
+        "type": "Transitive",
+        "resolved": "3.1.0",
+        "contentHash": "ohFNB4q1zDBBoi+j2SBy41NgIJCuXSDRuUY/2ZjQwAgjyZIK4uQkcJDsx0tu00wHCcpRdQijdtcaRG164haAEQ==",
+        "dependencies": {
+          "NetSparkleUpdater.Chaos.NaCl": "0.9.4"
+        }
+      },
+      "NuGet.Versioning": {
+        "type": "Transitive",
+        "resolved": "7.0.3",
+        "contentHash": "jwZmJzau0kUTxUvtmjbEXyvhx0ui9wGPByDT8qV3qDSVK9rChgsSeZqb1Bybu258G9urdEcE9HqZCdRbi7h9BA=="
+      },
       "SkiaSharp": {
         "type": "Transitive",
         "resolved": "3.119.4",
@@ -282,7 +300,8 @@
         "type": "Project",
         "dependencies": {
           "MyMailBox.Mail": "[0.1.0, )",
-          "MyMailBox.Runtime": "[0.1.0, )"
+          "MyMailBox.Runtime": "[0.1.0, )",
+          "MyMailBox.Updates": "[0.1.0, )"
         }
       },
       "mymailbox.contracts": {
@@ -304,6 +323,14 @@
         "dependencies": {
           "CordiSharp": "[0.2.0, )",
           "MyMailBox.Contracts": "[0.1.0, )"
+        }
+      },
+      "mymailbox.updates": {
+        "type": "Project",
+        "dependencies": {
+          "MyMailBox.Contracts": "[0.1.0, )",
+          "NetSparkleUpdater.SparkleUpdater": "[3.1.0, )",
+          "NuGet.Versioning": "[7.0.3, )"
         }
       }
     },
