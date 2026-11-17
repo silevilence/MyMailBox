@@ -14,10 +14,12 @@ internal static class GraphChecks
         Check(account.Capabilities == (AccountCapabilities.Receive | AccountCapabilities.Folders), "Graph must be read-only");
         var auth = new Authorization(new(store)); var handler = new Handler(); using var http = new HttpClient(handler);
         using var service = new GraphMailService(store, auth, http);
-        await Reject(() => service.SignIn(account.Id), "Client ID");
-        await Reject(() => service.SaveClientId(account.Id, "not-a-client-secret"), "Client ID");
-        var clientId = Guid.NewGuid().ToString(); await service.SaveClientId(account.Id, clientId);
         await service.SignIn(account.Id);
+        Check(auth.LastClient == GraphApplication.ClientId, "Default application ID not used for direct login");
+        var second = await accounts.Save(new(null, "另一位用户", "outlook-com", "second@outlook.com"));
+        auth.Username = "second@outlook.com"; await service.SignIn(second.Id);
+        Check(auth.LastClient == GraphApplication.ClientId && (await service.Settings(second.Id)).SignedIn, "Second user could not use the shared application registration");
+        await service.Disconnect(second.Id); await accounts.Remove(second.Id); auth.Username = "test@outlook.com";
         Check((await service.Settings(account.Id)).SignedIn, "Sign in not persisted");
         var cache = new GraphTokenCache(store); Check(Encoding.UTF8.GetString(cache.Load(account.Id)!) == "synthetic-msal-cache", "Protected cache did not reopen");
         using (var db = store.Open())
@@ -73,7 +75,16 @@ internal static class GraphChecks
         await service.Disconnect(account.Id); Check(!(await service.Settings(account.Id)).SignedIn && cache.Load(account.Id) is null, "Disconnect leaked cache");
         Check((await store.Read(id)).SequenceEqual(raw), "Disconnect removed downloaded mail");
         auth.Username = "other@outlook.com"; await Reject(() => service.SignIn(account.Id), "不一致"); Check(cache.Load(account.Id) is null, "Wrong account cache retained"); auth.Username = "test@outlook.com";
-        await service.SignIn(account.Id); await service.SaveClientId(account.Id, Guid.NewGuid().ToString()); Check(!(await service.Settings(account.Id)).SignedIn, "Changing client retained login");
+        await service.SignIn(account.Id);
+        using (var changed = new GraphMailService(store, auth, http, Guid.NewGuid().ToString()))
+        {
+            Check(!(await changed.Settings(account.Id)).SignedIn, "Changed publisher registration retained login");
+            await Reject(() => changed.Folders(account.Id), "尚未连接");
+            auth.CheckEmptyCache = true; await changed.SignIn(account.Id); auth.CheckEmptyCache = false;
+            Check((await changed.Settings(account.Id)).SignedIn && !(await service.Settings(account.Id)).SignedIn, "Old registration cache accepted by current application");
+        }
+        auth.CheckEmptyCache = true; await service.SignIn(account.Id); auth.CheckEmptyCache = false;
+        Check(auth.LastClient == GraphApplication.ClientId, "Legacy registration was not migrated to publisher ID");
         await service.SignIn(account.Id); await accounts.Remove(account.Id); Check(cache.Load(account.Id) is null, "Remove retained cache");
         await Reject(() => service.Folders(account.Id), "请选择");
         await Reject(() => new ProtocolMailService(store).Settings(account.Id), "不支持");
@@ -89,10 +100,12 @@ internal static class GraphChecks
     private static HttpResponseMessage Json(string value) => new(HttpStatusCode.OK) { Content = new StringContent(value, Encoding.UTF8, "application/json") };
     private sealed class Authorization(GraphTokenCache cache) : IGraphAuthorization
     {
-        public string Username = "test@outlook.com"; public int Refreshes; public Exception? Failure;
+        public string Username = "test@outlook.com"; public int Refreshes; public Exception? Failure; public string? LastClient; public bool CheckEmptyCache;
         public Task<GraphGrant> Acquire(Guid account, string clientId, string? homeAccountId, bool interactive, bool refresh, CancellationToken cancellation)
         {
             cancellation.ThrowIfCancellationRequested(); if (Failure is not null) throw Failure;
+            LastClient = clientId;
+            if (CheckEmptyCache) Check(cache.Load(account) is null && homeAccountId is null, "Old application token cache was reused");
             if (refresh) Refreshes++; cache.Save(account, Encoding.UTF8.GetBytes("synthetic-msal-cache"));
             return Task.FromResult(new GraphGrant("synthetic-access-token", "synthetic-home", Username));
         }

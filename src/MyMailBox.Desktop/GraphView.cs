@@ -13,7 +13,6 @@ public sealed class GraphView : UserControl, IDisposable
     private readonly CancellationTokenSource _lifetime = new();
     private CancellationTokenSource? _operation;
     private readonly ComboBox _accounts = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
-    private readonly TextBox _client = new();
     private readonly ListBox _folders = new() { Height = 150 }, _messages = new() { Height = 220 };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap };
     private readonly List<Control> _controls = [];
@@ -31,10 +30,8 @@ public sealed class GraphView : UserControl, IDisposable
         var panel = new StackPanel { Spacing = 10, MaxWidth = 850 };
         panel.Children.Add(new TextBlock { Text = "Outlook.com 邮件", FontSize = 28 });
         panel.Children.Add(new TextBlock { Text = "个人微软账户 · 只读授权。浏览和下载不会改变云端已读状态。下载后到“本地邮件”查看正文、原文与附件。", TextWrapping = TextWrapping.Wrap });
-        Add(panel, "账户", _accounts, "graph-account"); Add(panel, "本项目的应用注册 Client ID", _client, "graph-client");
-        panel.Children.Add(new Expander { Header = "没有 Client ID？查看注册配置", Content = new TextBlock { Text = "在 Microsoft Entra 应用注册中新建个人账户可用的应用，添加“移动和桌面应用”平台及 http://localhost 回调，使用 Microsoft Graph 的 Mail.Read 委托权限。复制应用（客户端）ID，不创建或填写客户端密钥。已有 Outlook 登录不能替代本项目的注册。", TextWrapping = TextWrapping.Wrap, MaxWidth = 790 } });
+        Add(panel, "账户", _accounts, "graph-account");
         var connection = Row(); panel.Children.Add(connection);
-        connection.Children.Add(Button("保存配置", "graph-save", async t => { await page.Service.SaveClientId(Account, _client.Text ?? "", t); _status.Text = "配置已保存；保存不会联网，请点击登录微软账户。"; ClearLists(); }));
         connection.Children.Add(Button("登录微软账户", "graph-login", async t => { _status.Text = "请在微软官方浏览器页面完成授权；可随时取消。"; await page.Service.SignIn(Account, t); _status.Text = "微软只读授权已完成，可以读取目录。"; }));
         connection.Children.Add(Button("断开本应用授权", "graph-disconnect", async t => { await page.Service.Disconnect(Account, t); ClearLists(); _status.Text = "已清除本应用的登录缓存；已下载邮件保留。微软账户及 Outlook 登录不受影响。"; }));
         var navigation = Row(); panel.Children.Add(navigation);
@@ -68,10 +65,10 @@ public sealed class GraphView : UserControl, IDisposable
     }
     private async Task LoadSettings(CancellationToken token)
     {
-        ClearLists(); _client.Text = "";
+        ClearLists();
         if (_accounts.SelectedItem is null) { _status.Text = "请先在账户管理添加 Outlook.com（个人账户，只读）。"; return; }
-        var settings = await _page.Service.Settings(Account, token); _client.Text = settings.ClientId;
-        _status.Text = settings.SignedIn ? "已载入配置，可以读取目录。" : "已载入配置；请保存 Client ID 后登录微软账户。";
+        var settings = await _page.Service.Settings(Account, token);
+        _status.Text = settings.SignedIn ? "已登录，可以读取目录。" : "请选择对应账户并点击“登录微软账户”，在微软页面完成授权。";
     }
     private void ClearLists() { _folders.ItemsSource = null; _messages.ItemsSource = null; _folderItems = []; _parent = null; _parents.Clear(); _folderNext = null; _messageNext = null; _messageCurrent = null; _messageBack.Clear(); }
     private async Task LoadFolders(string? next, CancellationToken token)

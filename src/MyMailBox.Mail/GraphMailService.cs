@@ -15,9 +15,12 @@ public sealed partial class GraphMailService : IGraphMailService, IDisposable
     private readonly IGraphAuthorization _auth;
     private readonly HttpClient _http;
     private readonly bool _ownsHttp;
+    private readonly string _clientId;
     private readonly SemaphoreSlim _gate = new(1);
-    public GraphMailService(SqliteMailStore store, IGraphAuthorization? authorization = null, HttpClient? http = null)
+    public GraphMailService(SqliteMailStore store, IGraphAuthorization? authorization = null, HttpClient? http = null, string clientId = GraphApplication.ClientId)
     {
+        if (!Guid.TryParse(clientId, out var applicationId) || applicationId == Guid.Empty) throw new ArgumentException("应用配置中的 Client ID 无效。", nameof(clientId));
+        _clientId = applicationId.ToString();
         _store = store; _accounts = new(store); _auth = authorization ?? new GraphAuthorization(new(store));
         _http = http ?? new(new HttpClientHandler { AllowAutoRedirect = false }); _ownsHttp = http is null;
         using var db = store.Open(); using var command = db.CreateCommand();
@@ -40,33 +43,36 @@ public sealed partial class GraphMailService : IGraphMailService, IDisposable
         using var db = _store.Open(); using var command = db.CreateCommand();
         command.CommandText = "SELECT client_id,home_id FROM graph_settings WHERE account_id=$id"; command.Parameters.AddWithValue("$id", account.ToString());
         using var reader = command.ExecuteReader();
-        return reader.Read() ? (reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetString(1)) : ("", null);
+        if (!reader.Read()) return (_clientId, null);
+        var client = reader.GetString(0);
+        return (client, client == _clientId && !reader.IsDBNull(1) ? reader.GetString(1) : null);
     }
     public async Task<GraphSettings> Settings(Guid account, CancellationToken cancellation = default)
     {
         await Account(account, cancellation); var config = Configuration(account);
         var cache = new GraphTokenCache(_store).Load(account);
-        try { return new(config.Client, config.Home is not null && cache is not null); }
+        try { return new(config.Home is not null && cache is not null); }
         finally { if (cache is not null) CryptographicOperations.ZeroMemory(cache); }
     }
-    public Task SaveClientId(Guid account, string clientId, CancellationToken cancellation = default) => Run(async () =>
+    private void ConfigureAccount(Guid account, CancellationToken cancellation)
     {
-        await Account(account, cancellation);
-        if (!Guid.TryParse(clientId, out var id) || id == Guid.Empty) throw new InvalidDataException("请输入本项目应用注册的有效 Client ID（GUID），不能使用客户端密钥。");
-        var old = Configuration(account); if (old.Client == id.ToString()) return;
         using var db = _store.Open(); using var tx = db.BeginTransaction(); using var command = db.CreateCommand(); command.Transaction = tx;
+        command.CommandText = """
+            SELECT client_id FROM graph_settings WHERE account_id=$id;
+            """;
+        command.Parameters.AddWithValue("$id", account.ToString());
+        if (command.ExecuteScalar() is string existing && existing == _clientId) return;
         command.CommandText = """
             DELETE FROM credentials WHERE id IN(SELECT cache_ref FROM graph_settings WHERE account_id=$id);
             INSERT INTO graph_settings VALUES($id,$client,NULL,$cache) ON CONFLICT(account_id) DO UPDATE SET client_id=excluded.client_id,home_id=NULL,cache_ref=excluded.cache_ref;
             UPDATE accounts SET auth_state='需要微软授权' WHERE id=$id;
             """;
-        command.Parameters.AddWithValue("$id", account.ToString()); command.Parameters.AddWithValue("$client", id.ToString()); command.Parameters.AddWithValue("$cache", Guid.NewGuid().ToString());
+        command.Parameters.AddWithValue("$client", _clientId); command.Parameters.AddWithValue("$cache", Guid.NewGuid().ToString());
         cancellation.ThrowIfCancellationRequested(); command.ExecuteNonQuery(); tx.Commit();
-    }, cancellation);
+    }
     public Task SignIn(Guid account, CancellationToken cancellation = default) => Run(async () =>
     {
-        var identity = await Account(account, cancellation); var config = Configuration(account);
-        if (config.Client.Length == 0) throw new InvalidDataException("请先填写并保存本项目的应用注册 Client ID。");
+        var identity = await Account(account, cancellation); ConfigureAccount(account, cancellation); var config = Configuration(account);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellation); timeout.CancelAfter(TimeSpan.FromMinutes(5));
         var grant = await _auth.Acquire(account, config.Client, config.Home, true, false, timeout.Token);
         if (!grant.Username.Equals(identity.Address, StringComparison.OrdinalIgnoreCase) || config.Home is not null && grant.HomeAccountId != config.Home)

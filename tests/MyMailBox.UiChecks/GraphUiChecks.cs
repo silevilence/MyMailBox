@@ -20,12 +20,11 @@ internal static class GraphUiChecks
         try
         {
             ui.Find("nav-diagnostics"); // Last startup registration; earlier navigation buttons are replaced while loading.
-            ui.Click("nav-accounts/graph"); ui.Status("graph-status", "已载入");
-            ui.Click("graph-login"); ui.Status("graph-status", "Client ID"); // No browser/network without application registration.
-            ui.Text("graph-client", "invalid"); ui.Click("graph-save"); ui.Status("graph-status", "有效 Client ID");
-            var id = Guid.NewGuid().ToString(); ui.Text("graph-client", id); ui.Click("graph-save"); ui.Status("graph-status", "配置已保存");
-            ui.Click("nav-accounts/manage"); ui.Click("nav-accounts/graph"); ui.Status("graph-status", "已载入");
-            if (ui.Find("graph-client").AsTextBox().Text != id) throw new Exception("Graph settings not persisted");
+            ui.Click("nav-accounts/graph"); ui.Status("graph-status", "登录微软账户");
+            if (window.FindFirstDescendant(cf => cf.ByAutomationId("graph-client")) is not null || window.FindFirstDescendant(cf => cf.ByAutomationId("graph-save")) is not null) throw new Exception("User login still requires application registration configuration");
+            if (!ui.Find("graph-login").IsEnabled) throw new Exception("Direct login is unavailable");
+            // The enabled action opens the real Microsoft browser; local UI checks do not trigger personal authorization.
+            ui.Click("nav-accounts/manage"); ui.Click("nav-accounts/graph"); ui.Status("graph-status", "登录微软账户");
             ui.Click("graph-root"); ui.Status("graph-status", "尚未连接");
             ui.Click("graph-read"); ui.Status("graph-status", "请选择目录");
             ui.Click("graph-download"); ui.Status("graph-status", "请选择邮件");
@@ -35,7 +34,7 @@ internal static class GraphUiChecks
             window.Focus(); Capture.Element(window).ToFile(Path.Combine(output, "protocol-isolation.png"));
             var process = Process.GetProcessById(app.ProcessId); window.Close();
             if (!process.WaitForExit(15000)) throw new Exception("Graph UI did not exit cleanly");
-            File.WriteAllText(Path.Combine(output, "result.txt"), "PASS settings/validation/reopen/unsigned recovery/disconnect/provider isolation; real Graph login and cloud browser remain untested");
+            File.WriteAllText(Path.Combine(output, "result.txt"), "PASS direct-login UI/no Client ID input/reopen/unsigned recovery/disconnect/provider isolation; real Graph login and cloud browser remain untested");
             Console.WriteLine("PASS Graph desktop configuration UI: " + output);
         }
         catch { Capture.Element(window).ToFile(Path.Combine(output, "failure.png")); try { window.Close(); } catch { } throw; }

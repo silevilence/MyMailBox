@@ -183,7 +183,6 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
     private sealed class ScopedGraph(PluginScope scope, ServiceTarget<IGraphMailService> service) : IGraphMailService
     {
         public Task<GraphSettings> Settings(Guid account, CancellationToken cancellation = default) => scope.Run(t => service.Value.Settings(account, t), cancellation);
-        public async Task SaveClientId(Guid account, string clientId, CancellationToken cancellation = default) => await scope.Run(async t => { await service.Value.SaveClientId(account, clientId, t); return true; }, cancellation);
         public async Task SignIn(Guid account, CancellationToken cancellation = default) => await scope.Run(async t => { await service.Value.SignIn(account, t); return true; }, cancellation);
         public async Task Disconnect(Guid account, CancellationToken cancellation = default) => await scope.Run(async t => { await service.Value.Disconnect(account, t); return true; }, cancellation);
         public Task<GraphFolders> Folders(Guid account, string? parent = null, string? next = null, CancellationToken cancellation = default) => scope.Run(t => service.Value.Folders(account, parent, next, t), cancellation);
