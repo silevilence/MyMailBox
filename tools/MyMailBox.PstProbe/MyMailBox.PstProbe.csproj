@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <Nullable>disable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <XstSource>../../artifacts/tools/xstreader/Dijji-XstReader-3b7856c/XstReader.Base</XstSource>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="$(XstSource)/*.cs" Link="Upstream/%(Filename)%(Extension)" />
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.0" />
+  </ItemGroup>
+  <Target Name="RequireCachedSource" BeforeTargets="BeforeBuild" Condition="!Exists('$(XstSource)/XstFile.cs')">
+    <Error Text="Run scripts/prepare-pst-probe.ps1 first; the pinned upstream source is reused from artifacts and is not a product dependency." />
+  </Target>
+</Project>
