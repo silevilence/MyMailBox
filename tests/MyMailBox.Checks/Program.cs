@@ -38,3 +38,4 @@ if (args.Length == 0 || args.Contains("local-mailboxes")) await LocalMailboxChec
 if (args.Length == 0 || args.Contains("readable-export")) await ReadableExportChecks.Run();
 if (args.Length == 0 || args.Contains("reminders")) await ReminderChecks.Run();
 if (args.Length == 0 || args.Contains("recurrence")) await RecurrenceChecks.Run();
+if (args.Length == 0 || args.Contains("cron")) await CronChecks.Run();

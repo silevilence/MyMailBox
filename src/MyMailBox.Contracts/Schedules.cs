@@ -1,6 +1,6 @@
 namespace MyMailBox.Contracts;
 
-public enum RecurrenceKind { FixedInterval, AfterCompletion, Daily, Weekly, MonthlyDate, MonthlyWeekday, Yearly }
+public enum RecurrenceKind { FixedInterval, AfterCompletion, Daily, Weekly, MonthlyDate, MonthlyWeekday, Yearly, Cron }
 public enum MissingDatePolicy { Skip, LastValid }
 public enum MissingTimePolicy { Skip, NextValidMinute }
 public enum RepeatedTimePolicy { Earlier, Later }
@@ -26,6 +26,7 @@ public sealed record RecurrenceRule
     public TimeOnly? WindowEnd { get; init; }
     public DateOnly[] ExcludedDates { get; init; } = [];
     public string CalendarId { get; init; } = "all";
+    public string Cron { get; init; } = "0 9 * * MON-FRI";
 }
 public interface IWorkCalendar
 {

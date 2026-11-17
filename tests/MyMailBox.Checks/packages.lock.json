@@ -17,6 +17,11 @@
         "resolved": "0.2.0",
         "contentHash": "xJemkUMeJvOq444036BdY5zhTBz1bSpLUG7VL7NKdrremMa6ze3c5ANo2wkymXEpg0zQTVzLYHstjdEPvBQ6Gg=="
       },
+      "Cronos": {
+        "type": "Transitive",
+        "resolved": "0.13.0",
+        "contentHash": "Nkve+Yi0+ol3ntSBRHeW0ka9cJQ8vndSUvvkXqF9LVqwpoqWueyxu/HS275r98RDOmF7/mzRnZW5XXUBXob+TA=="
+      },
       "Microsoft.Data.Sqlite": {
         "type": "Transitive",
         "resolved": "10.0.9",
@@ -95,6 +100,7 @@
         "type": "Project",
         "dependencies": {
           "AngleSharp": "[1.5.2, )",
+          "Cronos": "[0.13.0, )",
           "Microsoft.Data.Sqlite": "[10.0.9, )",
           "MimeKit": "[4.17.0, )",
           "MyMailBox.Contracts": "[0.1.0, )",

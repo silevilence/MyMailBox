@@ -1,4 +1,5 @@
 using MyMailBox.Contracts;
+using Cronos;
 
 namespace MyMailBox.Mail;
 
@@ -22,6 +23,26 @@ public sealed class RecurrencePlanner : ISchedulePlanner
             var date = DateOnly.FromDateTime(local); var time = TimeOnly.FromDateTime(local);
             return local >= start && local <= end && !excluded.Contains(date) && calendar.Allows(date) &&
                 (rule.WindowStart is null || time >= rule.WindowStart) && (rule.WindowEnd is null || time <= rule.WindowEnd);
+        }
+        if (rule.Kind == RecurrenceKind.Cron)
+        {
+            var expression = ParseCron(rule.Cron);
+            // Enumerate wall-clock candidates, then apply the exact same DST policy as forms.
+            // Starting at local midnight also catches the later fold occurrence after an earlier fold time.
+            var localAfter = TimeZoneInfo.ConvertTime(after, zone).DateTime;
+            var cursor = DateTime.SpecifyKind((localAfter > start ? localAfter : start).Date, DateTimeKind.Utc);
+            var inclusive = true;
+            for (var attempts = 0; result.Count < count && attempts < 100_000; attempts++)
+            {
+                var candidate = expression.GetNextOccurrence(cursor, inclusive); inclusive = false;
+                if (candidate is null) break; cursor = candidate.Value;
+                var local = DateTime.SpecifyKind(cursor, DateTimeKind.Unspecified); if (local > end) break;
+                if (!Allowed(local)) continue;
+                var utc = Resolve(local, zone, rule);
+                if (utc is { } instant && instant > after && Allowed(TimeZoneInfo.ConvertTime(instant, zone).DateTime) && !result.Any(o => o.Utc == instant))
+                    result.Add(new(instant, TimeZoneInfo.ConvertTime(instant, zone).DateTime, zone.Id));
+            }
+            return result;
         }
         if (rule.Kind is RecurrenceKind.FixedInterval or RecurrenceKind.AfterCompletion)
         {
@@ -70,6 +91,14 @@ public sealed class RecurrencePlanner : ISchedulePlanner
         if (rule.Day is < 1 or > 31 || rule.Month is < 1 or > 12 || rule.Ordinal is not (-1 or >= 1 and <= 5)) throw new InvalidDataException("日期需为 1–31、月份为 1–12、第几周需为 1–5 或最后一次。");
         if (rule.Kind == RecurrenceKind.Weekly && rule.Weekdays.Length == 0) throw new InvalidDataException("每周计划至少选择一个星期。");
         if (!_calendars.ContainsKey(rule.CalendarId)) throw new InvalidDataException("工作日/节假日日历插件不可用：" + rule.CalendarId);
+        if (rule.Kind == RecurrenceKind.Cron) _ = ParseCron(rule.Cron);
+    }
+    private static CronExpression ParseCron(string expression)
+    {
+        if (expression.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries).Length != 5) throw new InvalidDataException("CRON 需为 5 字段：分 时 日 月 星期；不包含秒或年份。");
+        if (System.Text.RegularExpressions.Regex.IsMatch(expression, @"(?<![A-Z])H(?![A-Z])", System.Text.RegularExpressions.RegexOptions.IgnoreCase)) throw new InvalidDataException("当前方言不支持 H 随机抖动，请使用确定的分钟/小时。");
+        try { return CronExpression.Parse(expression, CronFormat.Standard); }
+        catch (CronFormatException e) { throw new InvalidDataException("CRON 字段无效：" + e.Message, e); }
     }
     private static bool Matches(RecurrenceRule rule, DateOnly start, DateOnly date)
     {

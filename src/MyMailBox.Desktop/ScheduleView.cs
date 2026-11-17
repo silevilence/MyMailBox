@@ -17,7 +17,10 @@ public sealed class ScheduleView : UserControl, IDisposable
     private readonly ListBox _plans = new() { MinHeight = 130, MaxHeight = 220 };
     private readonly TextBox _title = new(), _every = new() { Text = "1" }, _at = new() { Text = "09:00" }, _day = new() { Text = "1" }, _month = new() { Text = "1" };
     private readonly TextBox _start = new() { Text = DateTime.Today.ToString("yyyy-MM-dd HH:mm") }, _end = new(), _windowStart = new(), _windowEnd = new(), _excluded = new() { AcceptsReturn = true, MinHeight = 60 };
-    private readonly ComboBox _kind = new() { ItemsSource = new[] { "固定间隔", "上次完成后间隔", "每天固定时刻", "每周多日", "每月日期", "每月第 N / 最后一个周几", "每年固定日期", "每月月末" }, SelectedIndex = 2 };
+    private readonly TextBox _cron = new() { Text = "0 9 * * MON-FRI" };
+    private readonly ComboBox _gap = new() { ItemsSource = new[] { "不存在时跳过", "向后调整到首个有效分钟" }, SelectedIndex = 0 };
+    private readonly ComboBox _fold = new() { ItemsSource = new[] { "重复时仅较早一次", "重复时仅较晚一次" }, SelectedIndex = 0 };
+    private readonly ComboBox _kind = new() { ItemsSource = new[] { "固定间隔", "上次完成后间隔", "每天固定时刻", "每周多日", "每月日期", "每月第 N / 最后一个周几", "每年固定日期", "每月月末", "高级 CRON（5 字段）" }, SelectedIndex = 2 };
     private readonly ComboBox _unit = new() { ItemsSource = new[] { "分钟", "小时", "天（固定 24 小时）" }, SelectedIndex = 1 };
     private readonly ComboBox _ordinal = new() { ItemsSource = new[] { "第 1 个", "第 2 个", "第 3 个", "第 4 个", "第 5 个", "最后一个" }, SelectedIndex = 0 };
     private readonly ComboBox _weekday = new() { ItemsSource = new[] { "周日", "周一", "周二", "周三", "周四", "周五", "周六" }, SelectedIndex = 1 };
@@ -41,9 +44,11 @@ public sealed class ScheduleView : UserControl, IDisposable
         actions.Children.Add(Action("预览所选计划", "schedule-preview-saved", async () => ShowPreview(await service.Preview(Selected().Rule, _lifetime.Token), Selected().Rule)));
         actions.Children.Add(Action("刷新", "schedule-refresh", Refresh)); _panel.Children.Add(actions);
         Add(_panel, "提醒内容", _title, "schedule-title"); Add(_panel, "循环方式", _kind, "schedule-kind");
-        Add(_panel, "每 N 个周期（分钟/小时/天/周/月/年，取决于所选方式）", _every, "schedule-every");
+        Conditional(Add(_panel, "每 N 个周期（分钟/小时/天/周/月/年，取决于所选方式）", _every, "schedule-every"), () => _kind.SelectedIndex != 8);
+        Conditional(Add(_panel, "CRON：分 时 日 月 星期（日期与星期同时限制时取 AND）", _cron, "schedule-cron"), () => _kind.SelectedIndex == 8);
+        var cronHelp = new TextBlock { Text = "示例：0 9 * * MON-FRI。支持列表、范围、步长及 L/W/#；周日为 0 或 7。无秒、年份、@别名或 H 随机抖动。", TextWrapping = TextWrapping.Wrap }; _panel.Children.Add(cronHelp); Conditional(cronHelp, () => _kind.SelectedIndex == 8);
         Conditional(Add(_panel, "固定/完成后间隔单位", _unit, "schedule-unit"), () => _kind.SelectedIndex < 2);
-        Conditional(Add(_panel, "每日执行时刻（HH:mm）", _at, "schedule-at"), () => _kind.SelectedIndex >= 2);
+        Conditional(Add(_panel, "每日执行时刻（HH:mm）", _at, "schedule-at"), () => _kind.SelectedIndex is >= 2 and < 8);
         foreach (var day in Enum.GetValues<DayOfWeek>())
         {
             var check = new CheckBox { Content = new[] { "周日", "周一", "周二", "周三", "周四", "周五", "周六" }[(int)day], IsChecked = day == DayOfWeek.Monday };
@@ -63,7 +68,8 @@ public sealed class ScheduleView : UserControl, IDisposable
         Add(advanced, "排除日期（yyyy-MM-dd，逗号或换行分隔）", _excluded, "schedule-excluded");
         _calendar.ItemsSource = service.Calendars; _calendar.ItemTemplate = new FuncDataTemplate<CalendarChoice>((c, _) => new TextBlock { Text = c?.Name }); _calendar.SelectedIndex = 0;
         Add(advanced, "工作日 / 节假日日历", _calendar, "schedule-calendar");
-        advanced.Children.Add(new TextBlock { Text = "周一至周五日历不代表法定工作日；节假日需由日历插件提供。窗口为同一天内的闭区间。夏令时缺失时刻默认跳过，重复时刻默认只选较早一次。", TextWrapping = TextWrapping.Wrap });
+        Add(advanced, "夏令时缺失时刻", _gap, "schedule-gap"); Add(advanced, "夏令时重复时刻", _fold, "schedule-fold");
+        advanced.Children.Add(new TextBlock { Text = "周一至周五日历不代表法定工作日；节假日需由日历插件提供。窗口为同一天内的闭区间。表单与 CRON 共用夏令时策略；固定时长间隔不因夏令时重置。", TextWrapping = TextWrapping.Wrap });
         _panel.Children.Add(new Expander { Header = "开始结束、运行窗口与排除日", Content = advanced, HorizontalAlignment = HorizontalAlignment.Stretch });
         _panel.Children.Add(_silent); _panel.Children.Add(Action("预览未来 10 次", "schedule-preview", Preview));
         AutomationProperties.SetAutomationId(_preview, "schedule-preview-result"); _panel.Children.Add(_preview);
@@ -98,7 +104,8 @@ public sealed class ScheduleView : UserControl, IDisposable
         var excluded = (_excluded.Text ?? "").Split([',', '，', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).Select(d => DateOnly.TryParseExact(d, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var date) ? date : throw new InvalidDataException("排除日期格式为 yyyy-MM-dd。")).Distinct().ToArray();
         return new()
         {
-            Kind = monthEnd ? RecurrenceKind.MonthlyDate : (RecurrenceKind)_kind.SelectedIndex, Every = every,
+            Kind = _kind.SelectedIndex == 8 ? RecurrenceKind.Cron : monthEnd ? RecurrenceKind.MonthlyDate : (RecurrenceKind)_kind.SelectedIndex, Every = every,
+            Cron = _cron.Text ?? "", MissingTime = (MissingTimePolicy)_gap.SelectedIndex, RepeatedTime = (RepeatedTimePolicy)_fold.SelectedIndex,
             Interval = TimeSpan.FromMinutes(every * (_unit.SelectedIndex == 0 ? 1 : _unit.SelectedIndex == 1 ? 60 : 1440)),
             At = Time(_at, "执行时刻"), Day = monthEnd ? 31 : Number(_day, "日期"), Month = Number(_month, "月份"),
             Ordinal = _ordinal.SelectedIndex == 5 ? -1 : _ordinal.SelectedIndex + 1, Weekday = (DayOfWeek)_weekday.SelectedIndex,
