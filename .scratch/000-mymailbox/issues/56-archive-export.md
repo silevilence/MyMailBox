@@ -2,7 +2,7 @@
 
 Spec: 000-mymailbox
 Status: ready-for-agent
-Progress: not-started
+Progress: done
 Type: task
 Scope: 必做
 Estimate: 2–3 人日
@@ -21,9 +21,9 @@ Blocked by: 19, 55
 
 ## Acceptance criteria
 
-- [ ] 归档含 manifest、校验和、目录、标签与原文，损坏能检测。
-- [ ] 恢复到已有工作空间时处理 UUID/alias 冲突与引用映射。
-- [ ] 邮件归档与含全部设置的工作空间备份有明确区分，默认不导出凭据。
+- [x] 归档含 manifest、校验和、目录、标签与原文，损坏能检测。
+- [x] 恢复到已有工作空间时处理 UUID/alias 冲突与引用映射。
+- [x] 邮件归档与含全部设置的工作空间备份有明确区分，默认不导出凭据。
 
 ## Blocked by
 
@@ -38,7 +38,7 @@ Blocked by: 19, 55
 
 ## 验证与交付记录
 
-实施时记录演示步骤或检查命令、结果、适用环境和已知限制；目前未执行，所有验收项保持未勾选。若发现超出预计粒度，先拆为完整可验收子场景；环境不足时保留具体缺口，不标完成。
+2026-11-17：IMailArchive 与邮件归档包页面交付选定账户/目录范围导出和导入；版本化清单保存目录层级、账户说明/标签、邮件元数据、原文及 SHA-256，不带设置和凭据。导入在单个事务内验证，转换为独立本地账户；UUID 冲突重新映射并报告，alias 冲突自动采用显式 import 别名。`dotnet run --project tests/MyMailBox.Checks --no-restore -- archive` 通过范围、保真、标签、无凭据、无冲突保留 ID、冲突映射、损坏全事务回滚及取消检查。窗口验收集中执行。
 
 ## Comments
 

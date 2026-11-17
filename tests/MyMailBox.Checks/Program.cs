@@ -28,3 +28,4 @@ if (args.Length == 0 || args.Contains("mime")) await MimeChecks.Run();
 if (args.Length == 0 || args.Contains("storage")) await StorageChecks.Run();
 if (args.Length == 0 || args.Contains("backup")) await BackupChecks.Run();
 if (args.Length == 0 || args.Contains("export")) await ExportChecks.Run();
+if (args.Length == 0 || args.Contains("archive")) await ArchiveChecks.Run();
