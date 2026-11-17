@@ -41,3 +41,4 @@ if (args.Length == 0 || args.Contains("reminders")) await ReminderChecks.Run();
 if (args.Length == 0 || args.Contains("recurrence")) await RecurrenceChecks.Run();
 if (args.Length == 0 || args.Contains("cron")) await CronChecks.Run();
 if (args.Length == 0 || args.Contains("schedule-recovery")) await ScheduleRecoveryChecks.Run();
+if (args.Length == 0 || args.Contains("updater-spike")) await UpdaterSpikeChecks.Run();

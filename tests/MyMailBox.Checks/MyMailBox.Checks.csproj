@@ -1,4 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><OutputType>Exe</OutputType></PropertyGroup>
   <ItemGroup><ProjectReference Include="../../src/MyMailBox.Builtins/MyMailBox.Builtins.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../../src/MyMailBox.Updates/MyMailBox.Updates.csproj" /></ItemGroup>
 </Project>

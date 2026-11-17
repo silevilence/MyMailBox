@@ -2,7 +2,7 @@
 
 Spec: 000-mymailbox
 Status: needs-info
-Progress: not-started
+Progress: done
 Type: research
 Scope: 必做验证
 Estimate: 2–3 人日
@@ -21,9 +21,9 @@ Blocked by: 86, 09
 
 ## Acceptance criteria
 
-- [ ] 优先验证现成包，明确 NetSparkle appcast/签名或 Octokit API 的责任边界，选定稳定版本。
-- [ ] 不引入自包含或替换 NSIS；如不适配，记录原因后采用窄范围 HttpClient 后备。
-- [ ] 到此任务才检查 Git remote 与项目配置中的仓库地址，缺失时提醒；本地测试源可继续验证非联网环节。
+- [x] 优先验证现成包，明确 NetSparkle appcast/签名或 Octokit API 的责任边界，选定稳定版本。
+- [x] 不引入自包含或替换 NSIS；如不适配，记录原因后采用窄范围 HttpClient 后备。
+- [x] 到此任务才检查 Git remote 与项目配置中的仓库地址，缺失时提醒；本地测试源可继续验证非联网环节。
 
 ## Blocked by
 
@@ -38,7 +38,9 @@ Blocked by: 86, 09
 
 ## 验证与交付记录
 
-实施时记录演示步骤或检查命令、结果、适用环境和已知限制；目前未执行，所有验收项保持未勾选。若发现超出预计粒度，先拆为完整可验收子场景；环境不足时保留具体缺口，不标完成。
+2026-11-17：已选择并固定 NetSparkleUpdater.SparkleUpdater 3.1.0，比较 Octokit 14.0.0 的边界，补充严格 SemVer 筛选适配（NuGet.Versioning 7.0.3）。真实 remote 确认为 silevilence/MyMailBox；新项目 MyMailBox.Updates 沿用 framework-dependent JIT。
+
+`dotnet run --project tests/MyMailBox.Checks --no-restore -- updater-spike` 通过：真实包加载、Strict 签名 appcast/本地下载与复用、损坏 appcast 和安装器拒绝、退出否决、版本前缀及元数据排序。NuGet 组件本机原无缓存，首次获取后后续验证全部复用。详细选型见 `docs/updater.md`。勾选表示选型实现与定向检查完成；两个本地可执行 NSIS 版本的实际升级统一留到本轮末集中验收，尚未声称安装成功。
 
 ## Comments
 
