@@ -19,7 +19,9 @@
 
 ## 持续构建
 
-`.github/workflows/build.yml` 对 branch push、PR 与手动触发运行 Windows 2025 构建，checkout 指向事件的精确 SHA（PR 为合并测试提交），权限仅 contents:read。`scripts/ci-build.ps1 -ExpectedCommit <40 位 SHA>` 拒绝脏的受跟踪文件或错误 SDK，执行完整非 UI 检查、发布启动/缺失运行时检查、版本校验夹具与 NSIS 编译。所有检查成功后才上传 14 天保留的构建 artifact，不创建 Tag 或 Release。
+`.github/workflows/build.yml` 仅通过手动 `workflow_dispatch` 或发布流程的 `workflow_call` 运行 Windows 2025 构建；普通分支 push 和 PR 不自动触发。checkout 指向事件的精确 SHA，权限仅 contents:read。`scripts/ci-build.ps1 -ExpectedCommit <40 位 SHA>` 拒绝脏的受跟踪文件或错误 SDK，执行完整非 UI 检查、发布启动/缺失运行时检查、版本校验夹具与 NSIS 编译。所有检查成功后才上传 14 天保留的构建 artifact，不创建 Tag 或 Release。
+
+工作流变更须通过 Actions 语义校验（例如 `actionlint`），普通 YAML 解析不能验证表达式上下文。测试工作空间在实际构建 step 的 `env` 中引用 `runner.temp`，不能把 `runner` 放到 job 级 `env`；否则 GitHub 在调度任务前即报无效工作流。
 
 SDK 10.0.301 在 global.json 中固定并禁止 roll-forward；NuGet 使用锁文件与 setup-dotnet 缓存，NSIS 3.12 先检查本机/缓存，缺失才安装固定的 3.12.0 Chocolatey 包。固定版本依据：[NSIS 3.12 官方发布](https://sourceforge.net/projects/nsis/files/NSIS%203/3.12/)。Actions 使用完整 commit SHA，升级时核对官方 tag：[checkout](https://github.com/actions/checkout/releases/tag/v7.0.1)、[setup-dotnet](https://github.com/actions/setup-dotnet/releases/tag/v6.0.0)、[cache](https://github.com/actions/cache/releases/tag/v4.3.0)、[upload-artifact](https://github.com/actions/upload-artifact/releases/tag/v7.0.1)。
 

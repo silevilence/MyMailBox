@@ -61,6 +61,9 @@
 
 ### GitHub Actions 发布契约
 
+- 普通分支 push 和 PR 不自动触发构建打包；`build.yml` 仅保留 `workflow_dispatch` 与 `workflow_call`，由手动操作或 Tag 发布工作流调用。不要为验证工作流擅自恢复全分支 push 触发器。
+- 修改工作流后使用 Actions 语义校验工具检查表达式上下文和复用调用，不能以普通 YAML 解析通过代替。`runner` 上下文不可用于 job 级 `env`；需要运行器路径时，在支持该上下文的 step 级配置或运行脚本中读取。
+
 - 发布由版本 Tag 的 push 事件触发，Tag 过滤同时覆盖 `V*` 与 `v*`；工作流内部再次校验合法版本，不能仅凭前缀发布。
 - 从触发 Tag 的精确提交构建，核对 Tag 版本、项目版本与 `changelog.md` 对应条目一致；不在 CI 临时生成未提交的用户变更记录或默默修正版本不一致。
 - 使用 Windows 构建环境，完成必要检查后进行 win-x64 框架依赖发布，再用 NSIS 打包。
