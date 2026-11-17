@@ -30,6 +30,15 @@ public static class DefaultProfile
         catalog.Add(new(new("local-mail", "1.0.0", 1, 1, PluginKind.Ordinary, "local-mail"), PluginOrigin.Builtin, "", (ctx, _) =>
         {
             LocalMailPlugin.Apply(ctx, mailStore ?? new Mail.SqliteMailStore(Path.Combine(location, "mail")), mimeReader ?? new Mail.MimeReader());
+            var maintenance = new Mail.StorageMaintenance(new Mail.SqliteMailStore(Path.Combine(location, "mail")), mimeReader ?? new Mail.MimeReader());
+            var host = ctx.Get<IPluginHost>("mailbox.host")!;
+            ctx.Effect(() => host.Add(new Page("storage", "存储与恢复", "检查原文与索引。清理仅删除可重新生成的缓存，所有本地原文和独立归档均保留。", [],
+                [new("storage-check", "检查完整性"), new("storage-rebuild", "从原文重建摘要与索引"), new("storage-clear", "清理可丢弃缓存")], async (_, action) => action switch
+                {
+                    "storage-check" => (await maintenance.Inspect()).ToString(),
+                    "storage-rebuild" => $"已重建 {await maintenance.Rebuild()} 封邮件的摘要与索引。原文保持不变。",
+                    _ => $"已释放可丢弃缓存 {await maintenance.ClearCache():N0} 字节；所有原文保留。"
+                })));
         }));
         catalog.Add(new(new("selector", "1.0.0", 1, 1, PluginKind.Ordinary, "selector"), PluginOrigin.Builtin, "", (ctx, _) =>
         {

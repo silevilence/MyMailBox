@@ -3,6 +3,7 @@ using MyMailBox.Builtins;
 using MyMailBox.Contracts;
 using MyMailBox.Runtime;
 
+if (args.Length > 0 && args[0] == "crash-writer") { StorageChecks.CrashWriter(args[1], int.Parse(args[2]), args[3]); return; }
 var context = Context.Create();
 var pages = new Contributions();
 context.Provide<IContributions>("mailbox.ui", pages);
@@ -24,3 +25,4 @@ if (args.Length == 0 || args.Contains("mail")) await MailChecks.Run();
 if (args.Length == 0 || args.Contains("accounts")) await AccountChecks.Run();
 if (args.Length == 0 || args.Contains("selectors")) await SelectionChecks.Run();
 if (args.Length == 0 || args.Contains("mime")) await MimeChecks.Run();
+if (args.Length == 0 || args.Contains("storage")) await StorageChecks.Run();

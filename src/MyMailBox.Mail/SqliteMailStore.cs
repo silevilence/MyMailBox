@@ -1,5 +1,6 @@
 using Microsoft.Data.Sqlite;
 using MyMailBox.Contracts;
+using System.Security.Cryptography;
 
 namespace MyMailBox.Mail;
 
@@ -15,16 +16,36 @@ public sealed class SqliteMailStore : IMailStore
         DatabasePath = Path.GetFullPath(Path.Combine(directory, "mail.db"));
         using var db = Open();
         using var command = db.CreateCommand();
+        command.CommandText = "PRAGMA user_version";
+        var version = Convert.ToInt32(command.ExecuteScalar());
+        if (version > 1) throw new InvalidDataException($"工作空间版本 {version} 高于当前支持的版本 1。请使用新版应用；原数据未修改。");
+        command.CommandText = "PRAGMA journal_mode=WAL"; command.ExecuteNonQuery();
+        using var transaction = db.BeginTransaction(); command.Transaction = transaction;
         command.CommandText = """
-            PRAGMA journal_mode=WAL;
             CREATE TABLE IF NOT EXISTS folders(id TEXT PRIMARY KEY, account_id TEXT NOT NULL, name TEXT NOT NULL, path TEXT NOT NULL, role TEXT NOT NULL, parent_id TEXT);
             CREATE TABLE IF NOT EXISTS messages(id TEXT PRIMARY KEY, folder_id TEXT NOT NULL REFERENCES folders(id), subject TEXT NOT NULL, sender TEXT NOT NULL, recipient TEXT NOT NULL, date TEXT NOT NULL, size INTEGER NOT NULL, is_read INTEGER NOT NULL DEFAULT 0, raw BLOB NOT NULL);
             CREATE INDEX IF NOT EXISTS messages_folder ON messages(folder_id, date DESC, id);
             """;
         command.ExecuteNonQuery();
+        if (version == 0)
+        {
+            command.CommandText = "ALTER TABLE messages ADD COLUMN sha256 TEXT; CREATE TABLE IF NOT EXISTS disposable_cache(id TEXT PRIMARY KEY, content BLOB NOT NULL); PRAGMA user_version=1;";
+            command.ExecuteNonQuery();
+            // Existing v0 MIME remains authoritative; fill its digest without reparsing it.
+            command.CommandText = "SELECT id,raw FROM messages";
+            var digests = new List<(string Id, string Hash)>();
+            using (var reader = command.ExecuteReader()) while (reader.Read()) digests.Add((reader.GetString(0), Convert.ToHexString(SHA256.HashData((byte[])reader[1]))));
+            foreach (var item in digests)
+            {
+                command.Parameters.Clear(); command.CommandText = "UPDATE messages SET sha256=$hash WHERE id=$id";
+                command.Parameters.AddWithValue("$hash", item.Hash); command.Parameters.AddWithValue("$id", item.Id); command.ExecuteNonQuery();
+            }
+        }
+        command.Parameters.Clear();
         command.CommandText = "INSERT OR IGNORE INTO folders VALUES($id,$account,'收件箱','本地邮箱 / 收件箱','inbox',NULL)";
         command.Parameters.AddWithValue("$id", Inbox.ToString()); command.Parameters.AddWithValue("$account", LocalAccount.ToString());
         command.ExecuteNonQuery();
+        transaction.Commit();
     }
 
     public SqliteConnection Open()
@@ -58,10 +79,11 @@ public sealed class SqliteMailStore : IMailStore
         if (raw.Length is 0 or > MimeReader.MaxMessageBytes) throw new InvalidDataException("邮件为空或超过 25 MiB 存储限制。");
         using var db = Open(); using var transaction = db.BeginTransaction(); using var command = db.CreateCommand(); command.Transaction = transaction;
         var id = Guid.NewGuid();
-        command.CommandText = "INSERT INTO messages(id,folder_id,subject,sender,recipient,date,size,raw) VALUES($id,$folder,$subject,$from,$to,$date,$size,$raw)";
+        command.CommandText = "INSERT INTO messages(id,folder_id,subject,sender,recipient,date,size,raw,sha256) VALUES($id,$folder,$subject,$from,$to,$date,$size,$raw,$hash)";
         command.Parameters.AddWithValue("$id", id.ToString()); command.Parameters.AddWithValue("$folder", folderId.ToString());
         command.Parameters.AddWithValue("$subject", metadata.Subject); command.Parameters.AddWithValue("$from", metadata.From); command.Parameters.AddWithValue("$to", metadata.To);
         command.Parameters.AddWithValue("$date", metadata.Date.ToUniversalTime().ToString("O")); command.Parameters.AddWithValue("$size", raw.Length); command.Parameters.AddWithValue("$raw", raw);
+        command.Parameters.AddWithValue("$hash", Convert.ToHexString(SHA256.HashData(raw)));
         cancellation.ThrowIfCancellationRequested(); command.ExecuteNonQuery(); cancellation.ThrowIfCancellationRequested(); transaction.Commit(); return id;
     }, cancellation);
 
