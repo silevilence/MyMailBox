@@ -57,7 +57,7 @@ internal static class MimeChecks
         MailChecks.Check(parsed.Text.Contains("你好，世界。") && parsed.Text.Contains("Nested body"), "Multipart/nested body failed");
         MailChecks.Check(parsed.Cc.Contains("copied@example.test") && parsed.Date.Offset == TimeSpan.FromHours(8), "Addresses or RFC date lost");
         MailChecks.Check(parsed.Html.Contains("cid:logo") && parsed.Parts!.Any(p => p.ContentId == "logo" && !p.Attachment), "CID structure lost");
-        MailChecks.Check(parsed.Parts!.Any(p => p.Attachment && p.Name == "data.bin") && parsed.Parts.Any(p => p.ContentType == "message/rfc822"), "Attachment tree incomplete");
+        MailChecks.Check(parsed.Parts!.Any(p => p.Attachment && p.Name == "data.bin") && parsed.Parts!.Any(p => p.ContentType == "message/rfc822"), "Attachment tree incomplete");
         var badHeaders = await parser.Parse(Encoding.UTF8.GetBytes("Subject: Missing headers\r\nDate: nonsense\r\nContent-Type: text/plain\r\n\r\nFallback body"));
         MailChecks.Check(badHeaders.Warnings!.Count >= 2 && badHeaders.Text.Contains("Fallback body"), "Header fallback missing");
         var deep = new StringBuilder("From: sender@example.test\r\n");

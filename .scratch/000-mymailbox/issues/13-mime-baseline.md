@@ -2,7 +2,7 @@
 
 Spec: 000-mymailbox
 Status: ready-for-agent
-Progress: not-started
+Progress: done
 Type: task
 Scope: 必做
 Estimate: 2–3 人日
@@ -21,9 +21,9 @@ Blocked by: 10
 
 ## Acceptance criteria
 
-- [ ] 多段正文、嵌套邮件、编码标题和 RFC 日期样本可读，保留原始字节以便导出。
-- [ ] 头部与正文有明确解析失败回退，不以 Message-ID 为唯一身份。
-- [ ] 正文加载/解析可取消，恶意深度与大小输入有资源限制。
+- [x] 多段正文、嵌套邮件、编码标题和 RFC 日期样本可读，保留原始字节以便导出。
+- [x] 头部与正文有明确解析失败回退，不以 Message-ID 为唯一身份。
+- [x] 正文加载/解析可取消，恶意深度与大小输入有资源限制。
 
 ## Blocked by
 
@@ -37,7 +37,7 @@ Blocked by: 10
 
 ## 验证与交付记录
 
-实施时记录演示步骤或检查命令、结果、适用环境和已知限制；目前未执行，所有验收项保持未勾选。若发现超出预计粒度，先拆为完整可验收子场景；环境不足时保留具体缺口，不标完成。
+2026-11-17：IMimeReader 使用固定 MimeKit 4.17.0 提供编码头部、多段正文、嵌套邮件、Cc、附件/CID 部件树和警告。宿主提供纯文本、MIME 结构及原文预览切换，原文完整保存，预览超过 128 KiB 时明确提示截断。解析限 25 MiB、32 层、2048 部件和单类正文 1 Mi 字符，可取消。`dotnet run --project tests/MyMailBox.Checks --no-restore -- mime mail` 通过全部定向检查。真实窗口验收集中执行。
 
 ## Comments
 
