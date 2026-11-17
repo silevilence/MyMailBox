@@ -79,6 +79,8 @@ public sealed partial class ProtocolMailService : IProtocolMailService
     }
     private async Task Connect(MailService client, Guid id, bool outgoing, CancellationToken token)
     {
+        using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
+        timeout.CancelAfter(TimeSpan.FromSeconds(15));
         var settings = await Settings(id, token);
         var endpoint = (outgoing ? settings.Outgoing : settings.Incoming) ?? throw new InvalidDataException("请先保存对应的连接配置。");
         Validate(endpoint);
@@ -98,11 +100,14 @@ public sealed partial class ProtocolMailService : IProtocolMailService
                     certificate.GetCertHashString(HashAlgorithmName.SHA256).Equals(endpoint.CertificateSha256, StringComparison.OrdinalIgnoreCase) &&
                     DateTime.TryParse(certificate.GetEffectiveDateString(), out var effective) && effective.ToUniversalTime() <= DateTime.UtcNow &&
                     DateTime.TryParse(certificate.GetExpirationDateString(), out var expiry) && expiry.ToUniversalTime() > DateTime.UtcNow;
-            await client.ConnectAsync(endpoint.Host, endpoint.Port, endpoint.Tls == MailTls.Implicit ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTls, token);
+            await client.ConnectAsync(endpoint.Host, endpoint.Port, endpoint.Tls == MailTls.Implicit ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTls, timeout.Token);
             var secret = Encoding.UTF8.GetString(plain);
-            if (endpoint.Authentication == MailAuthentication.OAuth2) await client.AuthenticateAsync(new SaslMechanismOAuth2(endpoint.User, secret), token);
-            else await client.AuthenticateAsync(endpoint.User, secret, token);
+            if (endpoint.Authentication == MailAuthentication.OAuth2) await client.AuthenticateAsync(new SaslMechanismOAuth2(endpoint.User, secret), timeout.Token);
+            else await client.AuthenticateAsync(endpoint.User, secret, timeout.Token);
+            command.CommandText = "UPDATE accounts SET auth_state=$state WHERE id=$id AND enabled=1 AND removed=0";
+            command.Parameters.AddWithValue("$state", outgoing ? "发信连接已验证" : "收信连接已验证"); command.ExecuteNonQuery();
         }
+        catch (OperationCanceledException) when (!token.IsCancellationRequested) { throw new TimeoutException("连接或认证超时。"); }
         finally { CryptographicOperations.ZeroMemory(plain); }
     }
     // Do not return remote exception text: servers can echo authentication data or message contents.
@@ -111,6 +116,7 @@ public sealed partial class ProtocolMailService : IProtocolMailService
         try { return await operation(); }
         catch (MailKit.Security.AuthenticationException) { await _accounts.AuthenticationFailed(id); throw new InvalidDataException("认证失败，请核对用户名、密码／授权码或更新访问令牌后重试。"); }
         catch (SslHandshakeException) { throw new InvalidDataException("TLS 验证失败，请检查服务器名称、端口与证书；不会忽略证书错误。"); }
+        catch (NotSupportedException) { throw new InvalidDataException("服务器不支持所选加密或认证方式；不会降级为明文连接，请核对 TLS 端口和认证配置。"); }
         catch (OperationCanceledException) { throw; }
         catch (InvalidDataException) { throw; }
         catch (Exception e) when (e is IOException or System.Net.Sockets.SocketException or ProtocolException or CommandException or TimeoutException)

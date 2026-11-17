@@ -1,7 +1,7 @@
 # 50 用真实 PST 样本验证解析库和保真范围
 
 Spec: 000-mymailbox
-Status: needs-info
+Status: ready-for-agent
 Progress: in-progress
 Type: research
 Scope: 必做验证
@@ -22,7 +22,7 @@ Blocked by: 02
 ## Acceptance criteria
 
 - [ ] 覆盖 ANSI/Unicode、大文件、嵌套目录、RTF/HTML、嵌入邮件和异常项目样本。
-- [ ] 记录 Windows x64 构建、许可/分发条件、吞吐和内存；不因有格式规范就承诺完整实现。
+- [x] 记录 Windows x64 构建、许可/分发条件、吞吐和内存；不因有格式规范就承诺完整实现。
 - [ ] 输出可采用库及限制，商业方案需要预算决定；原始 PST 始终保留。
 
 ## Blocked by
@@ -46,3 +46,5 @@ Blocked by: 02
 - 2026-11-17：用户确认目前没有对应真实测试环境/样本，先推进独立任务。真实集成验收阻塞，保持验收项未勾选。
 
 - 2026-11-17：用户授权本地 GreenMail、只读 Outlook 发现及独立无账户 Profile/PST；开始实施，最终集中验收。32/35 暂缓。
+
+- 2026-11-17 集中验收：已创建独立 ANSI/Unicode PST，实际覆盖中文多层目录、RTF/HTML/CID、嵌入邮件、约137 MiB扩容和截断副本。Unicode 44项对照通过；ANSI 计数/附件/CID/RTF通过，但中文主题、普通正文、HTML中文失败。原文件保留且哈希不变。XstReader 尚不能定为完整保真依赖，保持 in-progress；单项目损坏和多GiB样本也未覆盖。下一步修复/替换候选库并复验ANSI，不要求个人邮箱或付费许可作为当前前提。详见 [验收报告](../../../docs/validation/2026-11-17-protocol-outlook.md)。

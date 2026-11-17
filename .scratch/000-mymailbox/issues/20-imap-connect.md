@@ -2,7 +2,7 @@
 
 Spec: 000-mymailbox
 Status: ready-for-agent
-Progress: in-progress
+Progress: done
 Type: task
 Scope: 必做
 Estimate: 2–3 人日
@@ -21,9 +21,9 @@ Blocked by: 11, 12
 
 ## Acceptance criteria
 
-- [ ] 支持 TLS、端口、用户名、密码/授权码或提供者支持的 OAuth、代理和证书错误提示。
-- [ ] 目录及特殊用途通过服务映射，不能依赖固定英文路径。
-- [ ] 首屏分页显示、错误重试可用，日志脱敏；真实测试仅使用授权账户。
+- [x] 支持 TLS、端口、用户名、密码/授权码或提供者支持的 OAuth、代理和证书错误提示。
+- [x] 目录及特殊用途通过服务映射，不能依赖固定英文路径。
+- [x] 首屏分页显示、错误重试可用，日志脱敏；真实测试仅使用授权账户。
 
 ## Blocked by
 
@@ -47,3 +47,5 @@ Blocked by: 11, 12
 - 2026-11-17：用户确认本轮没有授权的 IMAP/SMTP/POP3 测试账户，也没有 Outlook.com 应用注册与测试环境；真实协议集成验收阻塞，继续独立任务。
 
 - 2026-11-17：用户授权本地 GreenMail、只读 Outlook 发现及独立无账户 Profile/PST；开始实施，最终集中验收。32/35 暂缓。
+
+- 2026-11-17 集中验收：GreenMail 实际 TLS、中文目录、只读分页、HTTP CONNECT/SOCKS5 与错误恢复通过。15 秒连接/认证超时和脱敏反馈已实现；本轮不包含专属提供者 OAuth。 证据见 [协议与 Outlook/PST 验收](../../../docs/validation/2026-11-17-protocol-outlook.md)。

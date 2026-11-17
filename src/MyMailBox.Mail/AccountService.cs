@@ -71,7 +71,7 @@ public sealed class AccountService : IAccountService
         if (existing is not null && existing.Provider != edit.Provider) throw new InvalidDataException("账户类型创建后不可更改；请新建对应类型账户。");
         var id = edit.Id ?? Guid.NewGuid();
         var reference = existing?.CredentialReference;
-        var authentication = edit.Provider == "local" ? "无需登录" : existing?.AuthenticationState ?? "需要授权 · 提供者待接入";
+        var authentication = edit.Provider == "local" ? "无需登录" : existing?.AuthenticationState ?? "需要授权 · 请配置服务器";
         if (!string.IsNullOrEmpty(secret) && edit.Provider != "local")
         {
             if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("凭据保护仅支持 Windows。");
@@ -82,7 +82,7 @@ public sealed class AccountService : IAccountService
             reference ??= Guid.NewGuid().ToString();
             using var credential = db.CreateCommand(); credential.Transaction = transaction; credential.CommandText = "INSERT INTO credentials VALUES($id,$value) ON CONFLICT(id) DO UPDATE SET protected=excluded.protected";
             credential.Parameters.AddWithValue("$id", reference); credential.Parameters.AddWithValue("$value", encrypted); credential.ExecuteNonQuery();
-            authentication = "凭据已更新 · 等待提供者验证";
+            authentication = "凭据已更新 · 等待连接验证";
         }
         var account = new MailAccount(id, edit.Name.Trim(), edit.Provider, edit.Address.Trim(), alias, tags, edit.Color, edit.Notes, edit.Order, edit.Enabled, capabilities, reference, authentication);
         using var command = db.CreateCommand(); command.Transaction = transaction;

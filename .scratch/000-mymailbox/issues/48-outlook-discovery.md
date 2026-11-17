@@ -1,8 +1,8 @@
 # 48 验证本机 Outlook 配置读取及位数边界
 
 Spec: 000-mymailbox
-Status: needs-info
-Progress: in-progress
+Status: ready-for-agent
+Progress: done
 Type: research
 Scope: 必做验证
 Estimate: 2–3 人日
@@ -21,9 +21,9 @@ Blocked by: 02
 
 ## Acceptance criteria
 
-- [ ] 区分 OOM、Account Management API 和 MAPI 所能读取字段，不把地址枚举当完整配置导入。
-- [ ] 在 x64 交付限制下明确 32 位 Outlook 可行路径；若需额外 x86 桥，先形成待决定项。
-- [ ] 报告支持版本、读取限制及重新授权需求，不读取/记录不必要的秘密或把新 Outlook 当经典 COM。
+- [x] 区分 OOM、Account Management API 和 MAPI 所能读取字段，不把地址枚举当完整配置导入。
+- [x] 在 x64 交付限制下明确 32 位 Outlook 可行路径；若需额外 x86 桥，先形成待决定项。
+- [x] 报告支持版本、读取限制及重新授权需求，不读取/记录不必要的秘密或把新 Outlook 当经典 COM。
 
 ## Blocked by
 
@@ -46,3 +46,5 @@ Blocked by: 02
 - 2026-11-17：用户确认目前没有对应真实测试环境/样本，先推进独立任务。真实集成验收阻塞，保持验收项未勾选。
 
 - 2026-11-17：用户授权本地 GreenMail、只读 Outlook 发现及独立无账户 Profile/PST；开始实施，最终集中验收。32/35 暂缓。
+
+- 2026-11-17 集中验收：经典 Outlook 16.0.20527.20196 x64 与新 Outlook 1.2026.1103.200 只读发现；实际无账户 Profile 的 OOM 会话与 PST 路径操作通过，测试结束恢复原无 Profile/无默认 Profile状态。字段/API/x86限制已记录；没有个人经典账户，不把发现当49账户导入完成。 证据见 [协议与 Outlook/PST 验收](../../../docs/validation/2026-11-17-protocol-outlook.md)。

@@ -2,7 +2,7 @@
 
 Spec: 000-mymailbox
 Status: ready-for-agent
-Progress: in-progress
+Progress: done
 Type: task
 Scope: 必做
 Estimate: 2–3 人日
@@ -21,9 +21,9 @@ Blocked by: 11, 12, 13
 
 ## Acceptance criteria
 
-- [ ] 仅发送账户可用、仅接收账户不可用；收发服务器及认证可独立配置。
-- [ ] 地址校验、TLS/认证失败、服务器拒绝和部分收件人失败均有可理解反馈。
-- [ ] 服务器允许的发件身份才可选择，Bcc 不泄露到不应包含它的邮件头。
+- [x] 仅发送账户可用、仅接收账户不可用；收发服务器及认证可独立配置。
+- [x] 地址校验、TLS/认证失败、服务器拒绝和部分收件人失败均有可理解反馈。
+- [x] 服务器允许的发件身份才可选择，Bcc 不泄露到不应包含它的邮件头。
 
 ## Blocked by
 
@@ -50,3 +50,5 @@ Blocked by: 11, 12, 13
 - 2026-11-17：用户确认本轮没有授权的 IMAP/SMTP/POP3 测试账户，也没有 Outlook.com 应用注册与测试环境；真实协议集成验收阻塞，继续独立任务。
 
 - 2026-11-17：用户授权本地 GreenMail、只读 Outlook 发现及独立无账户 Profile/PST；开始实施，最终集中验收。32/35 暂缓。
+
+- 2026-11-17 集中验收：GreenMail 实际 To/Cc/Bcc 纯文本及桌面发送通过；受控 TLS 服务验证发件/收件拒绝、部分接收和 DATA 确认丢失，Bcc 原文不泄露，不自动重发。 证据见 [协议与 Outlook/PST 验收](../../../docs/validation/2026-11-17-protocol-outlook.md)。

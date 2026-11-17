@@ -29,7 +29,7 @@
 - `MyMailBox.Contracts` 为共享契约；`Runtime` 管理 CordiSharp 适配、配置及插件包；`Mail` 实现本地 SQLite/MIME、导出备份与调度；`Updates`、`UpdateHost` 分别负责更新校验和进程退出后的安装；`Builtins` 注册能力，`Desktop` 提供宿主渲染 UI。
 - `scripts/verify.ps1` 执行完整非 UI 检查；`tests/MyMailBox.Checks` 支持组名定向执行并强制隔离数据。完整 UI 由 `tests/MyMailBox.UiChecks` 在最终阶段集中运行，保留输出与适用范围。
 - Windows 原生 HTML 宿主依赖 `Desktop/app.manifest` 的 supportedOS 声明。插件服务包装停用时须清空外部调用目标；停止运行时先释放保存的 CordiSharp 子 PluginHandle，再释放根。
-- 真实邮件协议、Outlook/PST、完整搜索规则和自动化任务仍以需求索引的未完成项为准；不把本地模拟或发布工作流文件等同于真实集成验收。
+- 通用协议通过 MailKit 提供 IMAP 目录分页、SMTP 纯文本与 POP3 收取，真实本机 GreenMail 验收入口为 `scripts/start-greenmail.ps1` 和检查组 `protocol-live` / `protocol-faults`。专属提供者、Outlook/PST 导入、完整搜索规则和自动化任务仍以需求索引为准；本地服务不能替代 QQ/163/Graph/Exchange 的真实授权验收。
 
 - Windows x64，Avalonia、C#、.NET 10。
 - 全 JIT、框架依赖发布（framework-dependent），不采用 NativeAOT，不使用自包含发布。系统 .NET 运行时由用户安装；安装器检查所需版本和架构并提供安装指引，不捆绑运行时。

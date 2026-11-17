@@ -23,6 +23,7 @@ public sealed partial class ProtocolView : UserControl, IDisposable
     private int _offset;
     private bool _hasMore, _busy, _disposed;
     private MailAccount? _selected;
+    private IReadOnlyList<TabItem> _tabs = [];
     private Button _next = null!, _previous = null!;
     public ProtocolView(ProtocolPage page)
     {
@@ -47,10 +48,11 @@ public sealed partial class ProtocolView : UserControl, IDisposable
         navigation.Children.Add(_previous); navigation.Children.Add(_next); _imap.Children.Add(navigation);
         AutomationProperties.SetAutomationId(_messages, "imap-messages"); _imap.Children.Add(_messages);
         var items = new List<TabItem> { new() { Header = "连接设置", Content = connection }, new() { Header = "IMAP 目录", Content = _imap } };
-        AddCompose(items); AddPop(items); tabs.ItemsSource = items; AutomationProperties.SetAutomationId(tabs, "protocol-tabs"); panel.Children.Add(tabs);
-        var cancel = new Button { Content = "取消当前操作" }; AutomationProperties.SetAutomationId(cancel, "protocol-cancel"); cancel.Click += (_, _) => _operation?.Cancel(); panel.Children.Add(cancel);
-        AutomationProperties.SetAutomationId(_status, "protocol-status"); panel.Children.Add(_status);
-        Content = new ScrollViewer { Content = panel };
+        AddCompose(items); AddPop(items); _tabs = items; tabs.ItemsSource = items; AutomationProperties.SetAutomationId(tabs, "protocol-tabs"); panel.Children.Add(tabs);
+        var cancel = new Button { Content = "取消当前操作" }; AutomationProperties.SetAutomationId(cancel, "protocol-cancel"); cancel.Click += (_, _) => _operation?.Cancel();
+        AutomationProperties.SetAutomationId(_status, "protocol-status");
+        var feedback = new StackPanel { Spacing = 6, Margin = new Avalonia.Thickness(0, 10, 0, 0) }; feedback.Children.Add(_status); feedback.Children.Add(cancel);
+        var layout = new DockPanel(); DockPanel.SetDock(feedback, Dock.Bottom); layout.Children.Add(feedback); layout.Children.Add(new ScrollViewer { Content = panel }); Content = layout;
         _accounts.SelectionChanged += async (_, _) => { if (!_busy) await Run(SelectAccount); };
         _folders.SelectionChanged += (_, _) => { _offset = 0; _hasMore = false; _messages.ItemsSource = null; UpdateButtons(); };
         AttachedToVisualTree += async (_, _) => await Run(LoadAccounts);
@@ -85,6 +87,9 @@ public sealed partial class ProtocolView : UserControl, IDisposable
         foreach (var editor in _editors) editor.IsEnabled = !_busy;
         if (_next is not null) _next.IsEnabled = !_busy && _hasMore;
         if (_previous is not null) _previous.IsEnabled = !_busy && _offset > 0;
+        if (_tabs.Count > 1) _tabs[1].IsEnabled = _selected?.Capabilities.HasFlag(AccountCapabilities.Folders) == true;
+        if (_tabs.Count > 2) _tabs[2].IsEnabled = _selected?.Capabilities.HasFlag(AccountCapabilities.Send) == true;
+        if (_tabs.Count > 3) _tabs[3].IsEnabled = _selected?.Provider == "pop3";
         UpdateCompose(); UpdatePop();
     }
     private async Task LoadAccounts()

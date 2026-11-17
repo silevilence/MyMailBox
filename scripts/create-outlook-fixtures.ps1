@@ -11,6 +11,7 @@ $profile = 'MyMailBoxAcceptance' + [Guid]::NewGuid().ToString('N')
 $outlookKey = 'HKCU:\Software\Microsoft\Office\16.0\Outlook'
 $profileKey = $outlookKey + '\Profiles\' + $profile
 if (Test-Path -LiteralPath $profileKey) { throw 'Test profile unexpectedly exists.' }
+$beforeProfiles = @(Get-ChildItem -LiteralPath ($outlookKey + '\Profiles') -ErrorAction SilentlyContinue | Select-Object -ExpandProperty PSChildName)
 $defaults = @()
 foreach ($key in @($outlookKey,'HKCU:\Software\Microsoft\Windows NT\CurrentVersion\Windows Messaging Subsystem')) {
     $item = Get-ItemProperty -LiteralPath $key -ErrorAction SilentlyContinue
@@ -29,7 +30,7 @@ public static class OutlookRunning {
 }
 '@
 function Release-Com($Value) { if ($null -ne $Value -and [Runtime.InteropServices.Marshal]::IsComObject($Value)) { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($Value) } }
-$process = $null; $app = $null; $session = $null; $verified = $false; $generated = @(); $accountCount = $null; $fixtureRecords = [Collections.Generic.List[object]]::new()
+$process = $null; $app = $null; $session = $null; $verified = $false; $generated = @(); $profileStores = @(); $accountCount = $null; $fixtureRecords = [Collections.Generic.List[object]]::new()
 try {
     $process = Start-Process -FilePath $Outlook -ArgumentList @('/PIM',$profile) -PassThru -WindowStyle Hidden
     $deadline = [DateTime]::UtcNow.AddSeconds(50)
@@ -42,6 +43,9 @@ try {
     $accountCollection=$session.Accounts; $accountCount=$accountCollection.Count; Release-Com $accountCollection
     if ($accountCount -ne 0) { throw 'Test profile unexpectedly contains email accounts.' }
     $verified = $true
+    $stores=$session.Stores
+    for ($i=1; $i -le $stores.Count; $i++) { $store=$stores.Item($i); $profileStores += $store.FilePath; Release-Com $store }
+    Release-Com $stores
     [ordered]@{Profile=$profile;Accounts=$accountCount;Version=$app.Version;SessionType='OOM x64; accountless profile';AccountFields='DisplayName,AccountType,SmtpAddress,UserName,DeliveryStore (no populated account fixture)'} | ConvertTo-Json | Set-Content (Join-Path $Output 'oom-discovery.json') -Encoding utf8
     $attachment = Join-Path $Output 'attachment.txt'; [IO.File]::WriteAllText($attachment, 'MyMailBox attachment 中文 2026', [Text.UTF8Encoding]::new($false))
     $image = Join-Path $Output 'pixel.png'; [IO.File]::WriteAllBytes($image, [Convert]::FromBase64String('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII='))
@@ -70,14 +74,18 @@ try {
         if ($format.Name -eq 'unicode') {
             $folders=$folder.Folders; $large=$folders.Add('扩容样本',6); Release-Com $folders; $largeItems=$large.Items
             for ($n=0;$n -lt $LargeMessages;$n++) {
-                $mail=$largeItems.Add('IPM.Note'); $mail.Subject='MMB-large-' + $n; $mail.Body='Large attachment fixture'; $mail.Save(); $atts=$mail.Attachments; $att=$atts.Add($bulk,1); Release-Com $att; Release-Com $atts; $mail.Save(); Release-Com $mail
+                $mail=$largeItems.Add('IPM.Note'); $mail.Subject='MMB-large-' + $n; $mail.Body='Large attachment fixture'; $mail.Save(); $atts=$mail.Attachments; $att=$atts.Add($bulk,1); Release-Com $att; Release-Com $atts; $mail.Save(); $moved=$mail.Move($large); Release-Com $moved; Release-Com $mail
             }
             Release-Com $largeItems; Release-Com $large
             $folders=$root.Folders; $contacts=$folders.Add('非邮件联系人',10); Release-Com $folders; $contactItems=$contacts.Items; $contact=$contactItems.Add('IPM.Contact'); $contact.FullName='MyMailBox Test Contact'; $contact.Save(); Release-Com $contact; Release-Com $contactItems; Release-Com $contacts
         }
         foreach ($item in @($plain,$html,$rtf,$outer)) {
             $fixtureRecords.Add([ordered]@{Pst=$format.Name;Subject=$item.Subject;Body=$item.Body;Html=$item.HTMLBody;BodyFormat=$item.BodyFormat;Attachments=$item.Attachments.Count})
+            # Outlook can save a new unsent MailItem to the profile's default Drafts regardless of Items.Add's collection.
+            # Explicitly move the fully saved fixture into the target PST, then verify its count below.
+            $moved=$item.Move($nested); Release-Com $moved
         }
+        if ($items.Count -ne 4) { throw 'Target PST is missing fixture messages.' }
         foreach ($item in @($plain,$html,$rtf,$outer,$items,$nested,$folder)) { Release-Com $item }
         $session.RemoveStore($root); Release-Com $root; Release-Com $store; $generated += $path
     }
@@ -97,6 +105,20 @@ finally {
         # Verified newly generated key only; never remove another profile.
         if ($profileKey -ne ($outlookKey + '\Profiles\' + $profile) -or !$profile.StartsWith('MyMailBoxAcceptance')) { throw 'Profile cleanup scope mismatch.' }
         Remove-Item -LiteralPath $profileKey -Recurse -ErrorAction Stop
+    }
+    # First launch can also create an accountless "Outlook" scaffold. Only remove it when no profiles existed before.
+    $scaffold=$outlookKey + '\Profiles\Outlook'
+    if ($verified -and $beforeProfiles.Count -eq 0 -and !(Get-Process OUTLOOK -ErrorAction SilentlyContinue) -and (Test-Path -LiteralPath $scaffold) -and !(Test-Path -LiteralPath ($scaffold+'\9375CFF0413111d3B88A00104B2A6676'))) {
+        Remove-Item -LiteralPath $scaffold -Recurse -ErrorAction Stop
+    }
+}
+if (!(Get-Process OUTLOOK -ErrorAction SilentlyContinue)) {
+    foreach ($path in $profileStores) {
+        # A generated default store belongs to this newly created accountless profile, never to an existing account.
+        if ([IO.Path]::GetFileName($path).Contains($profile) -and $profile.StartsWith('MyMailBoxAcceptance') -and (Test-Path -LiteralPath $path)) {
+            $target=Join-Path $Output ('profile-' + [IO.Path]::GetFileName($path))
+            if (!(Test-Path -LiteralPath $target)) { Move-Item -LiteralPath $path -Destination $target -ErrorAction Stop }
+        }
     }
 }
 foreach ($path in $generated) {

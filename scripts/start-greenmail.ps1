@@ -24,10 +24,10 @@ if (!(Test-Path -LiteralPath $pfx)) {
 }
 # No certificate is installed in the user's trust store. Tests explicitly pin this local certificate.
 if ($PrepareOnly) { Write-Output "Prepared $Output"; return }
-foreach ($port in 3025,3143,3110,3465,3993,3995) {
+foreach ($port in 3025,3143,3110,3465,3993,3995,8080) {
     if (Get-NetTCPConnection -State Listen -LocalPort $port -ErrorAction SilentlyContinue) { throw "端口 $port 已被占用，保留现有进程。" }
 }
-$arguments = @('-Dgreenmail.setup.test.all', '-Dgreenmail.hostname=127.0.0.1', '-Dgreenmail.users=alice:local-alice@localhost,bob:local-bob@localhost', '-Dgreenmail.users.login=email', "-Djavax.net.ssl.keyStore=`"$pfx`"", '-Djavax.net.ssl.keyStorePassword=local-test-only', '-Djavax.net.ssl.keyStoreType=PKCS12', '-jar', "`"$jar`"")
+$arguments = @('-Dgreenmail.setup.test.all', '-Dgreenmail.hostname=127.0.0.1', '-Dgreenmail.users=alice:local-alice@localhost,bob:local-bob@localhost', '-Dgreenmail.users.login=email', "-Dgreenmail.tls.keystore.file=`"$pfx`"", '-Dgreenmail.tls.keystore.password=local-test-only', '-jar', "`"$jar`"")
 $process = Start-Process -FilePath $Java -ArgumentList $arguments -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $Output 'greenmail.log') -RedirectStandardError (Join-Path $Output 'greenmail-error.log')
 $process.Id | Set-Content (Join-Path $Output 'greenmail.pid')
 Write-Output "GreenMail PID $($process.Id); loopback only; output $Output"

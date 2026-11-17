@@ -1,6 +1,6 @@
 # 000-mymailbox · MyMailBox 开发任务索引
 
-日期：2026 年 11 月 17 日。**32 项完成（01–19、43、55–58、69–72、86–88、90）；8 项进行中（20/22/31/48/50、89、91–92）；2 项暂缓（32/35，保留 blocked）；其余 66 项未开始。** 本轮按用户新授权使用 GreenMail 实现通用协议，使用经典 Outlook 的独立无账户 Profile 与测试 PST 验证 48/50；完成实现后集中验收。89 的真实 NSIS 升级已通过，完整业务数据场景仍缺失；91–92 待真实 CI/发布验收。
+日期：2026 年 11 月 17 日。**36 项完成（01–20、22、31、43、48、55–58、69–72、86–88、90）；4 项进行中（50、89、91–92）；2 项暂缓（32/35，保留 blocked）；其余 66 项未开始。** 本轮 GreenMail 收发与独立 Outlook 调查通过；50 已有真实独立 PST 样本，候选库 ANSI 保真失败，继续进行中。证据见 [协议与 Outlook/PST 集中验收](../../docs/validation/2026-11-17-protocol-outlook.md)。
 
 - [000-mymailbox 开发规格与完成标准](spec.md)
 - [全部规格索引](../index.md)
@@ -24,7 +24,7 @@
 
 1. [01 验证阅读、写信与自动化的交互原型](issues/01-ux-prototype.md) 与 [02 启动并发布第一个插件化桌面应用](issues/02-app-bootstrap.md) 无开发前置，可并行开展。
 2. 桌面入口具备后，推进 [03 用 CordiSharp 加载并卸载一个外部插件](issues/03-cordisharp-spike.md)；同时准备 [48 验证本机 Outlook 配置读取及位数边界](issues/48-outlook-discovery.md) 与 [50 用真实 PST 样本验证解析库和保真范围](issues/50-pst-spike.md) 的验证，真实样本不足时保留缺口。
-3. [11 管理账户身份及仅收仅发能力](issues/11-accounts.md) 完成后立即推进 [35 验证公司 Exchange 的真实接入路径](issues/35-exchange-discovery.md)，尽早判断公司接入，不推到末尾。
+3. [11 管理账户身份及仅收仅发能力](issues/11-accounts.md) 已完成；[35 验证公司 Exchange 的真实接入路径](issues/35-exchange-discovery.md) 当前按用户要求暂缓，恢复该路线后优先判断真实接入条件。
 4. 在各自依赖满足后，收发、迁移、搜索和发布基础工作可分别推进；自动化建立在相同条件与可靠动作上。
 5. [98 按原始需求逐项完成发布前验收](issues/98-acceptance.md) 是原始需求总验收，只有必做和已选条件范围通过后才可完成；它不会自动触发发布。
 
@@ -88,9 +88,9 @@ flowchart TD
 
 | 编号与任务 | 范围 | 直接依赖 | 初始分诊 | 当前进度 |
 | --- | --- | --- | --- | --- |
-| [20 添加 IMAP 账户并浏览真实目录摘要](issues/20-imap-connect.md) | 必做 | [11](issues/11-accounts.md)、[12](issues/12-selectors.md) | ready-for-agent | 进行中 |
+| [20 添加 IMAP 账户并浏览真实目录摘要](issues/20-imap-connect.md) | 必做 | [11](issues/11-accounts.md)、[12](issues/12-selectors.md) | ready-for-agent | 完成 |
 | [21 增量接收 IMAP 邮件并离线阅读](issues/21-imap-sync.md) | 必做 | [20](issues/20-imap-connect.md)、[13](issues/13-mime-baseline.md)、[18](issues/18-storage-recovery.md) | ready-for-agent | 未开始 |
-| [22 用发送账户完成一封纯文本邮件发送](issues/22-smtp-send.md) | 必做 | [11](issues/11-accounts.md)、[12](issues/12-selectors.md)、[13](issues/13-mime-baseline.md) | ready-for-agent | 进行中 |
+| [22 用发送账户完成一封纯文本邮件发送](issues/22-smtp-send.md) | 必做 | [11](issues/11-accounts.md)、[12](issues/12-selectors.md)、[13](issues/13-mime-baseline.md) | ready-for-agent | 完成 |
 | [23 使用富文本编辑并恢复草稿](issues/23-composer.md) | 必做 | [22](issues/22-smtp-send.md)、[14](issues/14-safe-html.md)、[01](issues/01-ux-prototype.md) | ready-for-agent | 未开始 |
 | [24 在邮件中添加附件内联图片和签名](issues/24-compose-assets.md) | 必做 | [23](issues/23-composer.md)、[16](issues/16-attachments.md) | ready-for-agent | 未开始 |
 | [25 持久化发件箱并处理不确定发送结果](issues/25-outbox.md) | 必做 | [22](issues/22-smtp-send.md)、[18](issues/18-storage-recovery.md) | ready-for-agent | 未开始 |
@@ -99,7 +99,7 @@ flowchart TD
 | [28 安排稍后发送并取消尚未发送的邮件](issues/28-scheduled-send.md) | 必做 | [25](issues/25-outbox.md)、[23](issues/23-composer.md) | ready-for-agent | 未开始 |
 | [29 通过 QQ 预设完成收发闭环](issues/29-qq.md) | 必做 | [21](issues/21-imap-sync.md)、[26](issues/26-reply-forward.md) | needs-info | 未开始 |
 | [30 通过 163 预设完成收发闭环](issues/30-netease.md) | 必做 | [21](issues/21-imap-sync.md)、[26](issues/26-reply-forward.md) | needs-info | 未开始 |
-| [31 通过 POP3 拉取邮件并控制服务器留存](issues/31-pop3.md) | 必做 | [11](issues/11-accounts.md)、[13](issues/13-mime-baseline.md)、[18](issues/18-storage-recovery.md) | ready-for-agent | 进行中 |
+| [31 通过 POP3 拉取邮件并控制服务器留存](issues/31-pop3.md) | 必做 | [11](issues/11-accounts.md)、[13](issues/13-mime-baseline.md)、[18](issues/18-storage-recovery.md) | ready-for-agent | 完成 |
 | [32 登录 Outlook.com 并阅读云端邮件](issues/32-graph-login.md) | 必做 | [11](issues/11-accounts.md)、[12](issues/12-selectors.md)、[13](issues/13-mime-baseline.md) | needs-info | 阻塞 |
 | [33 通过 Graph 发送并处理邮件状态](issues/33-graph-send.md) | 必做 | [32](issues/32-graph-login.md)、[26](issues/26-reply-forward.md) | needs-info | 未开始 |
 | [34 增量同步 Graph 邮箱并恢复失效游标](issues/34-graph-sync.md) | 必做 | [32](issues/32-graph-login.md)、[18](issues/18-storage-recovery.md) | ready-for-agent | 未开始 |
@@ -121,7 +121,7 @@ flowchart TD
 
 | 编号与任务 | 范围 | 直接依赖 | 初始分诊 | 当前进度 |
 | --- | --- | --- | --- | --- |
-| [48 验证本机 Outlook 配置读取及位数边界](issues/48-outlook-discovery.md) | 必做验证 | [02](issues/02-app-bootstrap.md) | needs-info | 进行中 |
+| [48 验证本机 Outlook 配置读取及位数边界](issues/48-outlook-discovery.md) | 必做验证 | [02](issues/02-app-bootstrap.md) | needs-info | 完成 |
 | [49 预览并导入 Outlook 在线账户配置](issues/49-account-import.md) | 必做 | [48](issues/48-outlook-discovery.md)、[11](issues/11-accounts.md)、[12](issues/12-selectors.md) | needs-info | 未开始 |
 | [50 用真实 PST 样本验证解析库和保真范围](issues/50-pst-spike.md) | 必做验证 | [02](issues/02-app-bootstrap.md) | needs-info | 进行中 |
 | [51 导入 PST 目录和邮件并查看进度](issues/51-pst-import.md) | 必做 | [50](issues/50-pst-spike.md)、[43](issues/43-local-archive.md)、[13](issues/13-mime-baseline.md) | ready-for-agent | 未开始 |
@@ -219,4 +219,6 @@ flowchart TD
 整体审核进展（2026-11-17 10:55）：完整控制台回归首轮通过；Standards 轴两项（损坏包隔离、页面引用释放）与 Spec 轴两项（HTML-only TXT 正文、CID 导出地址）已修复并通过定向验证。组合验证另发现 CordiSharp 根释放通知竞态，改为先释放公开 PluginHandle 再释放根，插件/配置/贡献/升级/管理回归通过。检查程序强制使用隔离测试工作空间。界面、PDF 和安装升级验收正在集中准备，尚不记为通过。
 
 集中验收进展（2026-11-17 11:16）：完整本地 CI、沙盒无运行时/仅 x86 拒绝、x64 中文路径安装、集中 FlaUI、实际 5 页 A4 中文 PDF、签名双版本 NSIS 升级、默认保留/显式确认删除卸载均通过。发现并修复 Windows supportedOS 清单缺失与阅读区被工具挤占；同一沙盒内定向复验通过，修复后安装包重新构建并安装核对通过，78 个文件摘要一致，运行时启动/卸载通过；沙盒和测试进程已关闭。正式 CI/Release 与真实邮件协议仍不计通过。收尾依赖复核：未开始项中仅可选决策 106 的直接前置已齐，尚未选入首版；本轮没有其他可独立交付的必做前沿。
+
+后续专项验收（2026-11-17）：按新授权完成 20/22/31/48，50 完成样本和对比但保留 ANSI 保真缺口；32/35 明确暂缓。新一轮只推进这五项，虽已解除其他开发依赖，不自动扩大本轮范围。整体计数以顶部最新状态为准，前述 8 小时批次记录保留为历史。详见 [专项报告](../../docs/validation/2026-11-17-protocol-outlook.md)。
 <!-- /implementation-status -->

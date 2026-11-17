@@ -1,11 +1,12 @@
 # MyMailBox
 
-Windows x64 邮件工作空间，Avalonia / .NET 10。当前支持本地 EML 阅读、归档导出、账户管理、提醒计划和插件扩展；在线邮箱收发与 Outlook/PST 导入尚未交付。任务进度见 [需求索引](.scratch/000-mymailbox/index.md)。
+Windows x64 邮件工作空间，Avalonia / .NET 10。当前支持本地 EML 阅读、归档导出、账户管理、通用 IMAP 目录摘要、SMTP 纯文本发送、POP3 收取、提醒计划和插件扩展。Outlook/PST 导入与提供者专属接入仍在开发，任务进度见 [需求索引](.scratch/000-mymailbox/index.md)。
 
 ## 当前功能
 
 - 导入完整 EML，离线阅读纯文本、MIME 结构、原文和安全 HTML；支持编码切换、CID 图片、附件预览与另存。远程多媒体默认阻止，可按单封、发件地址或精确域名放行。
-- 创建本地邮箱与目录，关闭后保留归档；管理账户名称、alias、标签、颜色与能力，按稳定 ID 或动态标签保存选择范围。在线账户配置暂不执行联网收发。
+- 创建本地邮箱与目录，关闭后保留归档；管理账户名称、alias、标签、颜色与能力，按稳定 ID 或动态标签保存选择范围。
+- 在“邮箱连接与收发”分别配置收信与发信服务器、加密方式、凭据和代理；IMAP 只读浏览目录和分页摘要，SMTP 发送 To/Cc/Bcc 纯文本，POP3 下载到本地、重启去重并默认保留服务器副本。保存配置不会自动联网。当前真实验证使用本机 GreenMail，QQ/163/Outlook.com/公司 Exchange 的专属授权及增量同步另按工单交付。
 - 导出 EML、归档包、CSV/JSON、附件、PDF/HTML/TXT 阅读副本；工作空间一致性备份可恢复到新目录。PDF 与 HTML 阅读需要 WebView2 Runtime。
 - 保存一次性提醒和循环计划，支持日期规则、5 字段 CRON、时区、错过补跑、重叠控制、重试与执行记录。仅在应用和提醒插件运行期间执行，完全退出后等待下次启动恢复。
 - 通过 GitHub Releases 检查版本；已实现签名下载与 NSIS 更新交接，但正式签名公钥尚未配置，当前不能下载安装正式更新。
@@ -25,7 +26,7 @@ dotnet run --project tests/MyMailBox.Checks
 
 发布目录为 `artifacts/publish`。双击 `MyMailBox.Desktop.exe`，需要系统安装 x64 .NET 10 Runtime。产物明确为框架依赖发布，无 AOT、裁剪或捆绑运行时。`--runtime-check` 仅验证运行时启动，不打开窗口。
 
-SDK 固定在 global.json，包版本和依赖闭包记录在各项目及 packages.lock.json。主要组件为 Avalonia 12.1.1、CordiSharp 0.2.0、MimeKit 4.17.0、SQLite、Cronos 和 NetSparkle。已有安装包、运行时和 NuGet 缓存应优先复用。
+SDK 固定在 global.json，包版本和依赖闭包记录在各项目及 packages.lock.json。主要组件为 Avalonia 12.1.1、CordiSharp 0.2.0、MailKit/MimeKit 4.17.0、SQLite、Cronos 和 NetSparkle。已有安装包、运行时和 NuGet 缓存应优先复用。
 
 ## Profile、插件与演示
 
@@ -64,4 +65,4 @@ SDK 固定在 global.json，包版本和依赖闭包记录在各项目及 packag
 
 构建与发布契约见 [release.md](docs/release.md)，更新机制和当前限制见 [updater.md](docs/updater.md)。正式发布必须经过版本与 changelog 准备、提交、Tag 和推送；本地验证不会发布 Release。
 
-本轮完整结果见 [2026-11-17 整体验收](docs/validation/2026-11-17-independent-tasks.md)，早期插件基线见 [01–09 验收记录](docs/validation/framework-plugins.md)，交互规范见 [ux-flows.md](docs/ux-flows.md)，插件依赖及上游边界见 [cordisharp.md](docs/cordisharp.md)。
+本轮协议及 Outlook/PST 结果见 [集中验收](docs/validation/2026-11-17-protocol-outlook.md)，前轮完整结果见 [独立任务整体验收](docs/validation/2026-11-17-independent-tasks.md)。早期插件基线见 [01–09 验收记录](docs/validation/framework-plugins.md)，交互规范见 [ux-flows.md](docs/ux-flows.md)，插件依赖及上游边界见 [cordisharp.md](docs/cordisharp.md)。

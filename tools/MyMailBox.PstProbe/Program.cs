@@ -38,11 +38,13 @@ object Inspect(Message message, string folder, int depth)
     string rtf = null;
     if (message.RtfCompressed is { Length: > 0 })
     {
-        using var stream = new RtfDecompressor().Decompress(message.RtfCompressed, false);
+        using var stream = new RtfDecompressor().Decompress(message.RtfCompressed, true);
+        stream.Position = 0;
         using var reader = new StreamReader(stream); rtf = reader.ReadToEnd();
     }
-    return new { folder, subject = message.Subject, text = message.Body, html = message.GetBodyAsHtmlString(), rtf,
-        recipients = message.Recipients.Select(r => r.ToString()).ToArray(), files };
+    var messageClass = (string)(message.Properties.FirstOrDefault(p => (ushort)p.Tag == 0x001a)?.Value ?? "unknown");
+    return new { folder, messageClass, nonMail = !messageClass.StartsWith("IPM.Note", StringComparison.OrdinalIgnoreCase), subject = message.Subject, text = message.Body, html = message.GetBodyAsHtmlString(), rtf,
+        recipients = message.Recipients.Select(r => new { type = r.RecipientType.ToString(), name = r.DisplayName, address = r.EmailAddress }).ToArray(), files };
 }
 void Walk(Folder folder)
 {
