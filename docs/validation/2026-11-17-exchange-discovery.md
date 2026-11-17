@@ -1,6 +1,6 @@
 # 35：公司 Exchange 端点初步验证
 
-最新结论：匿名访问成功到达服务，用户本机自动协商及显式 NTLM 只读认证均返回 401；已停止重试，等待 IT 核查，35 保持 blocked。
+最新结论：EWS 自动协商及显式 NTLM 只读认证均返回 401，用户补充域账号和完整邮箱地址均已试过。手机邮件应用能读列表，新增 ActiveSync 路线调查：匿名 OPTIONS 返回 401/Basic，已交付仅查询能力的认证探测脚本，待用户本机执行。35 保持 blocked，不能据此认定 EWS 或完整收发已通过。
 
 用户提供 `https://mail.example.invalid/owa` 并授权先做不影响服务的检查。2026-11-17 13:07、13:31（Asia/Shanghai）各执行两次普通无凭据 GET：一次 OWA，一次标准 EWS 路径。无扫描、口令尝试或自动重试。
 
@@ -33,3 +33,23 @@
 ```
 
 即使只读登录通过，35 仍需实际部署信息以及指定测试目录中的正文/附件、测试发送、已读和移动验收。真实写入/发送尚未执行；准备独立测试邮件及目录后再落实范围，不能对现有业务邮件试操作。当前保留 blocked，已有端点证据及可复用脚本。
+
+## 手机成功后的 ActiveSync 路线
+
+用户补充：手机 Exchange 邮箱以同一主机、SSL/TLS 和完整邮箱地址成功读取列表；原 EWS 脚本的“域名\用户名”和完整邮箱地址均为相同失败结果。因此不再把账号格式视为已知修复方式。手机可能使用 EAS，但截图本身不能确认具体协议。
+
+2026-11-17 **06:11:48 UTC** 单次无凭据 `OPTIONS /Microsoft-Server-ActiveSync`：系统 TLS 验证通过，返回 **401 / Basic**，未返回协议版本或命令。证据复用 `artifacts/exchange-discovery/activesync-options.json`。这与 EWS 的 Windows 认证挑战不同，值得独立验证；不等于已认证成功或确认 Exchange 产品版本。
+
+已准备 `scripts/probe-activesync.ps1`，仅发送一个逻辑 OPTIONS 操作（包括 HTTP 认证挑战处理），Basic 凭据仅绑定对应 HTTPS 端点，不预发送、不跟随重定向、不使用 Windows 默认身份或 cookie；20 秒超时，不自动切换认证或重试登录。无 DeviceId、DeviceType、命令正文或策略键，不发送 Provision/FolderSync/Sync/SendMail。不会主动建立设备同步关系、读取或修改邮件；正常服务端访问/认证日志仍可能产生。只输出状态、认证方案、协议版本和命令名称，不读取响应正文或输出身份/凭据。
+
+用户在自己的 PowerShell 执行，使用手机成功登录时相同的身份与密码：
+
+```powershell
+& 'C:\code\dotnet\MyMailBox\scripts\probe-activesync.ps1' -ServerUrl https://mail.example.invalid -PromptForCredential
+```
+
+脚本离线 `-SelfTest` 已通过版本/命令解析、401 与缺失头判定、cookie/realm 不泄漏检查，无网络请求。尚未执行真实带凭据 OPTIONS；代理此前的交互凭据终端启动受命令策略限制，继续由用户本机输入，不绕过限制。
+
+结果解释：200 且返回版本/命令表示 OPTIONS 能力查询成功，不能代替邮箱访问授权与收发验收；401 仍是认证未通过，403 需检查服务端策略；重定向不自动跟随。EAS 14.x/16.x 是协议版本，不是 Exchange 2016/2019 等产品版本。
+
+依据：[OPTIONS 响应规定](https://learn.microsoft.com/en-us/openspecs/exchange_server_protocols/ms-ashttp/bc92056f-5c48-4775-9f0d-b16b86998e55)、[ActiveSync 认证](https://learn.microsoft.com/en-us/openspecs/exchange_server_protocols/ms-ashttp/7b7fabb9-910c-4f1c-9396-57d7ca579a31)。

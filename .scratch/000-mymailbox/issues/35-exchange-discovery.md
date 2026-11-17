@@ -42,6 +42,8 @@ Blocked by: 02, 11
 
 ## Comments
 
+- 2026-11-17 后续：用户确认域账号、完整邮箱地址用于 EWS 均失败，但手机 Exchange 可读取列表。新增 EAS 路线：匿名 OPTIONS 返回 401/Basic（与 EWS Negotiate/NTLM 不同），版本未知。已准备 `scripts/probe-activesync.ps1`，离线自测通过，待本机输入凭据执行仅 OPTIONS；不建立设备同步、不读取邮件、不发送或修改。手机使用 EAS 仍是待证实推断，真实验收未完成，保持 blocked。
+
 - 同日真实只读认证：用户本机输入“域名\用户名”，确认网页可登录；自动协商、显式 NTLM 两次 GetFolder 均为 401。未取得根目录、未读邮件、未写入或发送；停止认证重试，等待 IT 按时间核查 IIS 子状态、代理/认证及账户 EWS 策略。
 
 - 2026-11-17 恢复推进：用户提供公司 OWA 地址，实际 HTTPS 检查 OWA 302、EWS 401（Negotiate/NTLM），未发送凭据或访问邮件。已准备本机安全输入的只读 GetFolder 探测脚本；用户愿意输入，但代理打开终端受命令策略阻止，已给出用户本机执行命令并等待脱敏结果。真实部署与读写条件仍不足，保持 blocked，详见 [公司端点调查](../../../docs/validation/2026-11-17-exchange-discovery.md)。
