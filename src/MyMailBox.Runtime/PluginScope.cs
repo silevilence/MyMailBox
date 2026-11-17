@@ -186,6 +186,7 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         public Task<IReadOnlyList<RemoteFolder>> Folders(Guid account, CancellationToken cancellation = default) => scope.Run(t => service.Value.Folders(account, t), cancellation);
         public Task<RemoteMailPage> Summaries(Guid account, string folder, int offset, int limit, CancellationToken cancellation = default) => scope.Run(t => service.Value.Summaries(account, folder, offset, limit, t), cancellation);
         public Task<SendOutcome> Send(Guid account, TextMail message, CancellationToken cancellation = default) => scope.Run(t => service.Value.Send(account, message, t), cancellation);
+        public Task<PopOutcome> ReceivePop(Guid account, bool deleteAfterDownload, int limit = 100, CancellationToken cancellation = default) => scope.Run(t => service.Value.ReceivePop(account, deleteAfterDownload, limit, t), cancellation);
     }
 
     private sealed class ScopedSelections(PluginScope scope, ServiceTarget<ISelectionService> selections) : ISelectionService

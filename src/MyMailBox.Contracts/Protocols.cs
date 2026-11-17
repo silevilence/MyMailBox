@@ -21,4 +21,5 @@ public interface IProtocolMailService
     Task<IReadOnlyList<RemoteFolder>> Folders(Guid account, CancellationToken cancellation = default);
     Task<RemoteMailPage> Summaries(Guid account, string folder, int offset, int limit, CancellationToken cancellation = default);
     Task<SendOutcome> Send(Guid account, TextMail message, CancellationToken cancellation = default);
+    Task<PopOutcome> ReceivePop(Guid account, bool deleteAfterDownload, int limit = 100, CancellationToken cancellation = default);
 }
