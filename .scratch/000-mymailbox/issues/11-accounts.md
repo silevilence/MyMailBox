@@ -2,7 +2,7 @@
 
 Spec: 000-mymailbox
 Status: ready-for-agent
-Progress: not-started
+Progress: done
 Type: task
 Scope: 必做
 Estimate: 2–3 人日
@@ -21,9 +21,9 @@ Blocked by: 10, 09
 
 ## Acceptance criteria
 
-- [ ] 账户 UUID 自动生成且稳定，alias 唯一；重命名不改变引用，恢复冲突明确处理。
-- [ ] 支持多个同类型账户、仅收、仅发及本地账户；UI 按实际能力禁用操作并解释原因。
-- [ ] 凭据仅保存引用，登录失败可恢复；移除账户先说明缓存与独立归档处理，不能误删归档。
+- [x] 账户 UUID 自动生成且稳定，alias 唯一；重命名不改变引用，恢复冲突明确处理。
+- [x] 支持多个同类型账户、仅收、仅发及本地账户；UI 按实际能力禁用操作并解释原因。
+- [x] 凭据仅保存引用，登录失败可恢复；移除账户先说明缓存与独立归档处理，不能误删归档。
 
 ## Blocked by
 
@@ -38,7 +38,7 @@ Blocked by: 10, 09
 
 ## 验证与交付记录
 
-实施时记录演示步骤或检查命令、结果、适用环境和已知限制；目前未执行，所有验收项保持未勾选。若发现超出预计粒度，先拆为完整可验收子场景；环境不足时保留具体缺口，不标完成。
+2026-11-17：账户管理页面与 IAccountService 已实现；SQLite 保存稳定 ID、唯一 alias、标签/颜色/备注/排序、能力与凭据引用，凭据使用 Windows 当前用户 DPAPI 加密。`dotnet run --project tests/MyMailBox.Checks --no-restore -- accounts` 通过创建/重命名/停用/移除、同类型账户、冲突恢复、凭据重开及更新、独立归档保留检查。在线提供者接入属于后续任务，页面明确标注待接入，不声称真实登录通过。窗口验收留待本轮集中执行。
 
 ## Comments
 

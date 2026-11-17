@@ -108,6 +108,10 @@ public sealed class ShellWindow : Window
         var page = _pages.Pages.FirstOrDefault(p => p.Id == id);
         if (page is null) return;
         _renderedPage = page; _selectorRevision = _pages.SelectorRevision;
+        if (page.Accounts is { } accounts)
+        {
+            var view = new AccountsView(accounts); _hostView = view; _body.Content = view; return;
+        }
         if (page.Reader is { } reader)
         {
             var view = new MailboxView(reader); _hostView = view; _body.Content = view; return;

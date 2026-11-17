@@ -2,7 +2,7 @@
 
 Spec: 000-mymailbox
 Status: needs-info
-Progress: not-started
+Progress: blocked
 Type: research
 Scope: 必做验证
 Estimate: 2–3 人日
@@ -43,3 +43,5 @@ Blocked by: 02, 11
 ## Comments
 
 - 2026-11-16：用户确认任务拆分后创建，尚未开始开发。
+
+- 2026-11-17：用户确认目前没有对应真实测试环境/样本，先推进独立任务。真实集成验收阻塞，保持验收项未勾选。

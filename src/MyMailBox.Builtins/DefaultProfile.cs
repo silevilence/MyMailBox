@@ -7,15 +7,21 @@ namespace MyMailBox.Builtins;
 public static class DefaultProfile
 {
     public static PluginConfiguration Core => new(1, [new("platform", "core.platform", "1.0.0")]);
-    public static PluginConfiguration Ordinary => new(1, [new("welcome", "welcome", "1.0.0"), new("prototype", "prototype", "1.0.0"), new("selector", "selector", "1.0.0"), new("local-mail", "local-mail", "1.0.0")]);
+    public static PluginConfiguration Ordinary => new(1, [new("welcome", "welcome", "1.0.0"), new("prototype", "prototype", "1.0.0"), new("selector", "selector", "1.0.0"), new("local-mail", "local-mail", "1.0.0"), new("accounts", "accounts", "1.0.0")]);
 
     public static PluginCatalog Catalog(string? workspace = null, IMailStore? mailStore = null, IMimeReader? mimeReader = null)
     {
         var catalog = new PluginCatalog();
+        var location = workspace ?? Environment.GetEnvironmentVariable("MYMAILBOX_HOME")
+            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MyMailBox");
+        catalog.Add(new(new("accounts", "1.0.0", 1, 1, PluginKind.Ordinary, "accounts"), PluginOrigin.Builtin, "", (ctx, _) =>
+        {
+            var host = ctx.Get<IPluginHost>("mailbox.host")!;
+            var accounts = new Mail.AccountService(new Mail.SqliteMailStore(Path.Combine(location, "mail")));
+            ctx.Effect(() => host.Add(new Page("manage", "账户管理", "", [], [], (_, _) => Task.FromResult(""), Accounts: accounts)));
+        }));
         catalog.Add(new(new("local-mail", "1.0.0", 1, 1, PluginKind.Ordinary, "local-mail"), PluginOrigin.Builtin, "", (ctx, _) =>
         {
-            var location = workspace ?? Environment.GetEnvironmentVariable("MYMAILBOX_HOME")
-                ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MyMailBox");
             LocalMailPlugin.Apply(ctx, mailStore ?? new Mail.SqliteMailStore(Path.Combine(location, "mail")), mimeReader ?? new Mail.MimeReader());
         }));
         catalog.Add(new(new("selector", "1.0.0", 1, 1, PluginKind.Ordinary, "selector"), PluginOrigin.Builtin, "", (ctx, _) =>

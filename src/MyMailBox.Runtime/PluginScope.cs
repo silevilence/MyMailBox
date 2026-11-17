@@ -20,7 +20,8 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
     public IDisposable Add(Page page) => Own(pages.Add(page with
     {
         Id = InstanceId + "/" + page.Id, Execute = (values, action) => Run(_ => page.Execute(values, action)),
-        Reader = page.Reader is { } reader ? new(new ScopedMailStore(this, reader.Store), new ScopedMimeReader(this, reader.Parser)) : null
+        Reader = page.Reader is { } reader ? new(new ScopedMailStore(this, reader.Store), new ScopedMimeReader(this, reader.Parser)) : null,
+        Accounts = page.Accounts is { } accounts ? new ScopedAccounts(this, accounts) : null
     }));
     public IDisposable AddSelector(Selector selector) => Own(pages.AddSelector(selector));
     public IDisposable AddNative(NativePage page)
@@ -107,6 +108,13 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
     private sealed class ScopedMimeReader(PluginScope scope, IMimeReader reader) : IMimeReader
     {
         public Task<ParsedMail> Parse(byte[] raw, CancellationToken cancellation = default) => scope.Run(t => reader.Parse(raw, t), cancellation);
+    }
+
+    private sealed class ScopedAccounts(PluginScope scope, IAccountService accounts) : IAccountService
+    {
+        public Task<IReadOnlyList<MailAccount>> List(CancellationToken cancellation = default) => scope.Run(accounts.List, cancellation);
+        public Task<MailAccount> Save(AccountEdit edit, string? newCredential = null, CancellationToken cancellation = default) => scope.Run(t => accounts.Save(edit, newCredential, t), cancellation);
+        public async Task Remove(Guid id, CancellationToken cancellation = default) => await scope.Run(async t => { await accounts.Remove(id, t); return true; }, cancellation);
     }
 }
 
