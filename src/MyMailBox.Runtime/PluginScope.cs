@@ -27,6 +27,7 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
             Actions = page.Actions.ToArray(),
             Reader = page.Reader is { } reader ? new(new ScopedMailStore(this, Target(reader.Store)), new ScopedMimeReader(this, Target(reader.Parser)), reader.Html is { } html ? new ScopedHtml(this, Target(html)) : null, reader.Remote is { } remote ? new ScopedRemote(this, Target(remote)) : null, reader.Attachments is { } attachments ? new ScopedAttachments(this, Target(attachments)) : null) : null,
             Accounts = page.Accounts is { } accounts ? new ScopedAccounts(this, Target(accounts)) : null,
+            Protocols = page.Protocols is { } protocols ? new(new ScopedAccounts(this, Target(protocols.Accounts)), new ScopedProtocols(this, Target(protocols.Service))) : null,
             Selections = page.Selections is { } selections ? new ScopedSelections(this, Target(selections)) : null,
             Export = page.Export is { } export ? new(new ScopedMailStore(this, Target(export.Store)), new ScopedSelections(this, Target(export.Selections))) : null,
             LocalMailboxes = page.LocalMailboxes is { } local ? new ScopedLocalMailboxes(this, Target(local)) : null,
@@ -176,6 +177,14 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         public Task<IReadOnlyList<MailAccount>> List(CancellationToken cancellation = default) => scope.Run(t => accounts.Value.List(t), cancellation);
         public Task<MailAccount> Save(AccountEdit edit, string? newCredential = null, CancellationToken cancellation = default) => scope.Run(t => accounts.Value.Save(edit, newCredential, t), cancellation);
         public async Task Remove(Guid id, CancellationToken cancellation = default) => await scope.Run(async t => { await accounts.Value.Remove(id, t); return true; }, cancellation);
+    }
+
+    private sealed partial class ScopedProtocols(PluginScope scope, ServiceTarget<IProtocolMailService> service) : IProtocolMailService
+    {
+        public Task<ProtocolSettings> Settings(Guid account, CancellationToken cancellation = default) => scope.Run(t => service.Value.Settings(account, t), cancellation);
+        public async Task Save(Guid account, ProtocolSettings settings, string? incomingSecret, string? outgoingSecret, CancellationToken cancellation = default) => await scope.Run(async t => { await service.Value.Save(account, settings, incomingSecret, outgoingSecret, t); return true; }, cancellation);
+        public Task<IReadOnlyList<RemoteFolder>> Folders(Guid account, CancellationToken cancellation = default) => scope.Run(t => service.Value.Folders(account, t), cancellation);
+        public Task<RemoteMailPage> Summaries(Guid account, string folder, int offset, int limit, CancellationToken cancellation = default) => scope.Run(t => service.Value.Summaries(account, folder, offset, limit, t), cancellation);
     }
 
     private sealed class ScopedSelections(PluginScope scope, ServiceTarget<ISelectionService> selections) : ISelectionService

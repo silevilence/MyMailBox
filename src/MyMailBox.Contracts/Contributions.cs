@@ -9,6 +9,7 @@ public sealed record Page(string Id, string Title, string Description, IReadOnly
     public IScheduleService? Schedules { get; init; }
     public IUpdateService? Updates { get; init; }
     public IUpdateInstaller? UpdateInstaller { get; init; }
+    public ProtocolPage? Protocols { get; init; }
     // Preserve the original SDK constructor for already compiled page plugins.
     public Page(string id, string title, string description, IReadOnlyList<Field> fields,
         IReadOnlyList<PageAction> actions, Func<IReadOnlyDictionary<string, string>, string, Task<string>> execute)

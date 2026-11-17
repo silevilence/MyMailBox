@@ -1,6 +1,6 @@
 # 000-mymailbox · MyMailBox 开发任务索引
 
-日期：2026 年 11 月 17 日。用户已确认按草案创建独立工单，**32 项完成（01–19、43、55–58、69–72、86–88、90）；3 项进行中（89、91–92）；7 项因外部环境阻塞（20/22/31/32/35/48/50）；其余 66 项未开始。已完成项纳入本轮整体审核与集中验收，89 的真实 NSIS 升级通过但完整业务数据场景仍缺失，91–92 待真实 CI/发布验收**。
+日期：2026 年 11 月 17 日。**32 项完成（01–19、43、55–58、69–72、86–88、90）；8 项进行中（20/22/31/48/50、89、91–92）；2 项暂缓（32/35，保留 blocked）；其余 66 项未开始。** 本轮按用户新授权使用 GreenMail 实现通用协议，使用经典 Outlook 的独立无账户 Profile 与测试 PST 验证 48/50；完成实现后集中验收。89 的真实 NSIS 升级已通过，完整业务数据场景仍缺失；91–92 待真实 CI/发布验收。
 
 - [000-mymailbox 开发规格与完成标准](spec.md)
 - [全部规格索引](../index.md)
@@ -88,9 +88,9 @@ flowchart TD
 
 | 编号与任务 | 范围 | 直接依赖 | 初始分诊 | 当前进度 |
 | --- | --- | --- | --- | --- |
-| [20 添加 IMAP 账户并浏览真实目录摘要](issues/20-imap-connect.md) | 必做 | [11](issues/11-accounts.md)、[12](issues/12-selectors.md) | ready-for-agent | 阻塞 |
+| [20 添加 IMAP 账户并浏览真实目录摘要](issues/20-imap-connect.md) | 必做 | [11](issues/11-accounts.md)、[12](issues/12-selectors.md) | ready-for-agent | 进行中 |
 | [21 增量接收 IMAP 邮件并离线阅读](issues/21-imap-sync.md) | 必做 | [20](issues/20-imap-connect.md)、[13](issues/13-mime-baseline.md)、[18](issues/18-storage-recovery.md) | ready-for-agent | 未开始 |
-| [22 用发送账户完成一封纯文本邮件发送](issues/22-smtp-send.md) | 必做 | [11](issues/11-accounts.md)、[12](issues/12-selectors.md)、[13](issues/13-mime-baseline.md) | ready-for-agent | 阻塞 |
+| [22 用发送账户完成一封纯文本邮件发送](issues/22-smtp-send.md) | 必做 | [11](issues/11-accounts.md)、[12](issues/12-selectors.md)、[13](issues/13-mime-baseline.md) | ready-for-agent | 进行中 |
 | [23 使用富文本编辑并恢复草稿](issues/23-composer.md) | 必做 | [22](issues/22-smtp-send.md)、[14](issues/14-safe-html.md)、[01](issues/01-ux-prototype.md) | ready-for-agent | 未开始 |
 | [24 在邮件中添加附件内联图片和签名](issues/24-compose-assets.md) | 必做 | [23](issues/23-composer.md)、[16](issues/16-attachments.md) | ready-for-agent | 未开始 |
 | [25 持久化发件箱并处理不确定发送结果](issues/25-outbox.md) | 必做 | [22](issues/22-smtp-send.md)、[18](issues/18-storage-recovery.md) | ready-for-agent | 未开始 |
@@ -99,7 +99,7 @@ flowchart TD
 | [28 安排稍后发送并取消尚未发送的邮件](issues/28-scheduled-send.md) | 必做 | [25](issues/25-outbox.md)、[23](issues/23-composer.md) | ready-for-agent | 未开始 |
 | [29 通过 QQ 预设完成收发闭环](issues/29-qq.md) | 必做 | [21](issues/21-imap-sync.md)、[26](issues/26-reply-forward.md) | needs-info | 未开始 |
 | [30 通过 163 预设完成收发闭环](issues/30-netease.md) | 必做 | [21](issues/21-imap-sync.md)、[26](issues/26-reply-forward.md) | needs-info | 未开始 |
-| [31 通过 POP3 拉取邮件并控制服务器留存](issues/31-pop3.md) | 必做 | [11](issues/11-accounts.md)、[13](issues/13-mime-baseline.md)、[18](issues/18-storage-recovery.md) | ready-for-agent | 阻塞 |
+| [31 通过 POP3 拉取邮件并控制服务器留存](issues/31-pop3.md) | 必做 | [11](issues/11-accounts.md)、[13](issues/13-mime-baseline.md)、[18](issues/18-storage-recovery.md) | ready-for-agent | 进行中 |
 | [32 登录 Outlook.com 并阅读云端邮件](issues/32-graph-login.md) | 必做 | [11](issues/11-accounts.md)、[12](issues/12-selectors.md)、[13](issues/13-mime-baseline.md) | needs-info | 阻塞 |
 | [33 通过 Graph 发送并处理邮件状态](issues/33-graph-send.md) | 必做 | [32](issues/32-graph-login.md)、[26](issues/26-reply-forward.md) | needs-info | 未开始 |
 | [34 增量同步 Graph 邮箱并恢复失效游标](issues/34-graph-sync.md) | 必做 | [32](issues/32-graph-login.md)、[18](issues/18-storage-recovery.md) | ready-for-agent | 未开始 |
@@ -121,9 +121,9 @@ flowchart TD
 
 | 编号与任务 | 范围 | 直接依赖 | 初始分诊 | 当前进度 |
 | --- | --- | --- | --- | --- |
-| [48 验证本机 Outlook 配置读取及位数边界](issues/48-outlook-discovery.md) | 必做验证 | [02](issues/02-app-bootstrap.md) | needs-info | 阻塞 |
+| [48 验证本机 Outlook 配置读取及位数边界](issues/48-outlook-discovery.md) | 必做验证 | [02](issues/02-app-bootstrap.md) | needs-info | 进行中 |
 | [49 预览并导入 Outlook 在线账户配置](issues/49-account-import.md) | 必做 | [48](issues/48-outlook-discovery.md)、[11](issues/11-accounts.md)、[12](issues/12-selectors.md) | needs-info | 未开始 |
-| [50 用真实 PST 样本验证解析库和保真范围](issues/50-pst-spike.md) | 必做验证 | [02](issues/02-app-bootstrap.md) | needs-info | 阻塞 |
+| [50 用真实 PST 样本验证解析库和保真范围](issues/50-pst-spike.md) | 必做验证 | [02](issues/02-app-bootstrap.md) | needs-info | 进行中 |
 | [51 导入 PST 目录和邮件并查看进度](issues/51-pst-import.md) | 必做 | [50](issues/50-pst-spike.md)、[43](issues/43-local-archive.md)、[13](issues/13-mime-baseline.md) | ready-for-agent | 未开始 |
 | [52 完成 PST 复杂邮件的保真与异常报告](issues/52-pst-fidelity.md) | 必做 | [51](issues/51-pst-import.md)、[17](issues/17-encoding.md)、[16](issues/16-attachments.md) | ready-for-agent | 未开始 |
 | [53 在重启和插件停用后继续导入](issues/53-import-resume.md) | 必做 | [49](issues/49-account-import.md)、[51](issues/51-pst-import.md)、[08](issues/08-plugin-upgrade.md) | ready-for-agent | 未开始 |

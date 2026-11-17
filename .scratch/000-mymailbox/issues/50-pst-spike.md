@@ -2,7 +2,7 @@
 
 Spec: 000-mymailbox
 Status: needs-info
-Progress: blocked
+Progress: in-progress
 Type: research
 Scope: 必做验证
 Estimate: 2–3 人日
@@ -44,3 +44,5 @@ Blocked by: 02
 - 2026-11-16：用户确认任务拆分后创建，尚未开始开发。
 
 - 2026-11-17：用户确认目前没有对应真实测试环境/样本，先推进独立任务。真实集成验收阻塞，保持验收项未勾选。
+
+- 2026-11-17：用户授权本地 GreenMail、只读 Outlook 发现及独立无账户 Profile/PST；开始实施，最终集中验收。32/35 暂缓。
