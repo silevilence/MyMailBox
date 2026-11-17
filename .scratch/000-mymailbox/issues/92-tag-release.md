@@ -2,7 +2,7 @@
 
 Spec: 000-mymailbox
 Status: needs-info
-Progress: not-started
+Progress: in-progress
 Type: task
 Scope: 必做
 Estimate: 2–3 人日
@@ -38,7 +38,9 @@ Blocked by: 91, 87
 
 ## 验证与交付记录
 
-实施时记录演示步骤或检查命令、结果、适用环境和已知限制；目前未执行，所有验收项保持未勾选。若发现超出预计粒度，先拆为完整可验收子场景；环境不足时保留具体缺口，不标完成。
+2026-11-17：已实现 V*/v* Tag workflow，复用 91 的精确 SHA Windows 构建作业，发布作业单独获得 contents:write；再次校验 Tag/changelog 后签名安装器与 appcast，创建/恢复草稿、按平台 digest/size 校验全部 7 项资产，最后才公开。已公开 Release 仅允许只读比对，差异明确失败；草稿重跑复用一致资产并修复未完成上传，不移动 Tag。
+
+`release-signing` 定向组与 `scripts/test-publish-release.ps1` 通过：真实 Ed25519 包与 CLI、客户端公钥匹配、V/v 下载地址、完整摘要；模拟 API 验证上传失败保持草稿、重跑复用、公开后禁止覆盖和精确提交。所有用例仅操作本地夹具，没有创建远程 Release、推送或 Tag。正式发布仍需用户授权、已提交的 changelog/版本、正式公钥与 CI Secret，且 91 真实 Actions 尚未验收，因此本项保持 in-progress、验收框未勾选。
 
 ## Comments
 

@@ -5,6 +5,7 @@ on:
     branches: ['**']
   pull_request:
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
@@ -29,6 +30,7 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+          fetch-depth: 0
       - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
         with:
           global-json-file: global.json
@@ -47,6 +49,9 @@ jobs:
             if ($LASTEXITCODE) { throw 'NSIS installation failed' }
           }
           if ((& $compiler /VERSION) -ne 'v3.12') { throw 'NSIS 3.12 required' }
+      - name: Validate release metadata for tag builds
+        if: github.ref_type == 'tag'
+        run: ./scripts/check-release.ps1 -Tag $env:GITHUB_REF_NAME -Phase Tagged -OutputDirectory artifacts/release
       - name: Verify and package exact commit
         run: ./scripts/ci-build.ps1 -ExpectedCommit $env:GITHUB_SHA
       - name: Retain validated artifacts
@@ -59,6 +64,8 @@ jobs:
             artifacts/installer/build-manifest.json
             artifacts/installer/ci-manifest.json
             artifacts/installer/publish-files.json
+            artifacts/release/release-metadata.json
+            artifacts/release/release-body.md
           if-no-files-found: error
           compression-level: 0
           retention-days: 14

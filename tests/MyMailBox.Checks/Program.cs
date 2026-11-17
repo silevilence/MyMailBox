@@ -45,3 +45,4 @@ if (args.Length == 0 || args.Contains("updater-spike")) await UpdaterSpikeChecks
 if (args.Length == 0 || args.Contains("update-checks")) await UpdateCheckChecks.Run();
 if (args.Contains("update-live")) await UpdateCheckChecks.Live();
 if (args.Length == 0 || args.Contains("update-install")) await UpdateInstallChecks.Run();
+if (args.Length == 0 || args.Contains("release-signing")) await ReleaseSigningChecks.Run();

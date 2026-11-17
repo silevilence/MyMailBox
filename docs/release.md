@@ -24,3 +24,15 @@
 SDK 10.0.301 在 global.json 中固定并禁止 roll-forward；NuGet 使用锁文件与 setup-dotnet 缓存，NSIS 3.12 先检查本机/缓存，缺失才安装固定的 3.12.0 Chocolatey 包。固定版本依据：[NSIS 3.12 官方发布](https://sourceforge.net/projects/nsis/files/NSIS%203/3.12/)。Actions 使用完整 commit SHA，升级时核对官方 tag：[checkout](https://github.com/actions/checkout/releases/tag/v7.0.1)、[setup-dotnet](https://github.com/actions/setup-dotnet/releases/tag/v6.0.0)、[cache](https://github.com/actions/cache/releases/tag/v4.3.0)、[upload-artifact](https://github.com/actions/upload-artifact/releases/tag/v7.0.1)。
 
 产物包含安装器、SHA256SUMS.txt、build-manifest.json、ci-manifest.json（commit/SDK/RID/发布方式）及 publish-files.json（每个发布文件的相对路径/大小/SHA256）。本地运行与真实 GitHub Actions 的验收证据分开记录；仅提交 workflow 并不等于 CI 已通过。
+
+## Tag Release 工作流
+
+`.github/workflows/release.yml` 同时监听 V* 与 v*。构建 job 只读权限，调用相同 Windows 构建并校验合法 SemVer、精确 Tag 提交、所有耦合版本与已提交 changelog。仅 publish job 有 contents:write；从当前 run 下载构建 artifact，重新核对 changelog 和 Tag，再签名、上传草稿、校验及公开。不使用自动生成的提交列表作为正文。
+
+准备正式发布前，把 `src/MyMailBox.Builtins/update-source.json` 的 publicKey 设置为真实 Ed25519 公钥，并在 GitHub Actions Secrets 配置 `MYMAILBOX_ED25519_SEED`（base64 编码的 32 字节 seed）。ReleaseTools 使用已经固定的 NetSparkle 配套 Ed25519 库签名，拒绝缺失 Secret 或公私钥不匹配；私钥不写到磁盘、不写入客户端、不输出日志。当前仓库公钥为空，流程将明确失败，不会自动生成正式密钥。
+
+发布资产为 NSIS 安装器、SHA256SUMS.txt、appcast.xml、appcast.xml.signature、build-manifest.json、ci-manifest.json、publish-files.json。签名 appcast 的 enclosure 包含安装器签名与插件 SDK 版本。实际下载 URL 保留触发 Tag 的大小写，展示版本统一 V。所有资源的 GitHub state/size/digest 都通过后才把 draft 改为 false；预发布设置 prerelease 并禁止成为稳定 latest。
+
+同 Tag 重跑可发现已存在草稿，复用摘要一致的上传，替换不一致的草稿资产。公开 Release 只作只读比对，差异报错而不覆盖；不移动或重建 Tag。上传验证依据 [GitHub Release API](https://docs.github.com/en/rest/releases/releases) 与 [资产摘要 API](https://docs.github.com/en/rest/releases/assets)，不重新下载全部安装资产核对哈希。
+
+`scripts/test-publish-release.ps1` 使用本地模拟 transport 验证发布状态机，`release-signing` 控制台组验证真实签名工具。两者不是 GitHub Actions / 真实 Release 验收。正式授权发布时仍须先运行 generate-changelog 技能并完成提交、Tag 与推送；本轮仅准备流程，未触发发布。

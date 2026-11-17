@@ -18,4 +18,7 @@
     <Project Path="tests/MyMailBox.Checks/MyMailBox.Checks.csproj" />
     <Project Path="tests/MyMailBox.UiChecks/MyMailBox.UiChecks.csproj" />
   </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/MyMailBox.ReleaseTools/MyMailBox.ReleaseTools.csproj" />
+  </Folder>
 </Solution>

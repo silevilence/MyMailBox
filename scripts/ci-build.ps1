@@ -11,6 +11,7 @@ try {
     if ($LASTEXITCODE -or $sdk -ne $requiredSdk) { throw "SDK mismatch: expected $requiredSdk, found $sdk" }
     & "$PSScriptRoot/verify.ps1"
     & "$PSScriptRoot/test-release.ps1"
+    & "$PSScriptRoot/test-publish-release.ps1"
     & "$PSScriptRoot/package-installer.ps1"
     $publish = Join-Path $repo 'artifacts/publish'
     $inventory = @(Get-ChildItem -LiteralPath $publish -File -Recurse | Sort-Object FullName | ForEach-Object {

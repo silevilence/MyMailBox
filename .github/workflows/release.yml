@@ -1,0 +1,59 @@
+name: Tag release
+
+on:
+  push:
+    tags: ['V*', 'v*']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    uses: ./.github/workflows/build.yml
+    permissions:
+      contents: read
+  publish:
+    needs: build
+    runs-on: windows-2025
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: MyMailBox-win-x64-${{ github.sha }}
+          path: artifacts/bundle
+      - name: Recheck exact tag and changelog
+        run: |
+          $actual = ./scripts/check-release.ps1 -Tag $env:GITHUB_REF_NAME -Phase Tagged
+          $built = Get-Content artifacts/bundle/release/release-metadata.json -Raw | ConvertFrom-Json
+          if ($actual.triggerTag -cne $built.triggerTag -or $actual.version -cne $built.version -or $actual.body -cne $built.body -or $actual.prerelease -ne $built.prerelease) { throw 'Release metadata differs from tagged source' }
+          dotnet restore tools/MyMailBox.ReleaseTools --locked-mode
+          if ($LASTEXITCODE) { throw 'Signing tool restore failed' }
+      - name: Sign appcast and installer with fixed trust key
+        env:
+          MYMAILBOX_ED25519_SEED: ${{ secrets.MYMAILBOX_ED25519_SEED }}
+        run: |
+          dotnet run --project tools/MyMailBox.ReleaseTools --no-restore -- artifacts/bundle/installer artifacts/bundle/release/release-metadata.json $env:GITHUB_REPOSITORY src/MyMailBox.Builtins/update-source.json
+          if ($LASTEXITCODE) { throw 'Release signing failed; nothing published' }
+      - name: Upload draft assets, verify metadata, then publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: ./scripts/publish-release.ps1 -Repository $env:GITHUB_REPOSITORY -Commit $env:GITHUB_SHA -InstallerDirectory artifacts/bundle/installer -MetadataFile artifacts/bundle/release/release-metadata.json
