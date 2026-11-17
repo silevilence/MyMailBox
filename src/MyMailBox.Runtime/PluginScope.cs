@@ -188,6 +188,8 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         public Task<IReadOnlyList<ScheduleInfo>> List(CancellationToken cancellation = default) => scope.Run(service.List, cancellation);
         public async Task SetEnabled(Guid id, bool enabled, CancellationToken cancellation = default) => await scope.Run(async t => { await service.SetEnabled(id, enabled, t); return true; }, cancellation);
         public Task<int> Tick(CancellationToken cancellation = default) => scope.Run(service.Tick, cancellation);
+        public Task<IReadOnlyList<ScheduleRunInfo>> History(Guid id, CancellationToken cancellation = default) => scope.Run(t => service.History(id, t), cancellation);
+        public async Task CancelRun(string id, CancellationToken cancellation = default) => await scope.Run(async t => { await service.CancelRun(id, t); return true; }, cancellation);
     }
 }
 

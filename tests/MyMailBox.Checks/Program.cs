@@ -4,6 +4,7 @@ using MyMailBox.Contracts;
 using MyMailBox.Runtime;
 
 if (args.Length > 0 && args[0] == "crash-writer") { StorageChecks.CrashWriter(args[1], int.Parse(args[2]), args[3]); return; }
+if (args.Length > 0 && args[0] == "schedule-crash-worker") { await ScheduleRecoveryChecks.CrashWorker(args[1], args[2]); return; }
 var context = Context.Create();
 var pages = new Contributions();
 context.Provide<IContributions>("mailbox.ui", pages);
@@ -39,3 +40,4 @@ if (args.Length == 0 || args.Contains("readable-export")) await ReadableExportCh
 if (args.Length == 0 || args.Contains("reminders")) await ReminderChecks.Run();
 if (args.Length == 0 || args.Contains("recurrence")) await RecurrenceChecks.Run();
 if (args.Length == 0 || args.Contains("cron")) await CronChecks.Run();
+if (args.Length == 0 || args.Contains("schedule-recovery")) await ScheduleRecoveryChecks.Run();

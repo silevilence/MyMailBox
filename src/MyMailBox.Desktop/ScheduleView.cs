@@ -27,6 +27,10 @@ public sealed class ScheduleView : UserControl, IDisposable
     private readonly ComboBox _missing = new() { ItemsSource = new[] { "不存在时跳过当月/当年", "调整为当月最后有效日期/相同周几" }, SelectedIndex = 0 };
     private readonly ComboBox _zone = new() { HorizontalAlignment = HorizontalAlignment.Stretch }, _calendar = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly CheckBox _silent = new() { Content = "静默，只记录通知" };
+    private readonly ComboBox _missed = new() { ItemsSource = new[] { "错过时跳过", "补一次", "限量补跑" }, SelectedIndex = 1 };
+    private readonly ComboBox _overlap = new() { ItemsSource = new[] { "有在途执行时跳过", "同一计划排队", "互斥组（同组串行）", "允许有限并发" }, SelectedIndex = 1 };
+    private readonly TextBox _catchUp = new() { Text = "3" }, _age = new() { Text = "24" }, _grace = new() { Text = "5" }, _concurrency = new() { Text = "2" }, _queue = new() { Text = "100" }, _timeout = new() { Text = "30" }, _retries = new() { Text = "3" }, _backoff = new() { Text = "30" }, _mutex = new();
+    private readonly ListBox _history = new() { MinHeight = 120, MaxHeight = 220 };
     private readonly Dictionary<DayOfWeek, CheckBox> _days = [];
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap }, _preview = new() { TextWrapping = TextWrapping.Wrap };
     private readonly List<(Control Row, Func<bool> Visible)> _conditional = [];
@@ -43,6 +47,18 @@ public sealed class ScheduleView : UserControl, IDisposable
         actions.Children.Add(Action("暂停所选", "schedule-pause", () => Toggle(false))); actions.Children.Add(Action("重新启用所选", "schedule-resume", () => Toggle(true)));
         actions.Children.Add(Action("预览所选计划", "schedule-preview-saved", async () => ShowPreview(await service.Preview(Selected().Rule, _lifetime.Token), Selected().Rule)));
         actions.Children.Add(Action("刷新", "schedule-refresh", Refresh)); _panel.Children.Add(actions);
+        _history.ItemTemplate = new FuncDataTemplate<ScheduleRunInfo>((r, _) => new TextBlock { Text = r is null ? "" : $"{RunState(r.State)} · {r.DueUtc:yyyy-MM-dd HH:mm:ss} UTC · 尝试 {r.Attempts} 次\n重试：{r.RetryUtc:HH:mm:ss} UTC · {r.Error}", TextWrapping = TextWrapping.Wrap });
+        var history = new StackPanel { Spacing = 8 }; Add(history, "最近 200 次执行", _history, "schedule-history");
+        history.Children.Add(Action("加载所选计划执行记录", "schedule-history-load", async () =>
+        {
+            var plan = Selected(); _history.ItemsSource = await service.History(plan.Id, _lifetime.Token);
+            _status.Text = $"已保存策略：{new[] { "错过跳过", "补一次", "限量补跑" }[(int)plan.Execution.Missed]}；{new[] { "重叠跳过", "排队", "互斥", "允许并发" }[(int)plan.Execution.Overlap]}；超时 {plan.Execution.Timeout.TotalSeconds} 秒；最多重试 {plan.Execution.RetryCount} 次。";
+        }));
+        history.Children.Add(Action("取消所选执行", "schedule-run-cancel", async () =>
+        {
+            if (_history.SelectedItem is not ScheduleRunInfo run) throw new InvalidDataException("请选择执行记录。");
+            await service.CancelRun(run.Id, _lifetime.Token); _history.ItemsSource = await service.History(run.PlanId, _lifetime.Token); _status.Text = "已请求取消此执行，后续计划仍按规则运行。";
+        })); _panel.Children.Add(new Expander { Header = "执行记录与取消", Content = history, HorizontalAlignment = HorizontalAlignment.Stretch });
         Add(_panel, "提醒内容", _title, "schedule-title"); Add(_panel, "循环方式", _kind, "schedule-kind");
         Conditional(Add(_panel, "每 N 个周期（分钟/小时/天/周/月/年，取决于所选方式）", _every, "schedule-every"), () => _kind.SelectedIndex != 8);
         Conditional(Add(_panel, "CRON：分 时 日 月 星期（日期与星期同时限制时取 AND）", _cron, "schedule-cron"), () => _kind.SelectedIndex == 8);
@@ -71,12 +87,20 @@ public sealed class ScheduleView : UserControl, IDisposable
         Add(advanced, "夏令时缺失时刻", _gap, "schedule-gap"); Add(advanced, "夏令时重复时刻", _fold, "schedule-fold");
         advanced.Children.Add(new TextBlock { Text = "周一至周五日历不代表法定工作日；节假日需由日历插件提供。窗口为同一天内的闭区间。表单与 CRON 共用夏令时策略；固定时长间隔不因夏令时重置。", TextWrapping = TextWrapping.Wrap });
         _panel.Children.Add(new Expander { Header = "开始结束、运行窗口与排除日", Content = advanced, HorizontalAlignment = HorizontalAlignment.Stretch });
+        var execution = new StackPanel { Spacing = 8 };
+        Add(execution, "错过执行时", _missed, "schedule-missed"); Add(execution, "最多补跑次数（1–100）", _catchUp, "schedule-catchup");
+        Add(execution, "最多恢复多久以内的执行（小时）", _age, "schedule-max-age"); Add(execution, "迟到容忍（秒，超过后视为错过）", _grace, "schedule-grace");
+        Add(execution, "上次尚未完成时", _overlap, "schedule-overlap"); Add(execution, "互斥组名称（留空仅本计划互斥）", _mutex, "schedule-mutex");
+        Add(execution, "并发上限（1–8，仅允许并发时生效）", _concurrency, "schedule-concurrency"); Add(execution, "队列上限（1–1000）", _queue, "schedule-queue");
+        Add(execution, "执行超时（秒，最多 3600）", _timeout, "schedule-timeout"); Add(execution, "失败重试次数（0–10，不含首次）", _retries, "schedule-retries"); Add(execution, "首次重试等待（秒，之后指数增长，最多 1 小时）", _backoff, "schedule-backoff");
+        execution.Children.Add(new TextBlock { Text = "恢复只处理配置窗口内的执行，限量补跑从最早未运行时刻开始，剩余过期时刻跳过。队列、领取、超时和退避持久保存；进程退出后等待下次启动恢复，不会记为已执行。", TextWrapping = TextWrapping.Wrap });
+        _panel.Children.Add(new Expander { Header = "错过执行、重叠与重试", Content = execution, HorizontalAlignment = HorizontalAlignment.Stretch });
         _panel.Children.Add(_silent); _panel.Children.Add(Action("预览未来 10 次", "schedule-preview", Preview));
         AutomationProperties.SetAutomationId(_preview, "schedule-preview-result"); _panel.Children.Add(_preview);
         _panel.Children.Add(Action("保存新计划", "schedule-create", async () =>
         {
             var rule = Rule(); if (_fingerprint != JsonSerializer.Serialize(rule)) throw new InvalidDataException("请先预览当前规则，再保存。");
-            await service.Create(new(_title.Text ?? "", rule, _silent.IsChecked == true ? ReminderNotificationMode.ListOnly : ReminderNotificationMode.Banner), _lifetime.Token);
+            await service.Create(new(_title.Text ?? "", rule, _silent.IsChecked == true ? ReminderNotificationMode.ListOnly : ReminderNotificationMode.Banner) { Execution = Execution() }, _lifetime.Token);
             await Refresh(); _status.Text = "循环计划已保存，周期锚点不会因重启重置。";
         }));
         AutomationProperties.SetAutomationId(_status, "schedule-status");
@@ -117,6 +141,13 @@ public sealed class ScheduleView : UserControl, IDisposable
             TimeZoneId = (_zone.SelectedItem as TimeZoneInfo)?.Id ?? throw new InvalidDataException("请选择时区。")
         };
     }
+    private ScheduleExecutionPolicy Execution() => new()
+    {
+        Missed = (MissedRunPolicy)_missed.SelectedIndex, CatchUpLimit = Number(_catchUp, "补跑次数"), MaximumAge = TimeSpan.FromHours(Number(_age, "恢复窗口")), MisfireGrace = TimeSpan.FromSeconds(Number(_grace, "迟到容忍")),
+        Overlap = (ScheduleOverlapPolicy)_overlap.SelectedIndex, MutexKey = _mutex.Text ?? "", MaxConcurrency = Number(_concurrency, "并发上限"), QueueLimit = Number(_queue, "队列上限"),
+        Timeout = TimeSpan.FromSeconds(Number(_timeout, "超时")), RetryCount = Number(_retries, "重试次数"), RetryDelay = TimeSpan.FromSeconds(Number(_backoff, "重试等待"))
+    };
+    private static string RunState(string state) => state switch { "pending" => "排队中", "retry" => "等待重试", "running" => "执行中", "completed" => "已完成", "failed" => "失败", "timedout" => "已超时", "canceled" => "已取消", "cancel_requested" => "正在取消", "skipped" => "已跳过", _ => state };
     private async Task Preview() { var rule = Rule(); var occurrences = await _service.Preview(rule, _lifetime.Token); ShowPreview(occurrences, rule); _fingerprint = occurrences.Count > 0 ? JsonSerializer.Serialize(rule) : null; }
     private void ShowPreview(IReadOnlyList<ScheduleOccurrence> values, RecurrenceRule rule)
     {

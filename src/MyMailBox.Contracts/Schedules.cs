@@ -41,8 +41,31 @@ public interface ISchedulePlanner
     IReadOnlyList<CalendarChoice> Calendars { get; }
     IReadOnlyList<ScheduleOccurrence> Preview(RecurrenceRule rule, DateTimeOffset after, int count = 10, DateTimeOffset? completed = null);
 }
-public sealed record ScheduleDraft(string Title, RecurrenceRule Rule, ReminderNotificationMode Notification = ReminderNotificationMode.Banner);
-public sealed record ScheduleInfo(Guid Id, string Title, RecurrenceRule Rule, DateTimeOffset? NextUtc, DateTimeOffset? LastCompletedUtc, bool Enabled, string Error);
+public enum MissedRunPolicy { Skip, Once, LimitedCatchUp }
+public enum ScheduleOverlapPolicy { Skip, Queue, Mutex, Parallel }
+public sealed record ScheduleExecutionPolicy
+{
+    public MissedRunPolicy Missed { get; init; } = MissedRunPolicy.Once;
+    public int CatchUpLimit { get; init; } = 3;
+    public TimeSpan MaximumAge { get; init; } = TimeSpan.FromDays(1);
+    public TimeSpan MisfireGrace { get; init; } = TimeSpan.FromSeconds(5);
+    public ScheduleOverlapPolicy Overlap { get; init; } = ScheduleOverlapPolicy.Queue;
+    public string MutexKey { get; init; } = "";
+    public int MaxConcurrency { get; init; } = 2;
+    public int QueueLimit { get; init; } = 100;
+    public TimeSpan Timeout { get; init; } = TimeSpan.FromSeconds(30);
+    public int RetryCount { get; init; } = 3;
+    public TimeSpan RetryDelay { get; init; } = TimeSpan.FromSeconds(30);
+}
+public sealed record ScheduleDraft(string Title, RecurrenceRule Rule, ReminderNotificationMode Notification = ReminderNotificationMode.Banner)
+{
+    public ScheduleExecutionPolicy Execution { get; init; } = new();
+}
+public sealed record ScheduleInfo(Guid Id, string Title, RecurrenceRule Rule, DateTimeOffset? NextUtc, DateTimeOffset? LastCompletedUtc, bool Enabled, string Error)
+{
+    public ScheduleExecutionPolicy Execution { get; init; } = new();
+}
+public sealed record ScheduleRunInfo(string Id, Guid PlanId, DateTimeOffset DueUtc, string State, int Attempts, DateTimeOffset? RetryUtc, DateTimeOffset? CompletedUtc, string Error);
 public interface IScheduleService
 {
     IReadOnlyList<CalendarChoice> Calendars { get; }
@@ -50,5 +73,7 @@ public interface IScheduleService
     Task<ScheduleInfo> Create(ScheduleDraft draft, CancellationToken cancellation = default);
     Task<IReadOnlyList<ScheduleInfo>> List(CancellationToken cancellation = default);
     Task SetEnabled(Guid id, bool enabled, CancellationToken cancellation = default);
+    Task<IReadOnlyList<ScheduleRunInfo>> History(Guid id, CancellationToken cancellation = default);
+    Task CancelRun(string id, CancellationToken cancellation = default);
     Task<int> Tick(CancellationToken cancellation = default);
 }

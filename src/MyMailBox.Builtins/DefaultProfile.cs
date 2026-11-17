@@ -22,7 +22,8 @@ public static class DefaultProfile
             var recurring = new Mail.ScheduleService(store, new Mail.RecurrencePlanner(), sink);
             ctx.Effect(() => host.Add(new Page("list", "提醒与计划", "", [], [], (_, _) => Task.FromResult("")) { Reminders = new(scheduler, new Mail.AvailableMailStore(store)) }));
             ctx.Effect(() => host.Add(new Page("recurring", "循环计划", "", [], [], (_, _) => Task.FromResult("")) { Schedules = recurring }));
-            ctx.Effect(() => new Mail.ReminderRunner(async token => await scheduler.Tick(token) + await recurring.Tick(token), notification));
+            ctx.Effect(() => new Mail.ReminderRunner(scheduler, notification));
+            ctx.Effect(() => new Mail.ScheduleRunner(recurring, notification));
         }));
         catalog.Add(new(new("mail-selectors", "1.0.0", 1, 1, PluginKind.Ordinary, "mail-selectors"), PluginOrigin.Builtin, "", (ctx, _) =>
         {
