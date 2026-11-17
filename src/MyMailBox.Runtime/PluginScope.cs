@@ -24,7 +24,8 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         Accounts = page.Accounts is { } accounts ? new ScopedAccounts(this, accounts) : null,
         Selections = page.Selections is { } selections ? new ScopedSelections(this, selections) : null,
         Export = page.Export is { } export ? new(new ScopedMailStore(this, export.Store), new ScopedSelections(this, export.Selections)) : null,
-        LocalMailboxes = page.LocalMailboxes is { } local ? new ScopedLocalMailboxes(this, local) : null
+        LocalMailboxes = page.LocalMailboxes is { } local ? new ScopedLocalMailboxes(this, local) : null,
+        Reminders = page.Reminders is { } reminders ? new(new ScopedReminders(this, reminders.Scheduler), new ScopedMailStore(this, reminders.Mail)) : null
     }));
     public IDisposable AddSelector(Selector selector) => Own(pages.AddSelector(selector));
     public IDisposable AddExporter(IMessageExporter exporter)
@@ -168,6 +169,15 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         public Task<IReadOnlyList<MailFolder>> Folders(Guid id, CancellationToken cancellation = default) => scope.Run(t => service.Folders(id, t), cancellation);
         public Task<MailFolder> CreateFolder(Guid account, Guid? parent, string name, CancellationToken cancellation = default) => scope.Run(t => service.CreateFolder(account, parent, name, t), cancellation);
         public Task<Guid> Archive(Guid folder, byte[] raw, CancellationToken cancellation = default) => scope.Run(t => service.Archive(folder, raw, t), cancellation);
+    }
+    private sealed class ScopedReminders(PluginScope scope, IReminderService service) : IReminderService
+    {
+        public Task<ReminderInfo> Create(ReminderDraft draft, CancellationToken cancellation = default) => scope.Run(t => service.Create(draft, t), cancellation);
+        public Task<IReadOnlyList<ReminderInfo>> List(CancellationToken cancellation = default) => scope.Run(service.List, cancellation);
+        public async Task Snooze(Guid id, TimeSpan delay, CancellationToken cancellation = default) => await scope.Run(async t => { await service.Snooze(id, delay, t); return true; }, cancellation);
+        public async Task Dismiss(Guid id, CancellationToken cancellation = default) => await scope.Run(async t => { await service.Dismiss(id, t); return true; }, cancellation);
+        public async Task Cancel(Guid id, CancellationToken cancellation = default) => await scope.Run(async t => { await service.Cancel(id, t); return true; }, cancellation);
+        public Task<int> Tick(CancellationToken cancellation = default) => scope.Run(service.Tick, cancellation);
     }
 }
 

@@ -45,7 +45,7 @@ public sealed class App : Application
                         var start = new System.Diagnostics.ProcessStartInfo(Environment.ProcessPath!) { UseShellExecute = false };
                         start.Environment["MYMAILBOX_HOME"] = restored;
                         System.Diagnostics.Process.Start(start);
-                    }, printer: new WebViewPdfPrinter());
+                    }, printer: new WebViewPdfPrinter(), notification: message => Avalonia.Threading.Dispatcher.UIThread.Post(() => pages.Notice = message));
                     var pluginDirectory = Path.Combine(workspace, "plugins");
                     var packages = new PluginPackages(pluginDirectory, catalog);
                     var packageErrors = packages.Discover();

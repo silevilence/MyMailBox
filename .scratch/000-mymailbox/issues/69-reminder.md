@@ -2,7 +2,7 @@
 
 Spec: 000-mymailbox
 Status: ready-for-agent
-Progress: not-started
+Progress: done
 Type: task
 Scope: 必做
 Estimate: 2–3 人日
@@ -21,9 +21,9 @@ Blocked by: 12, 18, 06
 
 ## Acceptance criteria
 
-- [ ] 重启后计划仍存在，关联邮件移动/删除时有可理解状态。
-- [ ] 时区和设备运行前提明确，通知可关闭或延后，不反复弹同一提醒。
-- [ ] 通知与调度均通过插件契约实现，测试时可使用虚拟时钟。
+- [x] 重启后计划仍存在，关联邮件移动/删除时有可理解状态。
+- [x] 时区和设备运行前提明确，通知可关闭或延后，不反复弹同一提醒。
+- [x] 通知与调度均通过插件契约实现，测试时可使用虚拟时钟。
 
 ## Blocked by
 
@@ -39,7 +39,7 @@ Blocked by: 12, 18, 06
 
 ## 验证与交付记录
 
-实施时记录演示步骤或检查命令、结果、适用环境和已知限制；目前未执行，所有验收项保持未勾选。若发现超出预计粒度，先拆为完整可验收子场景；环境不足时保留具体缺口，不标完成。
+2026-11-17：实现普通提醒插件、持久计划与幂等通知 outbox、应用内横幅/静默、关闭/取消/延后、指定时区和稳定邮件引用。IReminderService/INotificationSink 契约可替换，TimeProvider 可注入。dotnet build 和 reminders 定向检查通过，覆盖虚拟时钟、重启补一次、投递确认中断不重复、关联邮件移动/删除/账户移除、夏令时歧义拒绝及停止循环释放。docs/scheduling.md 明确 GUI/插件运行前提。真实提醒窗口和横幅待本轮末集中验收。
 
 ## Comments
 

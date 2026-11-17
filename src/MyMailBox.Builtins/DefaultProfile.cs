@@ -7,13 +7,21 @@ namespace MyMailBox.Builtins;
 public static class DefaultProfile
 {
     public static PluginConfiguration Core => new(1, [new("platform", "core.platform", "1.0.0")]);
-    public static PluginConfiguration Ordinary => new(1, [new("welcome", "welcome", "1.0.0"), new("prototype", "prototype", "1.0.0"), new("selector", "selector", "1.0.0"), new("local-mail", "local-mail", "1.0.0"), new("accounts", "accounts", "1.0.0"), new("mail-selectors", "mail-selectors", "1.0.0")]);
+    public static PluginConfiguration Ordinary => new(1, [new("welcome", "welcome", "1.0.0"), new("prototype", "prototype", "1.0.0"), new("selector", "selector", "1.0.0"), new("local-mail", "local-mail", "1.0.0"), new("accounts", "accounts", "1.0.0"), new("mail-selectors", "mail-selectors", "1.0.0"), new("reminders", "reminders", "1.0.0")]);
 
-    public static PluginCatalog Catalog(string? workspace = null, IMailStore? mailStore = null, IMimeReader? mimeReader = null, Action<string>? openWorkspace = null, IMailPdfPrinter? printer = null)
+    public static PluginCatalog Catalog(string? workspace = null, IMailStore? mailStore = null, IMimeReader? mimeReader = null, Action<string>? openWorkspace = null, IMailPdfPrinter? printer = null, Action<string>? notification = null)
     {
         var catalog = new PluginCatalog();
         var location = workspace ?? Environment.GetEnvironmentVariable("MYMAILBOX_HOME")
             ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MyMailBox");
+        catalog.Add(new(new("reminders", "1.0.0", 1, 1, PluginKind.Ordinary, "reminders"), PluginOrigin.Builtin, "", (ctx, _) =>
+        {
+            var host = ctx.Get<IPluginHost>("mailbox.host")!; var store = new Mail.SqliteMailStore(Path.Combine(location, "mail"));
+            var sink = new Mail.SqliteNotificationSink(store, notice => notification?.Invoke("提醒：" + notice.Title + "。可到“提醒与计划”延后或关闭。"));
+            var scheduler = new Mail.ReminderService(store, sink);
+            ctx.Effect(() => host.Add(new Page("list", "提醒与计划", "", [], [], (_, _) => Task.FromResult("")) { Reminders = new(scheduler, new Mail.AvailableMailStore(store)) }));
+            ctx.Effect(() => new Mail.ReminderRunner(scheduler, notification));
+        }));
         catalog.Add(new(new("mail-selectors", "1.0.0", 1, 1, PluginKind.Ordinary, "mail-selectors"), PluginOrigin.Builtin, "", (ctx, _) =>
         {
             var host = ctx.Get<IPluginHost>("mailbox.host")!;

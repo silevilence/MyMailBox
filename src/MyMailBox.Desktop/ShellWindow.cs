@@ -24,6 +24,7 @@ public sealed class ShellWindow : Window
     private int _exporterRevision;
     private readonly List<Action> _viewCleanup = [];
     private readonly TextBlock _notice = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(16), Foreground = Brush.Parse("#7C2D12") };
+    private readonly Button _noticeClose = new() { Content = "关闭提示", IsVisible = false, Margin = new Thickness(8), VerticalAlignment = VerticalAlignment.Center };
 
     public ShellWindow(Contributions pages)
     {
@@ -44,7 +45,9 @@ public sealed class ShellWindow : Window
         var sidebar = new Border { Background = Brush.Parse("#F1F5F9"), Child = new ScrollViewer { Content = _navigation } };
         grid.Children.Add(sidebar);
         Grid.SetColumn(_body, 1); grid.Children.Add(_body);
-        var layout = new DockPanel(); DockPanel.SetDock(_notice, Dock.Bottom); layout.Children.Add(_notice); layout.Children.Add(grid);
+        var banner = new DockPanel(); DockPanel.SetDock(_noticeClose, Dock.Right); banner.Children.Add(_noticeClose); banner.Children.Add(_notice);
+        _noticeClose.Click += (_, _) => _pages.Notice = ""; AutomationProperties.SetAutomationId(_noticeClose, "global-notice-close");
+        var layout = new DockPanel(); DockPanel.SetDock(banner, Dock.Bottom); layout.Children.Add(banner); layout.Children.Add(grid);
         AutomationProperties.SetAutomationId(_notice, "global-notice");
         Content = layout;
         pages.Changed += Refresh;
@@ -53,7 +56,7 @@ public sealed class ShellWindow : Window
         Refresh();
     }
 
-    private void NoticeChanged() => Dispatcher.UIThread.Post(() => _notice.Text = _pages.Notice);
+    private void NoticeChanged() => Dispatcher.UIThread.Post(() => { _notice.Text = _pages.Notice; _noticeClose.IsVisible = !string.IsNullOrWhiteSpace(_pages.Notice); });
 
     private void Refresh()
     {
@@ -110,6 +113,10 @@ public sealed class ShellWindow : Window
         var page = _pages.Pages.FirstOrDefault(p => p.Id == id);
         if (page is null) return;
         _renderedPage = page; _selectorRevision = _pages.SelectorRevision; _exporterRevision = _pages.ExporterRevision;
+        if (page.Reminders is { } reminders)
+        {
+            var view = new ReminderView(reminders); _hostView = view; _body.Content = view; return;
+        }
         if (page.LocalMailboxes is { } local)
         {
             var view = new LocalMailboxView(local); _hostView = view; _body.Content = view; return;
