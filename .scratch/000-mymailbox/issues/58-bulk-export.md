@@ -2,7 +2,7 @@
 
 Spec: 000-mymailbox
 Status: ready-for-agent
-Progress: not-started
+Progress: done
 Type: task
 Scope: 必做
 Estimate: 2–3 人日
@@ -21,9 +21,9 @@ Blocked by: 55, 16
 
 ## Acceptance criteria
 
-- [ ] 选择多个账户/目录后导出内容与筛选一致，CSV 处理公式注入，敏感字段选择明确。
-- [ ] 附件重名、缺失、下载失败和取消逐项报告，保存路径不会越界。
-- [ ] 外部示例格式插件可通过同一导出向导工作。
+- [x] 选择多个账户/目录后导出内容与筛选一致，CSV 处理公式注入，敏感字段选择明确。
+- [x] 附件重名、缺失、下载失败和取消逐项报告，保存路径不会越界。
+- [x] 外部示例格式插件可通过同一导出向导工作。
 
 ## Blocked by
 
@@ -38,7 +38,7 @@ Blocked by: 55, 16
 
 ## 验证与交付记录
 
-实施时记录演示步骤或检查命令、结果、适用环境和已知限制；目前未执行，所有验收项保持未勾选。若发现超出预计粒度，先拆为完整可验收子场景；环境不足时保留具体缺口，不标完成。
+2026-11-17：实现账户/目录组合与主题筛选预览、附件筛选/模板、CSV/JSON 显式敏感字段选择和逐项结果。外部 example-exporter 格式通过相同契约注册，包含真实加载/导出/停用/程序集释放测试。修复导出器释放实现引用及示例 JSON 缓存引用；保留原始 Page 六参数构造 ABI。dotnet build 与 dotnet run --project tests/MyMailBox.Checks --no-restore -- bulk-export 通过。覆盖跨账户去重、公式注入、重名/越界、缺失/失败/取消及已完成结果保留。窗口向导验收留到本轮末集中执行。
 
 ## Comments
 

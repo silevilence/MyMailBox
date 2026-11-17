@@ -8,6 +8,7 @@ foreach ($sample in @(
     @{ Id='example'; Project='ExamplePlugin'; Version='1.0.0'; Entry='example'; Files=@('ExamplePlugin.dll','PrivateGreeting.dll'); Permissions=@() },
     @{ Id='example'; Project='ExamplePluginV2'; Version='2.0.0'; Entry='example'; Files=@('ExamplePlugin.dll','PrivateGreeting.dll'); Permissions=@() },
     @{ Id='alternative-selector'; Project='ExamplePlugin'; Entry='selector'; Files=@('ExamplePlugin.dll','PrivateGreeting.dll'); Permissions=@() },
+    @{ Id='example-exporter'; Project='ExamplePlugin'; Entry='exporter'; Files=@('ExamplePlugin.dll','PrivateGreeting.dll'); Permissions=@() },
     @{ Id='native'; Project='NativePlugin'; Entry='native'; Files=@('NativePlugin.dll'); Permissions=@('ui.native') }
 )) {
     $files = @{}

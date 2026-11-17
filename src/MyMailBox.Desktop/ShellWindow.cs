@@ -80,7 +80,7 @@ public sealed class ShellWindow : Window
         var selectedNative = _pages.NativePages.FirstOrDefault(p => p.Id == _selected);
         if (selectedPage is not null && ReferenceEquals(selectedPage, _renderedPage) &&
             (!selectedPage.Fields.Any(f => f.Selector is not null) || _selectorRevision == _pages.SelectorRevision) &&
-            (selectedPage.Reader is null || _exporterRevision == _pages.ExporterRevision)) return;
+            (selectedPage.Reader is null && selectedPage.Export is null || _exporterRevision == _pages.ExporterRevision)) return;
         if (selectedNative is not null && ReferenceEquals(selectedNative, _nativePage)) return;
         Show(selectedPage is not null || selectedNative is not null ? _selected! : pages.FirstOrDefault()?.Id);
     }
@@ -110,6 +110,10 @@ public sealed class ShellWindow : Window
         var page = _pages.Pages.FirstOrDefault(p => p.Id == id);
         if (page is null) return;
         _renderedPage = page; _selectorRevision = _pages.SelectorRevision; _exporterRevision = _pages.ExporterRevision;
+        if (page.Export is { } export)
+        {
+            var view = new ExportView(export, _pages.Exporters); _hostView = view; _body.Content = view; return;
+        }
         if (page.Selections is { } selections)
         {
             var view = new SelectionView(selections); _hostView = view; _body.Content = view; return;

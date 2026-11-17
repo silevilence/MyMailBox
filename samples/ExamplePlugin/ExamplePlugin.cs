@@ -43,3 +43,40 @@ public sealed class AlternativeSelector : IPlugin<PluginOptions>
             (values, _) => Task.FromResult("稳定账户 ID：" + values["selected-account"]))));
     }
 }
+
+[Plugin("exporter")]
+[Inject("mailbox.host")]
+public sealed class ExampleExportPlugin : IPlugin<PluginOptions>
+{
+    public void Load(Context context, PluginOptions options)
+    {
+        var host = context.Get<IPluginHost>("mailbox.host")!;
+        context.Effect(() => host.AddExporter(new SubjectListExporter()));
+    }
+    private sealed class SubjectListExporter : IMessageExporter
+    {
+        public string FormatId => "example-subject-list";
+        public string Name => "外部示例 · 主题列表 JSONL";
+        public async Task<ExportReport> Export(ExportRequest request, IProgress<ExportItemResult>? progress = null, CancellationToken cancellation = default)
+        {
+            var directory = Path.GetFullPath(request.Directory); Directory.CreateDirectory(directory);
+            var path = Path.Combine(directory, "主题列表-" + Guid.NewGuid().ToString("N") + ".jsonl");
+            var results = new List<ExportItemResult>();
+            await using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
+            await using var writer = new StreamWriter(stream, new System.Text.UTF8Encoding(false));
+            foreach (var item in request.Items.DistinctBy(i => i.MessageId))
+            {
+                ExportItemResult result;
+                if (cancellation.IsCancellationRequested) result = new(item.MessageId, "canceled", null, "已取消。");
+                else
+                {
+                    await writer.WriteLineAsync(System.Text.Json.JsonSerializer.Serialize(new Dictionary<string, string>
+                        { ["id"] = item.MessageId.ToString(), ["subject"] = item.Subject }));
+                    result = new(item.MessageId, "success", path, "外部格式已导出。");
+                }
+                results.Add(result); progress?.Report(result);
+            }
+            return new(results.ToArray());
+        }
+    }
+}

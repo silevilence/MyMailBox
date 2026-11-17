@@ -22,10 +22,16 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         Id = InstanceId + "/" + page.Id, Execute = (values, action) => Run(_ => page.Execute(values, action)),
         Reader = page.Reader is { } reader ? new(new ScopedMailStore(this, reader.Store), new ScopedMimeReader(this, reader.Parser), reader.Html is { } html ? new ScopedHtml(this, html) : null, reader.Remote is { } remote ? new ScopedRemote(this, remote) : null, reader.Attachments is { } attachments ? new ScopedAttachments(this, attachments) : null) : null,
         Accounts = page.Accounts is { } accounts ? new ScopedAccounts(this, accounts) : null,
-        Selections = page.Selections is { } selections ? new ScopedSelections(this, selections) : null
+        Selections = page.Selections is { } selections ? new ScopedSelections(this, selections) : null,
+        Export = page.Export is { } export ? new(new ScopedMailStore(this, export.Store), new ScopedSelections(this, export.Selections)) : null
     }));
     public IDisposable AddSelector(Selector selector) => Own(pages.AddSelector(selector));
-    public IDisposable AddExporter(IMessageExporter exporter) => Own(pages.AddExporter(new ScopedExporter(this, exporter)));
+    public IDisposable AddExporter(IMessageExporter exporter)
+    {
+        var scoped = new ScopedExporter(this, exporter);
+        var registration = pages.AddExporter(scoped);
+        return Own(new Cleanup(() => { registration.Dispose(); scoped.Release(); }));
+    }
     public IDisposable AddNative(NativePage page)
     {
         permissions.Require("ui.native");
@@ -141,11 +147,16 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         public Task<SavedSelection?> Load(string slot, CancellationToken cancellation = default) => scope.Run(t => selections.Load(slot, t), cancellation);
         public Task<ResolvedSelection> Resolve(SavedSelection selection, CancellationToken cancellation = default) => scope.Run(t => selections.Resolve(selection, t), cancellation);
     }
-    private sealed class ScopedExporter(PluginScope scope, IMessageExporter exporter) : IMessageExporter
+    private sealed class ScopedExporter : IMessageExporter
     {
-        public string FormatId => exporter.FormatId;
-        public string Name => exporter.Name;
-        public Task<ExportReport> Export(ExportRequest request, IProgress<ExportItemResult>? progress = null, CancellationToken cancellation = default) => scope.Run(t => exporter.Export(request, progress, t), cancellation);
+        private readonly PluginScope _scope;
+        private IMessageExporter? _exporter;
+        public ScopedExporter(PluginScope scope, IMessageExporter exporter)
+        { _scope = scope; _exporter = exporter; FormatId = exporter.FormatId; Name = exporter.Name; }
+        public string FormatId { get; }
+        public string Name { get; }
+        public void Release() => _exporter = null;
+        public Task<ExportReport> Export(ExportRequest request, IProgress<ExportItemResult>? progress = null, CancellationToken cancellation = default) => _scope.Run(t => (_exporter ?? throw new InvalidOperationException("导出器已卸载。")).Export(request, progress, t), cancellation);
     }
 }
 

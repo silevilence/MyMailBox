@@ -9,3 +9,7 @@ HTML 经 AngleSharp 解析与允许列表清理，移除脚本、表单、frame�
 依据：[MimeKit 深度限制](https://mimekit.net/docs/html/P_MimeKit_ParserOptions_MaxMimeDepth.htm)、[SQLite 异步限制](https://learn.microsoft.com/en-us/dotnet/standard/data/sqlite/async)、[WebView2 Controller](https://learn.microsoft.com/en-us/dotnet/api/microsoft.web.webview2.core.corewebview2environment.createcorewebview2controllerasync)。数据库同步 I/O 在后台任务中执行，不占用 UI 线程。
 
 工作空间备份通过 SQLite 在线备份 API 取得一致快照，包含配置/插件/插件数据，移除账户凭据并要求重新授权。邮件归档包仅含选定范围的账户说明/标签、目录、元数据、原文和哈希；导入为独立本地邮箱，冲突重新映射，失败整笔回滚。两者不可混用。
+
+批量导出先按账户全部目录或单个目录和主题筛选生成稳定邮件 ID 预览；后续新增邮件不悄悄加入。CSV/JSON 默认导出 ID、主题、日期和大小，地址与附件名称需明确勾选，不导出正文或凭据。CSV 对公式起始字符及前导空白转义。附件按扩展名筛选，可选内联内容，命名模板支持主题、原名和 ID；按邮件 ID 分目录，重名另存，失败/缺失/取消逐项列出。取消保留已完成结果。
+
+导出格式通过 IMessageExporter 注册，外部 example-exporter 示例包贡献 JSONL 主题列表，同一导出向导自动显示。导出器卸载排空在途操作并清除实现引用；示例只序列化共享类型，避免通用 JSON 缓存持有可回收程序集类型。
