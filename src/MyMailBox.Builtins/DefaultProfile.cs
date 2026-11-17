@@ -19,8 +19,10 @@ public static class DefaultProfile
             var host = ctx.Get<IPluginHost>("mailbox.host")!; var store = new Mail.SqliteMailStore(Path.Combine(location, "mail"));
             var sink = new Mail.SqliteNotificationSink(store, notice => notification?.Invoke("提醒：" + notice.Title + "。可到“提醒与计划”延后或关闭。"));
             var scheduler = new Mail.ReminderService(store, sink);
+            var recurring = new Mail.ScheduleService(store, new Mail.RecurrencePlanner(), sink);
             ctx.Effect(() => host.Add(new Page("list", "提醒与计划", "", [], [], (_, _) => Task.FromResult("")) { Reminders = new(scheduler, new Mail.AvailableMailStore(store)) }));
-            ctx.Effect(() => new Mail.ReminderRunner(scheduler, notification));
+            ctx.Effect(() => host.Add(new Page("recurring", "循环计划", "", [], [], (_, _) => Task.FromResult("")) { Schedules = recurring }));
+            ctx.Effect(() => new Mail.ReminderRunner(async token => await scheduler.Tick(token) + await recurring.Tick(token), notification));
         }));
         catalog.Add(new(new("mail-selectors", "1.0.0", 1, 1, PluginKind.Ordinary, "mail-selectors"), PluginOrigin.Builtin, "", (ctx, _) =>
         {

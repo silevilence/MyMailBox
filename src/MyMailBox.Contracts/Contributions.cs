@@ -6,6 +6,7 @@ public sealed record Page(string Id, string Title, string Description, IReadOnly
     public ExportSource? Export { get; init; }
     public ILocalMailboxService? LocalMailboxes { get; init; }
     public ReminderPage? Reminders { get; init; }
+    public IScheduleService? Schedules { get; init; }
     // Preserve the original SDK constructor for already compiled page plugins.
     public Page(string id, string title, string description, IReadOnlyList<Field> fields,
         IReadOnlyList<PageAction> actions, Func<IReadOnlyDictionary<string, string>, string, Task<string>> execute)

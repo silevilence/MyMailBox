@@ -37,3 +37,4 @@ if (args.Length == 0 || args.Contains("bulk-export")) await BulkExportChecks.Run
 if (args.Length == 0 || args.Contains("local-mailboxes")) await LocalMailboxChecks.Run();
 if (args.Length == 0 || args.Contains("readable-export")) await ReadableExportChecks.Run();
 if (args.Length == 0 || args.Contains("reminders")) await ReminderChecks.Run();
+if (args.Length == 0 || args.Contains("recurrence")) await RecurrenceChecks.Run();

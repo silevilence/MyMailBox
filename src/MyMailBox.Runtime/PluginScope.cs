@@ -25,7 +25,8 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         Selections = page.Selections is { } selections ? new ScopedSelections(this, selections) : null,
         Export = page.Export is { } export ? new(new ScopedMailStore(this, export.Store), new ScopedSelections(this, export.Selections)) : null,
         LocalMailboxes = page.LocalMailboxes is { } local ? new ScopedLocalMailboxes(this, local) : null,
-        Reminders = page.Reminders is { } reminders ? new(new ScopedReminders(this, reminders.Scheduler), new ScopedMailStore(this, reminders.Mail)) : null
+        Reminders = page.Reminders is { } reminders ? new(new ScopedReminders(this, reminders.Scheduler), new ScopedMailStore(this, reminders.Mail)) : null,
+        Schedules = page.Schedules is { } schedules ? new ScopedSchedules(this, schedules) : null
     }));
     public IDisposable AddSelector(Selector selector) => Own(pages.AddSelector(selector));
     public IDisposable AddExporter(IMessageExporter exporter)
@@ -177,6 +178,15 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         public async Task Snooze(Guid id, TimeSpan delay, CancellationToken cancellation = default) => await scope.Run(async t => { await service.Snooze(id, delay, t); return true; }, cancellation);
         public async Task Dismiss(Guid id, CancellationToken cancellation = default) => await scope.Run(async t => { await service.Dismiss(id, t); return true; }, cancellation);
         public async Task Cancel(Guid id, CancellationToken cancellation = default) => await scope.Run(async t => { await service.Cancel(id, t); return true; }, cancellation);
+        public Task<int> Tick(CancellationToken cancellation = default) => scope.Run(service.Tick, cancellation);
+    }
+    private sealed class ScopedSchedules(PluginScope scope, IScheduleService service) : IScheduleService
+    {
+        public IReadOnlyList<CalendarChoice> Calendars => service.Calendars;
+        public Task<IReadOnlyList<ScheduleOccurrence>> Preview(RecurrenceRule rule, CancellationToken cancellation = default) => scope.Run(t => service.Preview(rule, t), cancellation);
+        public Task<ScheduleInfo> Create(ScheduleDraft draft, CancellationToken cancellation = default) => scope.Run(t => service.Create(draft, t), cancellation);
+        public Task<IReadOnlyList<ScheduleInfo>> List(CancellationToken cancellation = default) => scope.Run(service.List, cancellation);
+        public async Task SetEnabled(Guid id, bool enabled, CancellationToken cancellation = default) => await scope.Run(async t => { await service.SetEnabled(id, enabled, t); return true; }, cancellation);
         public Task<int> Tick(CancellationToken cancellation = default) => scope.Run(service.Tick, cancellation);
     }
 }

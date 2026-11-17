@@ -6,7 +6,8 @@ public sealed class ReminderRunner : IDisposable
 {
     private readonly CancellationTokenSource _stop = new();
     private readonly Task _loop;
-    public ReminderRunner(IReminderService scheduler, Action<string>? failed = null)
+    public ReminderRunner(IReminderService scheduler, Action<string>? failed = null) : this(scheduler.Tick, failed) { }
+    public ReminderRunner(Func<CancellationToken, Task<int>> tick, Action<string>? failed = null)
     {
         _loop = Task.Run(async () =>
         {
@@ -15,7 +16,7 @@ public sealed class ReminderRunner : IDisposable
             {
                 do
                 {
-                    try { await scheduler.Tick(_stop.Token).ConfigureAwait(false); }
+                    try { await tick(_stop.Token).ConfigureAwait(false); }
                     catch (OperationCanceledException) when (_stop.IsCancellationRequested) { break; }
                     catch (Exception e) { failed?.Invoke("提醒检查未完成：" + e.Message); }
                 } while (await timer.WaitForNextTickAsync(_stop.Token).ConfigureAwait(false));
