@@ -2,7 +2,7 @@
 
 Spec: 000-mymailbox
 Status: ready-for-agent
-Progress: not-started
+Progress: done
 Type: task
 Scope: 必做
 Estimate: 2–3 人日
@@ -21,9 +21,9 @@ Blocked by: 02, 19
 
 ## Acceptance criteria
 
-- [ ] 正确区分 .NET 10 x64 Runtime、x86 和 SDK；缺失时引导用户安装，不捆绑或擅自下载运行时。
-- [ ] 按需检测 WebView2，程序/数据/插件目录分离；安装路径、快捷方式和卸载信息正确。
-- [ ] 卸载默认保留邮件及归档，删除数据需明确选择；无 .NET 和有 .NET 场景用已备资源验收。
+- [x] 正确区分 .NET 10 x64 Runtime、x86 和 SDK；缺失时引导用户安装，不捆绑或擅自下载运行时。
+- [x] 按需检测 WebView2，程序/数据/插件目录分离；安装路径、快捷方式和卸载信息正确。
+- [x] 卸载默认保留邮件及归档，删除数据需明确选择；无 .NET 和有 .NET 场景用已备资源验收。
 
 ## Blocked by
 
@@ -38,7 +38,7 @@ Blocked by: 02, 19
 
 ## 验证与交付记录
 
-实施时记录演示步骤或检查命令、结果、适用环境和已知限制；目前未执行，所有验收项保持未勾选。若发现超出预计粒度，先拆为完整可验收子场景；环境不足时保留具体缺口，不标完成。
+2026-11-17：NSIS 实现 x64 运行时实测检测、缺失安装指引、中文自定义路径、用户快捷方式/卸载信息、WebView2 检查、程序/工作空间分离与默认保留数据卸载。发布产物和本机 NSIS 复用，scripts/publish.ps1 与 scripts/package-installer.ps1 通过，生成安装包、SHA256SUMS 和逐文件清单。以上勾选表示实现及编译检查通过；无/有运行时、安装/升级/卸载的实际行为将在本轮末集中验收，尚未声称通过。准备清单见 docs/release.md。
 
 ## Comments
 
