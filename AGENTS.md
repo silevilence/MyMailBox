@@ -30,6 +30,7 @@
 - `scripts/verify.ps1` 执行完整非 UI 检查；`tests/MyMailBox.Checks` 支持组名定向执行并强制隔离数据。完整 UI 由 `tests/MyMailBox.UiChecks` 在最终阶段集中运行，保留输出与适用范围。
 - Windows 原生 HTML 宿主依赖 `Desktop/app.manifest` 的 supportedOS 声明。插件服务包装停用时须清空外部调用目标；停止运行时先释放保存的 CordiSharp 子 PluginHandle，再释放根。
 - 通用协议通过 MailKit 提供 IMAP 目录分页、SMTP 纯文本与 POP3 收取，真实本机 GreenMail 验收入口为 `scripts/start-greenmail.ps1` 和检查组 `protocol-live` / `protocol-faults`。专属提供者、Outlook/PST 导入、完整搜索规则和自动化任务仍以需求索引为准；本地服务不能替代 QQ/163/Graph/Exchange 的真实授权验收。
+- Outlook.com 只读接入使用 MSAL 和 Graph GET，检查组 `graph` 使用本地替身；真实验收必须有本项目 Client ID 和个人账户授权。不要借用其他产品的应用 ID 或读取 Outlook token。PST 探测及本地修订在 `tools/MyMailBox.PstProbe`，复验 `python scripts/check-pst-fixtures.py` 复用已有样本；许可/分发边界见该工具 Patched/README.md。
 
 - Windows x64，Avalonia、C#、.NET 10。
 - 全 JIT、框架依赖发布（framework-dependent），不采用 NativeAOT，不使用自包含发布。系统 .NET 运行时由用户安装；安装器检查所需版本和架构并提供安装指引，不捆绑运行时。

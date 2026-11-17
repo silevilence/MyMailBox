@@ -17,6 +17,7 @@ internal static class Program
         Console.OutputEncoding = System.Text.Encoding.UTF8;
         System.Windows.Forms.Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
         if (args.FirstOrDefault() == "protocols") { ProtocolUiChecks.Run(); return; }
+        if (args.FirstOrDefault() == "graph") { GraphUiChecks.Run(); return; }
         if (args.Length > 0 && args[0] == "upgrade") { UpgradeUiChecks.Run(args[1], args[2], args[3]); return; }
         if (args.Length > 0 && args[0] == "uninstall-delete") { UninstallUiChecks.Run(args[1], args[2]); return; }
         var readingOnly = args.FirstOrDefault() == "reading";

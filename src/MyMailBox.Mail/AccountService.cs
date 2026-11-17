@@ -48,6 +48,7 @@ public sealed class AccountService : IAccountService
             "imap-smtp" => edit.Capabilities & (AccountCapabilities.Send | AccountCapabilities.Receive),
             "imap" or "pop3" => AccountCapabilities.Receive,
             "smtp" => AccountCapabilities.Send,
+            "outlook-com" => AccountCapabilities.Receive | AccountCapabilities.Folders,
             _ => throw new InvalidDataException("未知账户类型。")
         };
         if (edit.Provider != "local" && (!MimeKit.MailboxAddress.TryParse(edit.Address, out var address) || address.Address != edit.Address.Trim())) throw new InvalidDataException("请输入有效邮箱地址。");

@@ -95,7 +95,7 @@ public sealed partial class ProtocolView : UserControl, IDisposable
     private async Task LoadAccounts()
     {
         var previous = _selected?.Id;
-        var accounts = (await _page.Accounts.List(Token)).Where(a => a.Enabled && a.Provider != "local").ToArray();
+        var accounts = (await _page.Accounts.List(Token)).Where(a => a.Enabled && a.Provider is "imap" or "imap-smtp" or "smtp" or "pop3").ToArray();
         if (_disposed) return;
         _accounts.ItemsSource = accounts; _accounts.SelectedItem = accounts.FirstOrDefault(a => a.Id == previous) ?? accounts.FirstOrDefault();
         await SelectAccount();

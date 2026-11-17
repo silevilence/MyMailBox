@@ -7,6 +7,7 @@ Windows x64 邮件工作空间，Avalonia / .NET 10。当前支持本地 EML 阅
 - 导入完整 EML，离线阅读纯文本、MIME 结构、原文和安全 HTML；支持编码切换、CID 图片、附件预览与另存。远程多媒体默认阻止，可按单封、发件地址或精确域名放行。
 - 创建本地邮箱与目录，关闭后保留归档；管理账户名称、alias、标签、颜色与能力，按稳定 ID 或动态标签保存选择范围。
 - 在“邮箱连接与收发”分别配置收信与发信服务器、加密方式、凭据和代理；IMAP 只读浏览目录和分页摘要，SMTP 发送 To/Cc/Bcc 纯文本，POP3 下载到本地、重启去重并默认保留服务器副本。保存配置不会自动联网。当前真实验证使用本机 GreenMail，QQ/163/Outlook.com/公司 Exchange 的专属授权及增量同步另按工单交付。
+- “Outlook.com 邮件”已实现个人账户只读 Graph 接入：本项目应用注册、微软浏览器授权、受保护缓存、目录/摘要分页及 MIME/附件下载。当前缺少真实 Client ID 和个人账户验收，尚未标为完成；[注册与使用步骤](docs/validation/outlook-com-setup.md)。
 - 导出 EML、归档包、CSV/JSON、附件、PDF/HTML/TXT 阅读副本；工作空间一致性备份可恢复到新目录。PDF 与 HTML 阅读需要 WebView2 Runtime。
 - 保存一次性提醒和循环计划，支持日期规则、5 字段 CRON、时区、错过补跑、重叠控制、重试与执行记录。仅在应用和提醒插件运行期间执行，完全退出后等待下次启动恢复。
 - 通过 GitHub Releases 检查版本；已实现签名下载与 NSIS 更新交接，但正式签名公钥尚未配置，当前不能下载安装正式更新。
@@ -65,4 +66,4 @@ SDK 固定在 global.json，包版本和依赖闭包记录在各项目及 packag
 
 构建与发布契约见 [release.md](docs/release.md)，更新机制和当前限制见 [updater.md](docs/updater.md)。正式发布必须经过版本与 changelog 准备、提交、Tag 和推送；本地验证不会发布 Release。
 
-本轮协议及 Outlook/PST 结果见 [集中验收](docs/validation/2026-11-17-protocol-outlook.md)，前轮完整结果见 [独立任务整体验收](docs/validation/2026-11-17-independent-tasks.md)。早期插件基线见 [01–09 验收记录](docs/validation/framework-plugins.md)，交互规范见 [ux-flows.md](docs/ux-flows.md)，插件依赖及上游边界见 [cordisharp.md](docs/cordisharp.md)。
+最新 PST ANSI 修复及选型见 [50 验收](docs/validation/2026-11-17-pst-ansi-fix.md)，公司端点及两次 401 结果见 [35 调查](docs/validation/2026-11-17-exchange-discovery.md)。前轮协议及 Outlook/PST 结果见 [集中验收](docs/validation/2026-11-17-protocol-outlook.md)，完整结果见 [独立任务整体验收](docs/validation/2026-11-17-independent-tasks.md)。早期插件基线见 [01–09 验收记录](docs/validation/framework-plugins.md)，交互规范见 [ux-flows.md](docs/ux-flows.md)，插件依赖及上游边界见 [cordisharp.md](docs/cordisharp.md)。

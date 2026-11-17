@@ -32,7 +32,7 @@ public sealed partial class ProtocolMailService : IProtocolMailService
     private async Task<MailAccount> Account(Guid id, AccountCapabilities required, CancellationToken token)
     {
         var account = (await _accounts.List(token)).SingleOrDefault(a => a.Id == id && a.Enabled);
-        if (account is null || (account.Capabilities & required) != required || account.Provider == "local")
+        if (account is null || (account.Capabilities & required) != required || account.Provider is not ("imap" or "imap-smtp" or "smtp" or "pop3"))
             throw new InvalidDataException("账户已停用、移除，或不支持此操作。");
         return account;
     }

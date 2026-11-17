@@ -2,7 +2,7 @@
 
 Spec: 000-mymailbox
 Status: needs-info
-Progress: blocked
+Progress: in-progress
 Type: task
 Scope: 必做
 Estimate: 2–3 人日
@@ -42,6 +42,10 @@ Blocked by: 11, 12, 13
 实施时记录演示步骤或检查命令、结果、适用环境和已知限制；目前未执行，所有验收项保持未勾选。若发现超出预计粒度，先拆为完整可验收子场景；环境不足时保留具体缺口，不标完成。
 
 ## Comments
+
+- 集中验收完成：Graph 本地服务检查、完整非 UI 回归、配置页 FlaUI 和完整既有 UI 均通过；没有把本地替身当作真实微软授权。构建 0 警告、0 错误。真实验收仍缺 Client ID，详见 [32 验收记录](../../../docs/validation/2026-11-17-graph-read.md)。
+
+- 2026-11-17 恢复推进：实现 MSAL 4.92.0 公共客户端个人账户授权、DPAPI 缓存、身份绑定、只读 Graph 目录/摘要分页及 MIME/附件下载，接入现有账户插件与本地阅读器。本地替身检查通过，不能替代个人账户真实授权。尚缺本项目应用注册 Client ID，已向用户解释 OAuth/注册要求及提供步骤，保持 in-progress。见 [配置说明](../../../docs/validation/outlook-com-setup.md)。
 
 - 2026-11-16：用户确认任务拆分后创建，尚未开始开发。
 

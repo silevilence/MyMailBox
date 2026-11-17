@@ -1,6 +1,6 @@
 # 000-mymailbox · MyMailBox 开发任务索引
 
-日期：2026 年 11 月 17 日。**37 项完成（01–20、22、31、43、48、50、55–58、69–72、86–88、90）；3 项进行中（89、91–92）；2 项等待真实接入条件（32/35，blocked）；其余 66 项未开始。** 50 已复用样本修复 ANSI 中文及正文，ANSI 18 项、Unicode 51 项通过，研究选型完成。32/35 已获授权恢复推进，外部验收条件仍需落实。证据见 [PST 修复报告](../../docs/validation/2026-11-17-pst-ansi-fix.md)及[前次专项验收](../../docs/validation/2026-11-17-protocol-outlook.md)。
+日期：2026 年 11 月 17 日。**37 项完成（01–20、22、31、43、48、50、55–58、69–72、86–88、90）；4 项进行中（32、89、91–92）；1 项等待真实接入条件（35，blocked）；其余 66 项未开始。** 50 的 ANSI 中文及正文修复通过，研究选型完成；32 已实现只读接入，待应用注册及个人账户真实验收；35 已确认公司 EWS 端点可达，但自动协商和显式 NTLM 均为 401，等待 IT 确认认证/访问条件。证据见 [PST 修复](../../docs/validation/2026-11-17-pst-ansi-fix.md)、[Outlook.com 配置](../../docs/validation/outlook-com-setup.md)、[公司端点调查](../../docs/validation/2026-11-17-exchange-discovery.md)。
 
 - [000-mymailbox 开发规格与完成标准](spec.md)
 - [全部规格索引](../index.md)
@@ -100,7 +100,7 @@ flowchart TD
 | [29 通过 QQ 预设完成收发闭环](issues/29-qq.md) | 必做 | [21](issues/21-imap-sync.md)、[26](issues/26-reply-forward.md) | needs-info | 未开始 |
 | [30 通过 163 预设完成收发闭环](issues/30-netease.md) | 必做 | [21](issues/21-imap-sync.md)、[26](issues/26-reply-forward.md) | needs-info | 未开始 |
 | [31 通过 POP3 拉取邮件并控制服务器留存](issues/31-pop3.md) | 必做 | [11](issues/11-accounts.md)、[13](issues/13-mime-baseline.md)、[18](issues/18-storage-recovery.md) | ready-for-agent | 完成 |
-| [32 登录 Outlook.com 并阅读云端邮件](issues/32-graph-login.md) | 必做 | [11](issues/11-accounts.md)、[12](issues/12-selectors.md)、[13](issues/13-mime-baseline.md) | needs-info | 阻塞 |
+| [32 登录 Outlook.com 并阅读云端邮件](issues/32-graph-login.md) | 必做 | [11](issues/11-accounts.md)、[12](issues/12-selectors.md)、[13](issues/13-mime-baseline.md) | needs-info | 进行中 |
 | [33 通过 Graph 发送并处理邮件状态](issues/33-graph-send.md) | 必做 | [32](issues/32-graph-login.md)、[26](issues/26-reply-forward.md) | needs-info | 未开始 |
 | [34 增量同步 Graph 邮箱并恢复失效游标](issues/34-graph-sync.md) | 必做 | [32](issues/32-graph-login.md)、[18](issues/18-storage-recovery.md) | ready-for-agent | 未开始 |
 | [35 验证公司 Exchange 的真实接入路径](issues/35-exchange-discovery.md) | 必做验证 | [02](issues/02-app-bootstrap.md)、[11](issues/11-accounts.md) | needs-info | 阻塞 |

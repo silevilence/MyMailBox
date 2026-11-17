@@ -13,8 +13,8 @@ public sealed class AccountsView : UserControl, IDisposable
     private readonly IAccountService _service;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly ComboBox _accounts = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
-    private readonly ComboBox _provider = new() { ItemsSource = new[] { "本地邮箱", "IMAP + SMTP", "IMAP（仅收）", "SMTP（仅发）", "POP3（仅收）" }, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
-    private static readonly string[] Providers = ["local", "imap-smtp", "imap", "smtp", "pop3"];
+    private readonly ComboBox _provider = new() { ItemsSource = new[] { "本地邮箱", "IMAP + SMTP", "IMAP（仅收）", "SMTP（仅发）", "POP3（仅收）", "Outlook.com（个人账户，只读）" }, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
+    private static readonly string[] Providers = ["local", "imap-smtp", "imap", "smtp", "pop3", "outlook-com"];
     private readonly TextBox _name = new(), _address = new(), _alias = new(), _tags = new(), _color = new() { Text = "#2563EB" }, _notes = new() { AcceptsReturn = true, MinHeight = 64 }, _order = new() { Text = "0" }, _credential = new() { PasswordChar = '●' };
     private readonly CheckBox _enabled = new() { Content = "启用此账户", IsChecked = true }, _receive = new() { Content = "接收", IsChecked = true }, _send = new() { Content = "发送", IsChecked = true };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap }, _capability = new() { TextWrapping = TextWrapping.Wrap };
@@ -29,7 +29,7 @@ public sealed class AccountsView : UserControl, IDisposable
         _accounts.ItemTemplate = new FuncDataTemplate<MailAccount>((a, _) => new TextBlock { Text = a is null ? "" : $"{a.Name} · {(a.Provider == "local" ? "本地" : a.Address)}{(a.Enabled ? "" : " · 已停用")}" });
         var panel = new StackPanel { Spacing = 12, MaxWidth = 760 };
         panel.Children.Add(new TextBlock { Text = "账户管理", FontSize = 28, FontWeight = FontWeight.SemiBold });
-        panel.Children.Add(new TextBlock { Text = "名称可以随时修改，邮件和自动化引用保持不变。在线账户保存后，到“邮箱连接与收发”分别配置收信和发信服务器。", TextWrapping = TextWrapping.Wrap });
+        panel.Children.Add(new TextBlock { Text = "名称可以随时修改，邮件和自动化引用保持不变。普通在线账户到“邮箱连接与收发”配置服务器；个人微软账户到“Outlook.com 邮件”授权。", TextWrapping = TextWrapping.Wrap });
         Add(panel, "已有账户", _accounts, "account-list");
         panel.Children.Add(Action("添加账户", "account-new", () => { Edit(null); return Task.CompletedTask; }));
         Add(panel, "显示名称", _name, "account-name"); Add(panel, "类型", _provider, "account-provider"); Add(panel, "邮箱地址", _address, "account-address");
@@ -85,8 +85,8 @@ public sealed class AccountsView : UserControl, IDisposable
         var provider = Providers[Math.Max(0, _provider.SelectedIndex)]; var local = provider == "local";
         _address.IsEnabled = _credential.IsEnabled = !local;
         _receive.IsEnabled = _send.IsEnabled = provider == "imap-smtp";
-        if (provider != "imap-smtp") { _receive.IsChecked = provider is "imap" or "pop3"; _send.IsChecked = provider == "smtp"; }
-        _capability.Text = local ? "本地账户用于保存和整理邮件，不支持联网收发。" : provider == "smtp" ? "SMTP 仅发送，不支持收取邮件。" : provider is "imap" or "pop3" ? "此类型仅接收；发送需要单独的 SMTP 账户。" : "可单独关闭收取或发送；在“邮箱连接与收发”配置各自的服务器和凭据。";
+        if (provider != "imap-smtp") { _receive.IsChecked = provider is "imap" or "pop3" or "outlook-com"; _send.IsChecked = provider == "smtp"; }
+        _capability.Text = local ? "本地账户用于保存和整理邮件，不支持联网收发。" : provider == "outlook-com" ? "个人微软账户只读接入，到“Outlook.com 邮件”使用浏览器授权，不填写邮箱密码。" : provider == "smtp" ? "SMTP 仅发送，不支持收取邮件。" : provider is "imap" or "pop3" ? "此类型仅接收；发送需要单独的 SMTP 账户。" : "可单独关闭收取或发送；在“邮箱连接与收发”配置各自的服务器和凭据。";
     }
     private async Task Save()
     {

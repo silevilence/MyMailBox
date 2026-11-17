@@ -48,6 +48,19 @@
           "SQLitePCLRaw.core": "2.1.11"
         }
       },
+      "Microsoft.Identity.Client": {
+        "type": "Transitive",
+        "resolved": "4.92.0",
+        "contentHash": "mvzvyZ0pG8gODD8+76u1HfpHzHk/Df8ylLdrrJImWdbAcV0PUx41Q/S3eojIAhH9T+upRf2cxKRli9208GC3Bw==",
+        "dependencies": {
+          "Microsoft.IdentityModel.Abstractions": "8.14.0"
+        }
+      },
+      "Microsoft.IdentityModel.Abstractions": {
+        "type": "Transitive",
+        "resolved": "8.14.0",
+        "contentHash": "iwbCpSjD3ehfTwBhtSNEtKPK0ICun6ov7Ibx6ISNA9bfwIyzI2Siwyi9eJFCJBwxowK9xcA1mj+jBWiigeqgcQ=="
+      },
       "MimeKit": {
         "type": "Transitive",
         "resolved": "4.17.0",
@@ -122,6 +135,7 @@
           "Cronos": "[0.13.0, )",
           "MailKit": "[4.17.0, )",
           "Microsoft.Data.Sqlite": "[10.0.9, )",
+          "Microsoft.Identity.Client": "[4.92.0, )",
           "MimeKit": "[4.17.0, )",
           "MyMailBox.Contracts": "[0.1.0, )",
           "System.Security.Cryptography.ProtectedData": "[10.0.0, )"

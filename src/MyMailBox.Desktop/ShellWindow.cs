@@ -117,6 +117,10 @@ public sealed class ShellWindow : Window
         {
             var view = new ProtocolView(protocols); _hostView = view; _body.Content = view; return;
         }
+        if (page.Graph is { } graph)
+        {
+            var view = new GraphView(graph); _hostView = view; _body.Content = view; return;
+        }
         if (page.Updates is { } updates)
         {
             var view = new UpdateView(updates, page.UpdateInstaller); _hostView = view; _body.Content = view; return;
