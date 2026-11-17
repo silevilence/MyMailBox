@@ -17,10 +17,11 @@ public sealed partial class GraphMailService : IGraphMailService, IDisposable
     private readonly bool _ownsHttp;
     private readonly string _clientId;
     private readonly SemaphoreSlim _gate = new(1);
-    public GraphMailService(SqliteMailStore store, IGraphAuthorization? authorization = null, HttpClient? http = null, string clientId = GraphApplication.ClientId)
+    public GraphMailService(SqliteMailStore store, IGraphAuthorization? authorization = null, HttpClient? http = null, string? clientId = null)
     {
-        if (!Guid.TryParse(clientId, out var applicationId) || applicationId == Guid.Empty) throw new ArgumentException("应用配置中的 Client ID 无效。", nameof(clientId));
-        _clientId = applicationId.ToString();
+        clientId ??= GraphApplication.ClientId;
+        if (clientId.Length > 0 && (!Guid.TryParse(clientId, out var applicationId) || applicationId == Guid.Empty)) throw new ArgumentException("应用配置中的 Client ID 无效。", nameof(clientId));
+        _clientId = clientId.Length == 0 ? "" : Guid.Parse(clientId).ToString();
         _store = store; _accounts = new(store); _auth = authorization ?? new GraphAuthorization(new(store));
         _http = http ?? new(new HttpClientHandler { AllowAutoRedirect = false }); _ownsHttp = http is null;
         using var db = store.Open(); using var command = db.CreateCommand();
@@ -72,6 +73,7 @@ public sealed partial class GraphMailService : IGraphMailService, IDisposable
     }
     public Task SignIn(Guid account, CancellationToken cancellation = default) => Run(async () =>
     {
+        if (_clientId.Length == 0) throw new InvalidDataException("此版本尚未配置微软登录，请联系应用维护者。");
         var identity = await Account(account, cancellation); ConfigureAccount(account, cancellation); var config = Configuration(account);
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellation); timeout.CancelAfter(TimeSpan.FromMinutes(5));
         var grant = await _auth.Acquire(account, config.Client, config.Home, true, false, timeout.Token);

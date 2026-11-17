@@ -14,6 +14,8 @@ concurrency:
 jobs:
   build:
     uses: ./.github/workflows/build.yml
+    secrets:
+      MYMAILBOX_GRAPH_CLIENT_ID: ${{ secrets.MYMAILBOX_GRAPH_CLIENT_ID }}
     permissions:
       contents: read
   publish:

@@ -13,12 +13,15 @@ internal static class GraphChecks
         var account = await accounts.Save(new(null, "个人测试", "outlook-com", "test@outlook.com"));
         Check(account.Capabilities == (AccountCapabilities.Receive | AccountCapabilities.Folders), "Graph must be read-only");
         var auth = new Authorization(new(store)); var handler = new Handler(); using var http = new HttpClient(handler);
-        using var service = new GraphMailService(store, auth, http);
+        var clientId = GraphApplication.ClientId.Length > 0 ? GraphApplication.ClientId : Guid.NewGuid().ToString();
+        using (var unconfigured = new GraphMailService(store, auth, http, ""))
+            await Reject(() => unconfigured.SignIn(account.Id), "尚未配置");
+        using var service = new GraphMailService(store, auth, http, clientId);
         await service.SignIn(account.Id);
-        Check(auth.LastClient == GraphApplication.ClientId, "Default application ID not used for direct login");
+        Check(auth.LastClient == clientId, "Application ID not used for direct login");
         var second = await accounts.Save(new(null, "另一位用户", "outlook-com", "second@outlook.com"));
         auth.Username = "second@outlook.com"; await service.SignIn(second.Id);
-        Check(auth.LastClient == GraphApplication.ClientId && (await service.Settings(second.Id)).SignedIn, "Second user could not use the shared application registration");
+        Check(auth.LastClient == clientId && (await service.Settings(second.Id)).SignedIn, "Second user could not use the shared application registration");
         await service.Disconnect(second.Id); await accounts.Remove(second.Id); auth.Username = "test@outlook.com";
         Check((await service.Settings(account.Id)).SignedIn, "Sign in not persisted");
         var cache = new GraphTokenCache(store); Check(Encoding.UTF8.GetString(cache.Load(account.Id)!) == "synthetic-msal-cache", "Protected cache did not reopen");
@@ -70,7 +73,7 @@ internal static class GraphChecks
         using (var canceled = new CancellationTokenSource()) { canceled.Cancel(); try { await service.Folders(account.Id, cancellation: canceled.Token); throw new Exception("Cancellation ignored"); } catch (OperationCanceledException) { } }
         var backup = await new WorkspaceBackup(workspace, store).Create(Path.Combine(workspace, "backup.zip"));
         var restored = await new WorkspaceBackup(workspace, store).Restore(backup, workspace + "-restored");
-        using (var restoredService = new GraphMailService(new SqliteMailStore(Path.Combine(restored, "mail")), auth, http))
+        using (var restoredService = new GraphMailService(new SqliteMailStore(Path.Combine(restored, "mail")), auth, http, clientId))
             Check(!(await restoredService.Settings(account.Id)).SignedIn, "Portable backup retained Graph authorization");
         await service.Disconnect(account.Id); Check(!(await service.Settings(account.Id)).SignedIn && cache.Load(account.Id) is null, "Disconnect leaked cache");
         Check((await store.Read(id)).SequenceEqual(raw), "Disconnect removed downloaded mail");
@@ -84,7 +87,7 @@ internal static class GraphChecks
             Check((await changed.Settings(account.Id)).SignedIn && !(await service.Settings(account.Id)).SignedIn, "Old registration cache accepted by current application");
         }
         auth.CheckEmptyCache = true; await service.SignIn(account.Id); auth.CheckEmptyCache = false;
-        Check(auth.LastClient == GraphApplication.ClientId, "Legacy registration was not migrated to publisher ID");
+        Check(auth.LastClient == clientId, "Legacy registration was not migrated to publisher ID");
         await service.SignIn(account.Id); await accounts.Remove(account.Id); Check(cache.Load(account.Id) is null, "Remove retained cache");
         await Reject(() => service.Folders(account.Id), "请选择");
         await Reject(() => new ProtocolMailService(store).Settings(account.Id), "不支持");

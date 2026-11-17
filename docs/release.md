@@ -27,6 +27,8 @@ SDK 10.0.301 在 global.json 中固定并禁止 roll-forward；NuGet 使用锁�
 
 ## Tag Release 工作流
 
+Graph 登录应用标识由仓库 Actions Secret `MYMAILBOX_GRAPH_CLIENT_ID` 提供，通过环境变量注入构建生成的程序集元数据。真实值不进入受跟踪源码；Tag 构建缺少或配置无效时失败。复用 build 工作流显式接收此 Secret，PR 构建不注入。普通无 Secret 构建仍可运行其他功能及替身测试，但无法进行真实微软登录。本地开发使用被忽略的根目录 `Directory.Build.local.props` 中的 `MyMailBoxGraphClientId` 属性。
+
 `.github/workflows/release.yml` 同时监听 V* 与 v*。构建 job 只读权限，调用相同 Windows 构建并校验合法 SemVer、精确 Tag 提交、所有耦合版本与已提交 changelog。仅 publish job 有 contents:write；从当前 run 下载构建 artifact，重新核对 changelog 和 Tag，再签名、上传草稿、校验及公开。不使用自动生成的提交列表作为正文。
 
 准备正式发布前，把 `src/MyMailBox.Builtins/update-source.json` 的 publicKey 设置为真实 Ed25519 公钥，并在 GitHub Actions Secrets 配置 `MYMAILBOX_ED25519_SEED`（base64 编码的 32 字节 seed）。ReleaseTools 使用已经固定的 NetSparkle 配套 Ed25519 库签名，拒绝缺失 Secret 或公私钥不匹配；私钥不写到磁盘、不写入客户端、不输出日志。当前仓库公钥为空，流程将明确失败，不会自动生成正式密钥。

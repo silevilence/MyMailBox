@@ -1,5 +1,6 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
+    <AssemblyMetadata Include="GraphClientId" Value="$(MyMailBoxGraphClientId)" />
     <PackageReference Include="Cronos" Version="0.13.0" />
     <PackageReference Include="MailKit" Version="4.17.0" />
     <PackageReference Include="Microsoft.Identity.Client" Version="4.92.0" />

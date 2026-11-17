@@ -1,5 +1,7 @@
 <Project>
+  <Import Project="$(MSBuildThisFileDirectory)Directory.Build.local.props" Condition="Exists('$(MSBuildThisFileDirectory)Directory.Build.local.props') and '$(MyMailBoxGraphClientId)' == '' and '$(MYMAILBOX_GRAPH_CLIENT_ID)' == ''" />
   <PropertyGroup>
+    <MyMailBoxGraphClientId Condition="'$(MyMailBoxGraphClientId)' == ''">$(MYMAILBOX_GRAPH_CLIENT_ID)</MyMailBoxGraphClientId>
     <TargetFramework>net10.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
