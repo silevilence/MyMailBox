@@ -2,7 +2,7 @@
 
 Spec: 000-mymailbox
 Status: ready-for-agent
-Progress: not-started
+Progress: in-progress
 Type: task
 Scope: 必做
 Estimate: 2–3 人日
@@ -38,7 +38,9 @@ Blocked by: 86, 90
 
 ## 验证与交付记录
 
-实施时记录演示步骤或检查命令、结果、适用环境和已知限制；目前未执行，所有验收项保持未勾选。若发现超出预计粒度，先拆为完整可验收子场景；环境不足时保留具体缺口，不标完成。
+2026-11-17：已实现 `.github/workflows/build.yml` 与 `scripts/ci-build.ps1`：Windows 2025、精确 SHA checkout、SDK 10.0.301 禁止漂移、NuGet 锁文件、固定 commit 的 Actions、NSIS 3.12 缓存；已有 NSIS 优先复用，确实缺失时才安装固定版本。完整检查和发布启动检查通过后生成安装包、SHA256、逐文件清单和提交元数据，再上传私有于 workflow 的构建产物（不是 Release）。PR 仅有 contents:read，不读取 Secrets。
+
+PowerShell 语法解析通过，Actions tag/SHA 与官方仓库逐一核对；完整本地镜像构建留到本轮统一验收。真实 Actions 尚未执行：本轮调用的 start-tasks 要求只本地提交、不推送，因此不把本地脚本或 YAML 审核当作真实 CI 完成，验收项暂不勾选。
 
 ## Comments
 

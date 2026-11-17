@@ -16,3 +16,11 @@
 默认程序目录为 `%LOCALAPPDATA%\Programs\MyMailBox`，工作空间为 `%LOCALAPPDATA%\MyMailBox`。允许自定义程序路径，升级到相同路径前应退出应用。安装器写入当前用户快捷方式和卸载信息。卸载逐项删除安装包文件，保留不属于安装包的文件；默认保留工作空间。交互卸载可明确勾选并再次确认删除默认工作空间；静默卸载始终保留数据，自定义工作空间及导出备份不在删除范围内。
 
 最终集中验收依次覆盖：无运行时、仅 x86、有效 x64；中文自定义路径安装与启动、覆盖升级、默认保留数据卸载、显式删除数据卸载。复用本机现有运行时和 WebView2 资源准备隔离环境，不重新下载。
+
+## 持续构建
+
+`.github/workflows/build.yml` 对 branch push、PR 与手动触发运行 Windows 2025 构建，checkout 指向事件的精确 SHA（PR 为合并测试提交），权限仅 contents:read。`scripts/ci-build.ps1 -ExpectedCommit <40 位 SHA>` 拒绝脏的受跟踪文件或错误 SDK，执行完整非 UI 检查、发布启动/缺失运行时检查、版本校验夹具与 NSIS 编译。所有检查成功后才上传 14 天保留的构建 artifact，不创建 Tag 或 Release。
+
+SDK 10.0.301 在 global.json 中固定并禁止 roll-forward；NuGet 使用锁文件与 setup-dotnet 缓存，NSIS 3.12 先检查本机/缓存，缺失才安装固定的 3.12.0 Chocolatey 包。固定版本依据：[NSIS 3.12 官方发布](https://sourceforge.net/projects/nsis/files/NSIS%203/3.12/)。Actions 使用完整 commit SHA，升级时核对官方 tag：[checkout](https://github.com/actions/checkout/releases/tag/v7.0.1)、[setup-dotnet](https://github.com/actions/setup-dotnet/releases/tag/v6.0.0)、[cache](https://github.com/actions/cache/releases/tag/v4.3.0)、[upload-artifact](https://github.com/actions/upload-artifact/releases/tag/v7.0.1)。
+
+产物包含安装器、SHA256SUMS.txt、build-manifest.json、ci-manifest.json（commit/SDK/RID/发布方式）及 publish-files.json（每个发布文件的相对路径/大小/SHA256）。本地运行与真实 GitHub Actions 的验收证据分开记录；仅提交 workflow 并不等于 CI 已通过。
