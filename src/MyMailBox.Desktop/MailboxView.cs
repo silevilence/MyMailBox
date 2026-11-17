@@ -5,6 +5,7 @@ using Avalonia.Controls.Templates;
 using Avalonia.Layout;
 using Avalonia.Media;
 using MyMailBox.Contracts;
+using System.Text;
 
 namespace MyMailBox.Desktop;
 
@@ -22,6 +23,9 @@ public sealed class MailboxView : UserControl, IDisposable
     private readonly Button _previous;
     private readonly Button _next;
     private readonly Button _import;
+    private readonly ComboBox _mode = new() { ItemsSource = new[] { "纯文本", "MIME 结构与附件", "原始邮件" }, SelectedIndex = 0 };
+    private ParsedMail? _parsed;
+    private byte[]? _raw;
     private int _offset;
     private int _listVersion;
     private bool _disposed;
@@ -56,6 +60,8 @@ public sealed class MailboxView : UserControl, IDisposable
         var fileGrid = new Grid { ColumnDefinitions = new("*,Auto,Auto"), ColumnSpacing = 8 };
         fileGrid.Children.Add(_file); Grid.SetColumn(browse, 1); fileGrid.Children.Add(browse); Grid.SetColumn(_import, 2); fileGrid.Children.Add(_import);
         header.Children.Add(fileGrid);
+        AutomationProperties.SetAutomationId(_mode, "mail-mode"); AutomationProperties.SetName(_mode, "阅读模式"); header.Children.Add(_mode);
+        _mode.SelectionChanged += (_, _) => ShowContent();
         var footer = new StackPanel { Spacing = 8, Margin = new Thickness(0, 12, 0, 0) };
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         buttons.Children.Add(_previous); buttons.Children.Add(_next); buttons.Children.Add(Button("刷新", "mail-refresh", () => LoadPage(_offset)));
@@ -94,7 +100,7 @@ public sealed class MailboxView : UserControl, IDisposable
     {
         if (_folders.SelectedItem is not MailFolder folder) return;
         var version = ++_listVersion;
-        _reading?.Cancel(); _body.Text = ""; _status.Text = "正在加载邮件列表…";
+        _reading?.Cancel(); _body.Text = ""; _parsed = null; _raw = null; _status.Text = "正在加载邮件列表…";
         var page = await _reader.Store.List(folder.Id, offset, 50, _lifetime.Token);
         if (_disposed || version != _listVersion) return;
         _offset = offset; _messages.ItemsSource = page.Items; _previous.IsEnabled = offset > 0; _next.IsEnabled = page.HasMore;
@@ -128,10 +134,22 @@ public sealed class MailboxView : UserControl, IDisposable
             var raw = await _reader.Store.Read(summary.Id, cancellation.Token);
             var mail = await _reader.Parser.Parse(raw, cancellation.Token);
             if (_disposed || cancellation.IsCancellationRequested) return;
-            _body.Text = $"{mail.Subject}\n发件人：{mail.From}\n收件人：{mail.To}\n日期：{mail.Date:yyyy-MM-dd HH:mm zzz}\n\n{mail.Text}";
+            _parsed = mail; _raw = raw; ShowContent();
         }
         finally { if (ReferenceEquals(_reading, cancellation)) _reading = null; }
     }
 
-    public void Dispose() { if (_disposed) return; _disposed = true; _reading?.Cancel(); _lifetime.Cancel(); _lifetime.Dispose(); _messages.ItemsSource = null; _folders.ItemsSource = null; }
+    private void ShowContent()
+    {
+        if (_parsed is not { } mail || _raw is null) return;
+        var warnings = mail.Warnings?.Count > 0 ? "阅读提示：" + string.Join("；", mail.Warnings) + "\n\n" : "";
+        _body.Text = _mode.SelectedIndex switch
+        {
+            1 => warnings + string.Join("\n", (mail.Parts ?? []).Select(p => new string(' ', p.Depth * 2) + $"{p.Path} · {p.ContentType} · {p.Name}{(p.Attachment ? " · 附件" : "")}{(p.ContentId is null ? "" : " · CID:" + p.ContentId)}")),
+            2 => (_raw.Length > 128 * 1024 ? "原文预览显示前 128 KiB；完整原始字节保存在工作空间。\n\n" : "") + Encoding.UTF8.GetString(_raw.AsSpan(0, Math.Min(_raw.Length, 128 * 1024))),
+            _ => warnings + $"{mail.Subject}\n发件人：{mail.From}\n收件人：{mail.To}\n抄送：{mail.Cc}\n日期：{mail.Date:yyyy-MM-dd HH:mm zzz}\n\n{mail.Text}"
+        };
+    }
+
+    public void Dispose() { if (_disposed) return; _disposed = true; _reading?.Cancel(); _lifetime.Cancel(); _lifetime.Dispose(); _messages.ItemsSource = null; _folders.ItemsSource = null; _raw = null; _parsed = null; }
 }

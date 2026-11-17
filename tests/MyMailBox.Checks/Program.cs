@@ -23,3 +23,4 @@ if (args.Length == 0 || args.Contains("management")) await ManagementChecks.Run(
 if (args.Length == 0 || args.Contains("mail")) await MailChecks.Run();
 if (args.Length == 0 || args.Contains("accounts")) await AccountChecks.Run();
 if (args.Length == 0 || args.Contains("selectors")) await SelectionChecks.Run();
+if (args.Length == 0 || args.Contains("mime")) await MimeChecks.Run();
