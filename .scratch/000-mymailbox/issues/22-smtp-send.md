@@ -2,7 +2,7 @@
 
 Spec: 000-mymailbox
 Status: ready-for-agent
-Progress: not-started
+Progress: blocked
 Type: task
 Scope: 必做
 Estimate: 2–3 人日
@@ -44,3 +44,5 @@ Blocked by: 11, 12, 13
 ## Comments
 
 - 2026-11-16：用户确认任务拆分后创建，尚未开始开发。
+
+- 2026-11-17：用户确认本轮没有授权的 IMAP/SMTP/POP3 测试账户，也没有 Outlook.com 应用注册与测试环境；真实协议集成验收阻塞，继续独立任务。
