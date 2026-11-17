@@ -1,0 +1,56 @@
+using MailKit.Net.Smtp;
+using MimeKit;
+using MyMailBox.Contracts;
+
+namespace MyMailBox.Mail;
+
+public sealed partial class ProtocolMailService
+{
+    private sealed class SendingClient : SmtpClient
+    {
+        public List<string> Accepted { get; } = [];
+        public List<string> Rejected { get; } = [];
+        protected override void OnRecipientAccepted(MimeMessage message, MailboxAddress mailbox, SmtpResponse response) => Accepted.Add(mailbox.Address);
+        protected override void OnRecipientNotAccepted(MimeMessage message, MailboxAddress mailbox, SmtpResponse response) => Rejected.Add(mailbox.Address);
+    }
+    public async Task<SendOutcome> Send(Guid account, TextMail message, CancellationToken cancellation = default)
+    {
+        var identity = await Account(account, AccountCapabilities.Send, cancellation);
+        using var mime = new MimeMessage();
+        // This slice supports the account's configured identity only. Server policy remains authoritative.
+        mime.From.Add(MailboxAddress.Parse(identity.Address));
+        void Addresses(string value, InternetAddressList destination)
+        {
+            if (string.IsNullOrWhiteSpace(value)) return;
+            if (value.Contains('\r') || value.Contains('\n') || !InternetAddressList.TryParse(value, out var addresses) || addresses.Count == 0 || addresses.Any(a => a is not MailboxAddress) || addresses.Mailboxes.Any(a => !a.Address.Contains('@')))
+                throw new InvalidDataException("收件地址无效，请填写完整邮箱地址，多个地址用逗号分隔。");
+            destination.AddRange(addresses);
+        }
+        Addresses(message.To, mime.To); Addresses(message.Cc, mime.Cc);
+        var blind = new InternetAddressList(); Addresses(message.Bcc, blind);
+        var recipients = mime.To.Mailboxes.Concat(mime.Cc.Mailboxes).Concat(blind.Mailboxes).DistinctBy(a => a.Address, StringComparer.OrdinalIgnoreCase).ToArray();
+        if (recipients.Length == 0) throw new InvalidDataException("请至少填写一位收件人。");
+        if (message.Subject.Contains('\r') || message.Subject.Contains('\n')) throw new InvalidDataException("主题不能包含换行。");
+        mime.Subject = message.Subject; mime.Body = new TextPart("plain") { Text = message.Body };
+        mime.Date = DateTimeOffset.Now; mime.MessageId = MimeKit.Utils.MimeUtils.GenerateMessageId();
+        using var client = new SendingClient();
+        await ReadOperation(account, async () => { await Connect(client, account, true, cancellation); return true; });
+        try
+        {
+            // Bcc recipients travel only in the SMTP envelope; never create a Bcc header.
+            await client.SendAsync(mime, mime.From.Mailboxes.Single(), recipients, cancellation);
+        }
+        catch (SmtpCommandException error)
+        {
+            var description = error.ErrorCode == SmtpErrorCode.SenderNotAccepted ? "服务器拒绝此账户的发件身份，请核对发件地址和服务器许可。" : "服务器拒绝本次发送，邮件未获接收确认。请检查收件地址和服务器策略。";
+            return new("rejected", description, [], client.Rejected.ToArray());
+        }
+        catch (Exception error) when (error is IOException or System.Net.Sockets.SocketException or MailKit.ProtocolException or OperationCanceledException or TimeoutException)
+        {
+            return new("unknown", "发送中断，服务器是否接收无法确认。请先核对收件箱，避免重复发送；不会自动重试。", [], client.Rejected.ToArray());
+        }
+        // QUIT failure after DATA acceptance cannot turn a successful submission into a retry.
+        try { await client.DisconnectAsync(true, CancellationToken.None); } catch (Exception e) when (e is IOException or System.Net.Sockets.SocketException or MailKit.ProtocolException) { }
+        return new(client.Rejected.Count == 0 ? "sent" : "partial", client.Rejected.Count == 0 ? "服务器已接收邮件。" : "部分收件人已获服务器接收，另有收件人被拒绝。请勿向全部收件人重复发送。", client.Accepted.ToArray(), client.Rejected.ToArray());
+    }
+}

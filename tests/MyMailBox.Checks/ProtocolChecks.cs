@@ -23,6 +23,10 @@ internal static partial class ProtocolChecks
         await Reject(() => service.Save(account.Id, settings with { Incoming = settings.Incoming! with { CertificateSha256 = "invalid" } }, null, null), "指纹");
         var pop = await accounts.Save(new(null, "POP", "pop3", "bob@localhost"));
         await Reject(() => service.Folders(pop.Id), "不支持");
+        await Reject(() => service.Send(pop.Id, new("alice@localhost", "", "", "test", "test")), "不支持");
+        await Reject(() => service.Send(account.Id, new("bad address", "", "", "test", "test")), "地址");
+        await Reject(() => service.Send(account.Id, new("", "", "", "test", "test")), "收件人");
+        await Reject(() => service.Send(account.Id, new("bob@localhost", "", "", "bad\r\nBcc: bad@localhost", "test")), "主题");
         await accounts.Remove(account.Id);
         using (var db = store.Open())
         {

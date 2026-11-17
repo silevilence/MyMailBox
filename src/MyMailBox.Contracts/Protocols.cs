@@ -20,4 +20,5 @@ public interface IProtocolMailService
     Task Save(Guid account, ProtocolSettings settings, string? incomingSecret, string? outgoingSecret, CancellationToken cancellation = default);
     Task<IReadOnlyList<RemoteFolder>> Folders(Guid account, CancellationToken cancellation = default);
     Task<RemoteMailPage> Summaries(Guid account, string folder, int offset, int limit, CancellationToken cancellation = default);
+    Task<SendOutcome> Send(Guid account, TextMail message, CancellationToken cancellation = default);
 }
