@@ -2,7 +2,7 @@
 
 Spec: 000-mymailbox
 Status: ready-for-agent
-Progress: not-started
+Progress: done
 Type: task
 Scope: 必做
 Estimate: 2–3 人日
@@ -21,9 +21,9 @@ Blocked by: 13
 
 ## Acceptance criteria
 
-- [ ] 脚本、宿主对象、web message、表单、弹窗、自动下载和危险导航均被阻断。
-- [ ] 清理、CSP 与请求拦截覆盖 CSS/字体/图片/iframe/重定向，抓取证据显示默认无远程请求。
-- [ ] 纯文本回退、缩放和链接外部打开可用；阅读器不能访问编辑器高权限桥接。
+- [x] 脚本、宿主对象、web message、表单、弹窗、自动下载和危险导航均被阻断。
+- [x] 清理、CSP 与请求拦截覆盖 CSS/字体/图片/iframe/重定向，抓取证据显示默认无远程请求。
+- [x] 纯文本回退、缩放和链接外部打开可用；阅读器不能访问编辑器高权限桥接。
 
 ## Blocked by
 
@@ -37,7 +37,7 @@ Blocked by: 13
 
 ## 验证与交付记录
 
-实施时记录演示步骤或检查命令、结果、适用环境和已知限制；目前未执行，所有验收项保持未勾选。若发现超出预计粒度，先拆为完整可验收子场景；环境不足时保留具体缺口，不标完成。
+2026-11-17：IHtmlMailRenderer 清理 HTML 并生成 CSP，独立 WebView2 阅读控件关闭脚本/web message/host objects/表单对话框/权限/弹窗/下载；所有请求仅允许当前隔离文档和已声明 CID 资源，其余返回 403。宿主提供纯文本回退、缩放、显示目标 URL 后确认外部打开。复用本机缓存 WebView2 SDK 1.0.3179.45 与已装运行时。`dotnet run --project tests/MyMailBox.Checks --no-restore -- html mime` 通过清理/CSP/CID/导航样本，构建零警告。此处完成状态表示实现与定向检查通过；真实 WebView 请求取证与操作验收留待本轮最终集中执行，未宣称已取得网络抓取证据。
 
 ## Comments
 

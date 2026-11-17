@@ -25,6 +25,17 @@
           "Avalonia": "12.1.1"
         }
       },
+      "Microsoft.Web.WebView2": {
+        "type": "Direct",
+        "requested": "[1.0.3179.45, )",
+        "resolved": "1.0.3179.45",
+        "contentHash": "3pokSH5CnN0G6rGhGFo1y87inxYhNxBQ2Vdf0wlvBj99KHxQJormjDACmqRnFeUsmuNFIhWwfAL1ztq7wD5qRA=="
+      },
+      "AngleSharp": {
+        "type": "Transitive",
+        "resolved": "1.5.2",
+        "contentHash": "LVZ7rrr6GHbhERhTgVDarVygl1e6KwE96pronA90LBOMacDhxR4lB+xYLjn/vlnUu+xbOB2RM9fuCPEx5bdyWA=="
+      },
       "Avalonia": {
         "type": "Transitive",
         "resolved": "12.1.1",
@@ -275,6 +286,7 @@
       "mymailbox.mail": {
         "type": "Project",
         "dependencies": {
+          "AngleSharp": "[1.5.2, )",
           "Microsoft.Data.Sqlite": "[10.0.9, )",
           "MimeKit": "[4.17.0, )",
           "MyMailBox.Contracts": "[0.1.0, )",
@@ -290,6 +302,12 @@
       }
     },
     "net10.0/win-x64": {
+      "Microsoft.Web.WebView2": {
+        "type": "Direct",
+        "requested": "[1.0.3179.45, )",
+        "resolved": "1.0.3179.45",
+        "contentHash": "3pokSH5CnN0G6rGhGFo1y87inxYhNxBQ2Vdf0wlvBj99KHxQJormjDACmqRnFeUsmuNFIhWwfAL1ztq7wD5qRA=="
+      },
       "Avalonia.Angle.Windows.Natives": {
         "type": "Transitive",
         "resolved": "2.1.27548.20260419",

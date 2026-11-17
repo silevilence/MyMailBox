@@ -20,7 +20,7 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
     public IDisposable Add(Page page) => Own(pages.Add(page with
     {
         Id = InstanceId + "/" + page.Id, Execute = (values, action) => Run(_ => page.Execute(values, action)),
-        Reader = page.Reader is { } reader ? new(new ScopedMailStore(this, reader.Store), new ScopedMimeReader(this, reader.Parser)) : null,
+        Reader = page.Reader is { } reader ? new(new ScopedMailStore(this, reader.Store), new ScopedMimeReader(this, reader.Parser), reader.Html is { } html ? new ScopedHtml(this, html) : null) : null,
         Accounts = page.Accounts is { } accounts ? new ScopedAccounts(this, accounts) : null,
         Selections = page.Selections is { } selections ? new ScopedSelections(this, selections) : null
     }));
@@ -110,6 +110,10 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
     private sealed class ScopedMimeReader(PluginScope scope, IMimeReader reader) : IMimeReader
     {
         public Task<ParsedMail> Parse(byte[] raw, CancellationToken cancellation = default) => scope.Run(t => reader.Parse(raw, t), cancellation);
+    }
+    private sealed class ScopedHtml(PluginScope scope, IHtmlMailRenderer renderer) : IHtmlMailRenderer
+    {
+        public Task<SafeMailDocument> Render(ParsedMail mail, string baseUri, IReadOnlyDictionary<string, MailResource>? loadedRemote = null, CancellationToken cancellation = default) => scope.Run(t => renderer.Render(mail, baseUri, loadedRemote, t), cancellation);
     }
 
     private sealed class ScopedAccounts(PluginScope scope, IAccountService accounts) : IAccountService

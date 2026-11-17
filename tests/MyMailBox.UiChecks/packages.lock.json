@@ -12,6 +12,11 @@
           "Interop.UIAutomationClient": "10.19041.0"
         }
       },
+      "AngleSharp": {
+        "type": "Transitive",
+        "resolved": "1.5.2",
+        "contentHash": "LVZ7rrr6GHbhERhTgVDarVygl1e6KwE96pronA90LBOMacDhxR4lB+xYLjn/vlnUu+xbOB2RM9fuCPEx5bdyWA=="
+      },
       "BouncyCastle.Cryptography": {
         "type": "Transitive",
         "resolved": "2.6.2",
@@ -106,6 +111,7 @@
       "mymailbox.mail": {
         "type": "Project",
         "dependencies": {
+          "AngleSharp": "[1.5.2, )",
           "Microsoft.Data.Sqlite": "[10.0.9, )",
           "MimeKit": "[4.17.0, )",
           "MyMailBox.Contracts": "[0.1.0, )"

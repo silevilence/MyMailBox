@@ -29,13 +29,13 @@ public sealed class MimeReader : IMimeReader
         using (message)
         {
             if (message.Headers.Count == 0 || message.Body is null) throw new InvalidDataException("未找到有效邮件头或正文；请检查 EML 文件。");
-            var warnings = new List<string>(); var parts = new List<MimePartInfo>(); var text = new StringBuilder(); var html = new StringBuilder();
+            var warnings = new List<string>(); var parts = new List<MimePartInfo>(); var resources = new List<MailResource>(); var text = new StringBuilder(); var html = new StringBuilder();
             if (!MimeKit.Utils.DateUtils.TryParse(message.Headers[HeaderId.Date] ?? "", out _)) warnings.Add("日期头缺失或无效，显示的日期不作为原始收件时间。");
             if (message.From.Count == 0) warnings.Add("发件人头缺失或无法解析，可查看原文。");
             Visit(message.Body, "1", 0);
             cancellation.ThrowIfCancellationRequested();
             return new ParsedMail(message.Subject ?? "（无主题）", message.From.Count == 0 ? "（发件人未知）" : message.From.ToString(), message.To.ToString(),
-                message.Date, text.Length > 0 ? text.ToString() : "此邮件没有可读取的纯文本正文，请切换原文。", message.Cc.ToString(), html.ToString(), parts, warnings.Distinct().ToArray());
+                message.Date, text.Length > 0 ? text.ToString() : "此邮件没有可读取的纯文本正文，请切换原文。", message.Cc.ToString(), html.ToString(), parts, warnings.Distinct().ToArray(), resources);
 
             void Visit(MimeEntity entity, string path, int depth)
             {
@@ -56,6 +56,15 @@ public sealed class MimeReader : IMimeReader
                         try { if (body.IsPlain) Append(text, body.Text); else if (body.IsHtml) Append(html, body.Text); }
                         catch (Exception error) when (error is FormatException or DecoderFallbackException or NotSupportedException)
                         { warnings.Add($"部件 {path} 正文解码失败，请查看原文。"); }
+                        break;
+                    case MimePart image when image.ContentId is not null && image.Content is not null && image.ContentType.MimeType is "image/png" or "image/jpeg" or "image/gif" or "image/webp":
+                        if (resources.Sum(r => r.Data.Length) >= 10 * 1024 * 1024) { warnings.Add("内联图片总量超过阅读限制，未加载其余图片。"); break; }
+                        using (var decoded = new MemoryStream())
+                        {
+                            image.Content.DecodeTo(decoded, cancellation);
+                            if (decoded.Length <= 2 * 1024 * 1024) resources.Add(new(image.ContentId, image.ContentType.MimeType, decoded.ToArray()));
+                            else warnings.Add("内联图片超过 2 MiB，保留在原文中。");
+                        }
                         break;
                 }
             }

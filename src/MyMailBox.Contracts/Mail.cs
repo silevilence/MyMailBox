@@ -5,7 +5,7 @@ public sealed record MailSummary(Guid Id, Guid FolderId, string Subject, string 
 public sealed record MailPageResult(IReadOnlyList<MailSummary> Items, int Offset, bool HasMore);
 public sealed record MimePartInfo(string Path, string ContentType, string Name, string? ContentId, bool Attachment, int Depth);
 public sealed record ParsedMail(string Subject, string From, string To, DateTimeOffset Date, string Text,
-    string Cc = "", string Html = "", IReadOnlyList<MimePartInfo>? Parts = null, IReadOnlyList<string>? Warnings = null);
+    string Cc = "", string Html = "", IReadOnlyList<MimePartInfo>? Parts = null, IReadOnlyList<string>? Warnings = null, IReadOnlyList<MailResource>? InlineResources = null);
 
 /// <summary>Raw MIME remains authoritative. Summaries never load message bodies.</summary>
 public interface IMailStore
@@ -21,4 +21,4 @@ public interface IMimeReader
     Task<ParsedMail> Parse(byte[] raw, CancellationToken cancellation = default);
 }
 
-public sealed record MailReader(IMailStore Store, IMimeReader Parser);
+public sealed record MailReader(IMailStore Store, IMimeReader Parser, IHtmlMailRenderer? Html = null);

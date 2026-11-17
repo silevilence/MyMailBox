@@ -23,7 +23,12 @@ public sealed class MailboxView : UserControl, IDisposable
     private readonly Button _previous;
     private readonly Button _next;
     private readonly Button _import;
-    private readonly ComboBox _mode = new() { ItemsSource = new[] { "纯文本", "MIME 结构与附件", "原始邮件" }, SelectedIndex = 0 };
+    private readonly ComboBox _mode = new() { ItemsSource = new[] { "纯文本", "MIME 结构与附件", "原始邮件", "安全 HTML" }, SelectedIndex = 0 };
+    private readonly ContentControl _readingContent = new();
+    private SecureHtmlView? _htmlView;
+    private int _htmlRevision;
+    private Uri? _pendingLink;
+    private readonly TextBlock _linkPrompt = new() { TextWrapping = TextWrapping.Wrap };
     private ParsedMail? _parsed;
     private byte[]? _raw;
     private int _offset;
@@ -71,7 +76,15 @@ public sealed class MailboxView : UserControl, IDisposable
         var buttons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         buttons.Children.Add(_previous); buttons.Children.Add(_next); buttons.Children.Add(Button("刷新", "mail-refresh", () => LoadPage(_offset)));
         buttons.Children.Add(Button("取消读取", "mail-cancel", () => { _reading?.Cancel(); return Task.CompletedTask; }));
+        buttons.Children.Add(Button("缩小", "mail-zoom-out", () => { _htmlView?.Zoom(-0.1); return Task.CompletedTask; }));
+        buttons.Children.Add(Button("放大", "mail-zoom-in", () => { _htmlView?.Zoom(0.1); return Task.CompletedTask; }));
         footer.Children.Add(buttons); footer.Children.Add(_status);
+        footer.Children.Add(_linkPrompt);
+        footer.Children.Add(Button("确认在浏览器打开上方链接", "mail-open-link", () =>
+        {
+            if (_pendingLink is { } link) { System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(link.AbsoluteUri) { UseShellExecute = true }); _pendingLink = null; _linkPrompt.Text = ""; }
+            return Task.CompletedTask;
+        }));
         var exportPanel = new StackPanel { Spacing = 8 };
         exportPanel.Children.Add(new TextBlock { Text = "Ctrl/Shift 多选当前页邮件；同名文件保留，重复导出复用相同原文。", TextWrapping = TextWrapping.Wrap });
         AutomationProperties.SetAutomationId(_exportDirectory, "mail-export-directory"); AutomationProperties.SetName(_exportDirectory, "导出目录");
@@ -82,7 +95,7 @@ public sealed class MailboxView : UserControl, IDisposable
         exportActions.Children.Add(Button("取消导出", "mail-export-cancel", () => { _exporting?.Cancel(); return Task.CompletedTask; })); exportPanel.Children.Add(exportActions);
         footer.Children.Insert(1, new Expander { Header = "导出邮件", Content = exportPanel, HorizontalAlignment = HorizontalAlignment.Stretch });
         var content = new Grid { ColumnDefinitions = new("2*,3*"), ColumnSpacing = 12, Margin = new Thickness(0, 12, 0, 0) };
-        content.Children.Add(_messages); Grid.SetColumn(_body, 1); content.Children.Add(_body);
+        _readingContent.Content = _body; content.Children.Add(_messages); Grid.SetColumn(_readingContent, 1); content.Children.Add(_readingContent);
         var layout = new DockPanel(); DockPanel.SetDock(header, Dock.Top); layout.Children.Add(header); DockPanel.SetDock(footer, Dock.Bottom); layout.Children.Add(footer); layout.Children.Add(content); Content = layout;
         _folders.SelectionChanged += async (_, _) => await Guard(() => LoadPage(0));
         _messages.SelectionChanged += async (_, _) => await Guard(ReadSelected);
@@ -114,7 +127,7 @@ public sealed class MailboxView : UserControl, IDisposable
     {
         if (_folders.SelectedItem is not MailFolder folder) return;
         var version = ++_listVersion;
-        _reading?.Cancel(); _body.Text = ""; _parsed = null; _raw = null; _status.Text = "正在加载邮件列表…";
+        _reading?.Cancel(); ReleaseHtml(); _body.Text = ""; _parsed = null; _raw = null; _status.Text = "正在加载邮件列表…";
         var page = await _reader.Store.List(folder.Id, offset, 50, _lifetime.Token);
         if (_disposed || version != _listVersion) return;
         _offset = offset; _messages.ItemsSource = page.Items; _previous.IsEnabled = offset > 0; _next.IsEnabled = page.HasMore;
@@ -144,6 +157,7 @@ public sealed class MailboxView : UserControl, IDisposable
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token); _reading = cancellation;
         try
         {
+            ReleaseHtml(); _parsed = null; _raw = null;
             _body.Text = "正在读取…";
             var raw = await _reader.Store.Read(summary.Id, cancellation.Token);
             var mail = await _reader.Parser.Parse(raw, cancellation.Token);
@@ -171,6 +185,8 @@ public sealed class MailboxView : UserControl, IDisposable
     private void ShowContent()
     {
         if (_parsed is not { } mail || _raw is null) return;
+        if (_mode.SelectedIndex == 3) { _ = Guard(ShowHtml); return; }
+        ReleaseHtml();
         var warnings = mail.Warnings?.Count > 0 ? "阅读提示：" + string.Join("；", mail.Warnings) + "\n\n" : "";
         _body.Text = _mode.SelectedIndex switch
         {
@@ -180,5 +196,24 @@ public sealed class MailboxView : UserControl, IDisposable
         };
     }
 
-    public void Dispose() { if (_disposed) return; _disposed = true; _reading?.Cancel(); _exporting?.Cancel(); _lifetime.Cancel(); _lifetime.Dispose(); _messages.ItemsSource = null; _folders.ItemsSource = null; _raw = null; _parsed = null; }
+    private async Task ShowHtml()
+    {
+        if (_reader.Html is null || _parsed is not { } mail) return;
+        ReleaseHtml(); var revision = _htmlRevision;
+        if (mail.Html.Length == 0) { _body.Text = "此邮件没有 HTML 正文，请切换纯文本。"; return; }
+        var baseUri = "https://mail.mymailbox.invalid/" + Guid.NewGuid().ToString("N") + "/";
+        var document = await _reader.Html.Render(mail, baseUri, cancellation: _lifetime.Token);
+        if (_disposed || revision != _htmlRevision || _mode.SelectedIndex != 3 || !ReferenceEquals(mail, _parsed)) return;
+        _htmlView = new SecureHtmlView(baseUri + "index.html", document);
+        _htmlView.ExternalLink += uri => { _pendingLink = uri; _linkPrompt.Text = "即将在浏览器打开：" + uri.AbsoluteUri; };
+        _htmlView.Failed += error => { if (!_disposed) _status.Text = error; };
+        _htmlView.DocumentLoaded += () => { if (!_disposed) _status.Text = "HTML 已加载。" + string.Join("；", document.Warnings); };
+        _readingContent.Content = _htmlView;
+    }
+    private void ReleaseHtml()
+    {
+        _htmlRevision++; _htmlView?.Dispose(); _htmlView = null; _readingContent.Content = _body; _pendingLink = null; _linkPrompt.Text = "";
+    }
+
+    public void Dispose() { if (_disposed) return; _disposed = true; ReleaseHtml(); _reading?.Cancel(); _exporting?.Cancel(); _lifetime.Cancel(); _lifetime.Dispose(); _messages.ItemsSource = null; _folders.ItemsSource = null; _raw = null; _parsed = null; }
 }

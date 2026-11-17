@@ -48,7 +48,7 @@ internal static class MimeChecks
 
         Nested body.
         --outer--
-        """.Replace("\n", "\r\n"));
+        """.Replace("\r\n", "\n").Replace("\n", "\r\n"));
 
     public static async Task Run()
     {
