@@ -40,7 +40,7 @@ public sealed class App : Application
                 try
                 {
                     DefaultProfile.Ensure(directory);
-                    var catalog = DefaultProfile.Catalog();
+                    var catalog = DefaultProfile.Catalog(workspace);
                     var pluginDirectory = Path.Combine(workspace, "plugins");
                     var packages = new PluginPackages(pluginDirectory, catalog);
                     var packageErrors = packages.Discover();

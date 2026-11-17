@@ -2,7 +2,7 @@
 
 Spec: 000-mymailbox
 Status: ready-for-agent
-Progress: not-started
+Progress: done
 Type: task
 Scope: 必做
 Estimate: 2–3 人日
@@ -21,9 +21,9 @@ Blocked by: 06
 
 ## Acceptance criteria
 
-- [ ] 原始 MIME、稳定邮件 ID、目录与基础元数据持久化，正文按需读取。
-- [ ] 邮件和目录显示由插件服务提供，提供第二测试存储实现验证接口。
-- [ ] 解析或写入失败不留下可见的半封邮件，列表仅加载可见页。
+- [x] 原始 MIME、稳定邮件 ID、目录与基础元数据持久化，正文按需读取。
+- [x] 邮件和目录显示由插件服务提供，提供第二测试存储实现验证接口。
+- [x] 解析或写入失败不留下可见的半封邮件，列表仅加载可见页。
 
 ## Blocked by
 
@@ -37,7 +37,7 @@ Blocked by: 06
 
 ## 验证与交付记录
 
-实施时记录演示步骤或检查命令、结果、适用环境和已知限制；目前未执行，所有验收项保持未勾选。若发现超出预计粒度，先拆为完整可验收子场景；环境不足时保留具体缺口，不标完成。
+2026-11-17：已交付内置本地邮箱插件、宿主阅读页面、SQLite 原文/摘要原子存储、50 封分页和按需纯文本读取。`dotnet run --project tests/MyMailBox.Checks --no-restore -- mail` 通过重开、重复 Message-ID、分页、失败回滚、取消、第二存储实现与插件生命周期检查。真实窗口验收留待本轮集中执行。当前导入上限为 25 MiB；HTML 和完整 MIME 展示由后续工单交付。
 
 ## Comments
 

@@ -19,6 +19,7 @@ public sealed class ShellWindow : Window
     private NativePage? _nativePage;
     private object? _nativeView;
     private Page? _renderedPage;
+    private IDisposable? _hostView;
     private int _selectorRevision;
     private readonly List<Action> _viewCleanup = [];
     private readonly TextBlock _notice = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(16), Foreground = Brush.Parse("#7C2D12") };
@@ -87,6 +88,7 @@ public sealed class ShellWindow : Window
         foreach (var cleanup in _viewCleanup) cleanup();
         _viewCleanup.Clear();
         _body.Content = null;
+        _hostView?.Dispose(); _hostView = null;
         if (_nativeView is not null) _nativePage!.Release(_nativeView);
         _nativeView = null; _nativePage = null;
         _renderedPage = null;
@@ -106,6 +108,10 @@ public sealed class ShellWindow : Window
         var page = _pages.Pages.FirstOrDefault(p => p.Id == id);
         if (page is null) return;
         _renderedPage = page; _selectorRevision = _pages.SelectorRevision;
+        if (page.Reader is { } reader)
+        {
+            var view = new MailboxView(reader); _hostView = view; _body.Content = view; return;
+        }
         var panel = new StackPanel { Spacing = 16, MaxWidth = 800, HorizontalAlignment = HorizontalAlignment.Stretch };
         panel.Children.Add(new TextBlock { Text = page.Title, FontSize = 28, FontWeight = FontWeight.SemiBold });
         panel.Children.Add(new TextBlock { Text = page.Description, TextWrapping = TextWrapping.Wrap, Foreground = Brush.Parse("#475569") });

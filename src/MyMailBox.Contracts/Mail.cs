@@ -1,0 +1,22 @@
+namespace MyMailBox.Contracts;
+
+public sealed record MailFolder(Guid Id, Guid AccountId, string Name, string Path, string Role = "custom", Guid? ParentId = null);
+public sealed record MailSummary(Guid Id, Guid FolderId, string Subject, string From, string To, DateTimeOffset Date, long Size, bool IsRead = false);
+public sealed record MailPageResult(IReadOnlyList<MailSummary> Items, int Offset, bool HasMore);
+public sealed record ParsedMail(string Subject, string From, string To, DateTimeOffset Date, string Text);
+
+/// <summary>Raw MIME remains authoritative. Summaries never load message bodies.</summary>
+public interface IMailStore
+{
+    Task<IReadOnlyList<MailFolder>> Folders(CancellationToken cancellation = default);
+    Task<MailPageResult> List(Guid folderId, int offset, int limit, CancellationToken cancellation = default);
+    Task<Guid> Import(Guid folderId, byte[] raw, ParsedMail metadata, CancellationToken cancellation = default);
+    Task<byte[]> Read(Guid messageId, CancellationToken cancellation = default);
+}
+
+public interface IMimeReader
+{
+    Task<ParsedMail> Parse(byte[] raw, CancellationToken cancellation = default);
+}
+
+public sealed record MailReader(IMailStore Store, IMimeReader Parser);

@@ -9,6 +9,7 @@
     <Project Path="src/MyMailBox.Builtins/MyMailBox.Builtins.csproj" />
     <Project Path="src/MyMailBox.Contracts/MyMailBox.Contracts.csproj" />
     <Project Path="src/MyMailBox.Desktop/MyMailBox.Desktop.csproj" />
+    <Project Path="src/MyMailBox.Mail/MyMailBox.Mail.csproj" />
     <Project Path="src/MyMailBox.Runtime/MyMailBox.Runtime.csproj" />
   </Folder>
   <Folder Name="/tests/">

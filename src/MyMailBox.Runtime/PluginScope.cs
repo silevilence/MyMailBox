@@ -17,7 +17,11 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
     private static TaskCompletionSource Completed() { var result = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously); result.SetResult(); return result; }
     public string InstanceId { get; } = instanceId;
     public IReadOnlyCollection<string> Commands => _commands.Keys;
-    public IDisposable Add(Page page) => Own(pages.Add(page with { Id = InstanceId + "/" + page.Id, Execute = (values, action) => Run(_ => page.Execute(values, action)) }));
+    public IDisposable Add(Page page) => Own(pages.Add(page with
+    {
+        Id = InstanceId + "/" + page.Id, Execute = (values, action) => Run(_ => page.Execute(values, action)),
+        Reader = page.Reader is { } reader ? new(new ScopedMailStore(this, reader.Store), new ScopedMimeReader(this, reader.Parser)) : null
+    }));
     public IDisposable AddSelector(Selector selector) => Own(pages.AddSelector(selector));
     public IDisposable AddNative(NativePage page)
     {
@@ -43,7 +47,7 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
     public IDisposable Subscribe(Action<string> listener) => Own(events.Subscribe(listener));
     public void Notify(string value) => events.Emit(value);
     public Task<string> Execute(string command, CancellationToken cancellation = default) => Run(token => _commands[command](token), cancellation);
-    private async Task<string> Run(Func<CancellationToken, Task<string>> operation, CancellationToken cancellation = default)
+    private async Task<T> Run<T>(Func<CancellationToken, Task<T>> operation, CancellationToken cancellation = default)
     {
         lock (_gate)
         {
@@ -90,6 +94,19 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         foreach (var item in resources) item.Dispose();
         _commands.Clear();
         _cancellation.Dispose();
+    }
+
+    private sealed class ScopedMailStore(PluginScope scope, IMailStore store) : IMailStore
+    {
+        public Task<IReadOnlyList<MailFolder>> Folders(CancellationToken cancellation = default) => scope.Run(store.Folders, cancellation);
+        public Task<MailPageResult> List(Guid folderId, int offset, int limit, CancellationToken cancellation = default) => scope.Run(t => store.List(folderId, offset, limit, t), cancellation);
+        public Task<Guid> Import(Guid folderId, byte[] raw, ParsedMail metadata, CancellationToken cancellation = default) => scope.Run(t => store.Import(folderId, raw, metadata, t), cancellation);
+        public Task<byte[]> Read(Guid messageId, CancellationToken cancellation = default) => scope.Run(t => store.Read(messageId, t), cancellation);
+    }
+
+    private sealed class ScopedMimeReader(PluginScope scope, IMimeReader reader) : IMimeReader
+    {
+        public Task<ParsedMail> Parse(byte[] raw, CancellationToken cancellation = default) => scope.Run(t => reader.Parse(raw, t), cancellation);
     }
 }
 

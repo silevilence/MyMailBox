@@ -1,3 +1,4 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup><ProjectReference Include="../MyMailBox.Runtime/MyMailBox.Runtime.csproj" /></ItemGroup>
+  <ItemGroup><ProjectReference Include="../MyMailBox.Mail/MyMailBox.Mail.csproj" /></ItemGroup>
 </Project>
