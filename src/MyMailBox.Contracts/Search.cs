@@ -1,10 +1,17 @@
 namespace MyMailBox.Contracts;
 
 public enum SearchKind { Text, Number, LocalDate, Boolean }
-public enum SearchMatch { Contains, Equals, Before, OnOrAfter, AtLeast, AtMost, StartsWith, EndsWith, Regex, Exists }
+public enum SearchMatch { Contains, Equals, Before, OnOrAfter, AtLeast, AtMost, StartsWith, EndsWith, Regex, Exists, Extension }
 public enum SearchOrder { Newest, Oldest, Largest, Subject }
-public sealed record SearchField(string Id, string Name, SearchKind Kind, SearchMatch[] Matches);
-public sealed record FieldCriterion(string Field, SearchMatch Match, string Value);
+public sealed record SearchField(string Id, string Name, SearchKind Kind, SearchMatch[] Matches)
+{
+    public string? Operator { get; init; }
+    public string? OperatorName { get; init; }
+}
+public sealed record FieldCriterion(string Field, SearchMatch Match, string Value)
+{
+    public string? Operator { get; init; }
+}
 public sealed record RemoteSearchPage(Guid? Batch, bool Complete, string Detail);
 public sealed record SearchRequest(FieldCriterion[] Criteria, SearchOrder Order = SearchOrder.Newest, int Offset = 0, int Limit = 25)
 {

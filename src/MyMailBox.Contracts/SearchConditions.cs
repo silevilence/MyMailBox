@@ -54,11 +54,19 @@ internal sealed class ConditionParser(string text)
         if (_pos == start) throw Error("需要字段名。");
         var field = text[start.._pos].ToLowerInvariant();
         Space();
-        SearchMatch match = Eat("?") ? SearchMatch.Exists : Eat("^=") ? SearchMatch.StartsWith : Eat("$=") ? SearchMatch.EndsWith :
+        string? op = null;
+        if (Eat("@"))
+        {
+            int from = _pos;
+            while (_pos < text.Length && Identifier(text[_pos])) _pos++;
+            op = text[from.._pos];
+            if (op.Length == 0 || !Eat("=")) throw Error("扩展运算符格式为 字段@运算符=值。");
+        }
+        SearchMatch match = op is not null ? SearchMatch.Extension : Eat("?") ? SearchMatch.Exists : Eat("^=") ? SearchMatch.StartsWith : Eat("$=") ? SearchMatch.EndsWith :
             Eat("~") ? SearchMatch.Regex : Eat(">=") ? SearchMatch.AtLeast : Eat("<=") ? SearchMatch.AtMost :
             Eat("<") ? SearchMatch.Before : Eat("=") ? SearchMatch.Equals : Eat(":") ? SearchMatch.Contains : throw Error("未知匹配符。");
         var value = match == SearchMatch.Exists ? "" : ReadValue();
-        return new(ConditionLogic.Predicate, new(field, match, value), [], start);
+        return new(ConditionLogic.Predicate, new(field, match, value) { Operator = op }, [], start);
     }
 
     private string ReadValue()

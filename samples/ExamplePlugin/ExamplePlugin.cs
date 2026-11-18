@@ -100,3 +100,39 @@ public sealed class TypedExample : IPlugin<PluginOptions>
         public Task Skip(string? version, CancellationToken cancellation = default) => Task.CompletedTask;
     }
 }
+
+[Plugin("search-case")]
+[Inject("mailbox.host")]
+public sealed class ExampleCaseSearch : IPlugin<PluginOptions>
+{
+    public void Load(Context context, PluginOptions options)
+    {
+        var host = context.Get<IPluginHost>("mailbox.host")!;
+        context.Effect(() => host.AddSearchExtension(new("plugin.example.case.v1", "工单编号", "number", "编号等于", SearchInput.Subject,
+            _ => "[CASE-", Extract, Match)));
+    }
+
+    private static Task<IReadOnlyList<SearchDerived>> Extract(IReadOnlyList<SearchCandidate> batch,CancellationToken token)
+    {
+        var rows = new List<SearchDerived>();
+        foreach (var item in batch)
+        {
+            token.ThrowIfCancellationRequested(); int start = item.Text.IndexOf("[CASE-",StringComparison.OrdinalIgnoreCase);
+            int end = start < 0 ? -1 : item.Text.IndexOf(']',start + 6);
+            rows.Add(new(item.Id, end > start + 6 && uint.TryParse(item.Text.AsSpan(start+6,end-start-6),out var number) ? number.ToString() : null));
+        }
+        return Task.FromResult<IReadOnlyList<SearchDerived>>(rows);
+    }
+
+    private static Task<IReadOnlyList<SearchDecision>> Match(string value,IReadOnlyList<SearchCandidate> batch,CancellationToken token)
+    {
+        if (!uint.TryParse(value,out var number)) throw new InvalidDataException("工单编号需要非负整数。");
+        var rows = new List<SearchDecision>();
+        foreach (var item in batch)
+        {
+            token.ThrowIfCancellationRequested(); bool match = item.Text == number.ToString();
+            rows.Add(new(item.Id,match,match ? new SearchExcerpt("工单编号 ",item.Text,"") : null));
+        }
+        return Task.FromResult<IReadOnlyList<SearchDecision>>(rows);
+    }
+}

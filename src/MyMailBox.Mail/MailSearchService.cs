@@ -8,10 +8,12 @@ public sealed partial class MailSearchService : IMailSearch
 {
     private readonly SqliteMailStore _store;
     private readonly ProtocolMailService _protocols;
+    private readonly Func<IReadOnlyList<SearchExtension>> _extensions;
     private readonly BodySearchIndex _bodyIndex;
     private readonly SearchMetadata _metadata;
-    public MailSearchService(SqliteMailStore store, ProtocolMailService protocols)
+    public MailSearchService(SqliteMailStore store, ProtocolMailService protocols, Func<IReadOnlyList<SearchExtension>>? extensions = null)
     {
+        _extensions = extensions ?? (() => []);
         _store = store; _protocols = protocols; _metadata = new(store);
         SearchMetadata.Initialize(store); BodySearchIndex.Initialize(store); _bodyIndex = new(store); InitializeLibrary();
     }
@@ -23,7 +25,8 @@ public sealed partial class MailSearchService : IMailSearch
 
     private static SearchField TextField(string id, string label) => new(id, label, SearchKind.Text, [SearchMatch.Contains, SearchMatch.Equals]);
     private static SearchField DateField(string id, string label) => new(id, label, SearchKind.LocalDate, [SearchMatch.Equals, SearchMatch.OnOrAfter, SearchMatch.Before]);
-    public IReadOnlyList<SearchField> Fields { get; } =
+    public IReadOnlyList<SearchField> Fields => BuiltinFields.Concat(_extensions().Select(e => new SearchField(e.Id,e.Name,SearchKind.Text,[SearchMatch.Extension]) { Operator=e.Operator, OperatorName=e.OperatorName })).ToArray();
+    private static readonly SearchField[] BuiltinFields =
     [
         TextField("subject","主题"),TextField("body","已下载正文"),TextField("from","发件人 From"),TextField("sender","实际发送者 Sender"),TextField("reply","回复地址 Reply-To"),
         TextField("to","收件人 To"),TextField("cc","抄送 Cc"),TextField("bcc","可见密送 Bcc"),TextField("account","账户名称"),TextField("folder","目录路径"),
@@ -73,8 +76,10 @@ public sealed partial class MailSearchService : IMailSearch
         db.CreateFunction<string?, string?, long?>("mb_contains", (s, v) => s is null || v is null ? null : s.Contains(v, StringComparison.OrdinalIgnoreCase) ? 1 : 0, true);
         db.CreateCollation("MB_ORDINAL", StringComparer.OrdinalIgnoreCase.Compare);
         var filters = request.Criteria.Select((c, i) => Filter(cmd, c, i)).ToArray();
+        _metadata.Prepare(token); _bodyIndex.Prepare(false, null, token);
+        var highlightsSql = new List<string>();
         var unavailable = new HashSet<string>();
-        string? condition = request.Condition is null ? null : Compile(db, cmd, request.Condition, unavailable, token);
+        string? condition = request.Condition is null ? null : Compile(db, cmd, request.Condition, unavailable, token, highlights:highlightsSql);
         string combined = string.Join(" AND ", filters.Concat(condition is null ? [] : new[] { condition }));
         if (request.RemoteBatch is Guid batch && combined.Length > 0 && unavailable.Count == 0)
         {
@@ -82,7 +87,6 @@ public sealed partial class MailSearchService : IMailSearch
             combined = $"(({combined}) OR id IN(SELECT id FROM remote_search_hit WHERE batch=$remote))";
         }
         var order = Ordering(request.Order);
-        _metadata.Prepare(token); _bodyIndex.Prepare(false, null, token);
         using var interrupt = token.Register(() => SQLitePCL.raw.sqlite3_interrupt(db.Handle));
         token.ThrowIfCancellationRequested();
         using var tx = db.BeginTransaction(deferred: true); cmd.Transaction = tx;
@@ -94,7 +98,7 @@ public sealed partial class MailSearchService : IMailSearch
         }
         string where = combined.Length == 0 ? "" : " WHERE " + combined;
         var highlights = HighlightTerms(request).ToArray();
-        cmd.CommandText = Documents + " SELECT id,accountid,folderid,folder,subject,\"from\",sent,size,localid,uid,validity," + (highlights.Length > 0 ? "body" : "NULL") + " FROM docs" + where +
+        cmd.CommandText = Documents + " SELECT id,accountid,folderid,folder,subject,\"from\",sent,size,localid,uid,validity," + (highlights.Length > 0 ? "body" : "NULL") + "," + (highlightsSql.Count == 0 ? "NULL" : "coalesce(" + string.Join(",",highlightsSql) + ",NULL)") + " FROM docs" + where +
             " ORDER BY " + order + ",id LIMIT $limit OFFSET $offset";
         cmd.Parameters.AddWithValue("$limit", request.Limit + 1); cmd.Parameters.AddWithValue("$offset", request.Offset);
         var hits = new List<SearchHit>();
@@ -103,7 +107,7 @@ public sealed partial class MailSearchService : IMailSearch
             token.ThrowIfCancellationRequested();
             hits.Add(new(r.GetString(0), Guid.Parse(r.GetString(1)), Guid.Parse(r.GetString(2)), r.GetString(3), r.GetString(4),
                 r.IsDBNull(5) ? "" : r.GetString(5), r.IsDBNull(6) ? null : DateTimeOffset.FromUnixTimeMilliseconds(r.GetInt64(6)), r.GetInt64(7),
-                r.IsDBNull(8) ? null : Guid.Parse(r.GetString(8)), r.IsDBNull(9) ? null : (uint)r.GetInt64(9), r.IsDBNull(10) ? null : (uint)r.GetInt64(10)) { Excerpt = r.IsDBNull(11) ? null : Excerpt(r.GetString(11), highlights) });
+                r.IsDBNull(8) ? null : Guid.Parse(r.GetString(8)), r.IsDBNull(9) ? null : (uint)r.GetInt64(9), r.IsDBNull(10) ? null : (uint)r.GetInt64(10)) { Excerpt = (!r.IsDBNull(11) ? Excerpt(r.GetString(11), highlights) : null) ?? (r.IsDBNull(12) ? null : System.Text.Json.JsonSerializer.Deserialize<SearchExcerpt>(r.GetString(12))) });
         }
         return new SearchPage(hits.Take(request.Limit).ToArray(), hits.Count > request.Limit, full, summaries, missing) { IndexedBodies = indexed, Unknown = unknown, UnavailableFields = unavailable.ToArray() };
     }
@@ -129,7 +133,7 @@ public sealed partial class MailSearchService : IMailSearch
 
     private string Filter(SqliteCommand cmd, FieldCriterion criterion, int index)
     {
-        var field = Fields.SingleOrDefault(f => f.Id == criterion.Field) ?? throw new InvalidDataException("未知搜索字段。");
+        var field = BuiltinFields.SingleOrDefault(f => f.Id == criterion.Field) ?? throw new InvalidDataException("未知搜索字段。");
         if (!field.Matches.Contains(criterion.Match)) throw new InvalidDataException("字段不支持此条件。");
         var column = "\"" + field.Id + "\"";
         string parameter = "$f" + index;

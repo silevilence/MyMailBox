@@ -30,7 +30,7 @@ public static class ConditionEditor
         if (node.Criterion is { } c)
         {
             var op = c.Match switch { SearchMatch.Contains => ":", SearchMatch.Equals => "=", SearchMatch.StartsWith => "^=",
-                SearchMatch.EndsWith => "$=", SearchMatch.Regex => "~", SearchMatch.Exists => "?", SearchMatch.Before => "<",
+                SearchMatch.Extension => "@" + c.Operator + "=", SearchMatch.EndsWith => "$=", SearchMatch.Regex => "~", SearchMatch.Exists => "?", SearchMatch.Before => "<",
                 SearchMatch.OnOrAfter or SearchMatch.AtLeast => ">=", SearchMatch.AtMost => "<=", _ => throw new InvalidDataException("无法转换匹配方式。") };
             return c.Field + op + (c.Match == SearchMatch.Exists ? "" : "\"" + c.Value.Replace("\\", "\\\\").Replace("\"", "\\\"").Replace("\n","\\n").Replace("\r","\\r").Replace("\t","\\t") + "\"");
         }
@@ -54,7 +54,7 @@ public static class ConditionEditor
         {
             var name = fields.FirstOrDefault(f => f.Id == c.Field)?.Name ?? c.Field;
             var op = c.Match switch { SearchMatch.Contains => "包含", SearchMatch.Equals => "等于", SearchMatch.StartsWith => "开头为",
-                SearchMatch.EndsWith => "结尾为", SearchMatch.Regex => "匹配正则", SearchMatch.Exists => "有值", SearchMatch.Before => "早于",
+                SearchMatch.Extension => fields.FirstOrDefault(f=>f.Id == c.Field)?.OperatorName ?? c.Operator, SearchMatch.EndsWith => "结尾为", SearchMatch.Regex => "匹配正则", SearchMatch.Exists => "有值", SearchMatch.Before => "早于",
                 SearchMatch.AtLeast or SearchMatch.OnOrAfter => "不少于", SearchMatch.AtMost => "不超过", _ => c.Match.ToString() };
             return $"{name}{op}{c.Value}";
         }

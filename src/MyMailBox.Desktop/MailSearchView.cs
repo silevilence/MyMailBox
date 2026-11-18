@@ -31,7 +31,7 @@ internal sealed partial class MailSearchView : UserControl, IDisposable
         _service = service;
         _panel.Children.Add(new TextBlock { Text = "搜索邮件", FontSize = 28, FontWeight = FontWeight.SemiBold });
         _field.ItemTemplate = new FuncDataTemplate<SearchField>((f, _) => new TextBlock { Text = f?.Name });
-        _match.ItemTemplate = new FuncDataTemplate<SearchMatch>((m, _) => new TextBlock { Text = MatchName(m) });
+        _match.ItemTemplate = new FuncDataTemplate<SearchMatch>((m, _) => new TextBlock { Text = m == SearchMatch.Extension ? (_field.SelectedItem as SearchField)?.OperatorName : MatchName(m) });
         Field(_panel, "字段", _field, "search-field"); Field(_panel, "匹配方式", _match, "search-match");
         Field(_panel, "条件值", _value, "search-value");
         foreach (var (control, name) in new (Control, string)[] { (_dateValue, "日期"), (_sizeValue, "字节数"), (_boolValue, "是否") })
@@ -132,7 +132,7 @@ internal sealed partial class MailSearchView : UserControl, IDisposable
         if (_field.SelectedItem is not SearchField field) return;
         _value.IsVisible = field.Kind == SearchKind.Text; _dateValue.IsVisible = field.Kind == SearchKind.LocalDate;
         _sizeValue.IsVisible = field.Kind == SearchKind.Number; _boolValue.IsVisible = field.Kind == SearchKind.Boolean;
-        _match.ItemsSource = field.Kind == SearchKind.Text ? new[] { SearchMatch.Contains, SearchMatch.Equals, SearchMatch.StartsWith, SearchMatch.EndsWith, SearchMatch.Regex, SearchMatch.Exists } : field.Matches; _match.SelectedIndex = 0;
+        _match.ItemsSource = field.Operator is null && field.Kind == SearchKind.Text ? new[] { SearchMatch.Contains, SearchMatch.Equals, SearchMatch.StartsWith, SearchMatch.EndsWith, SearchMatch.Regex, SearchMatch.Exists } : field.Matches; _match.SelectedIndex = 0;
         _hint.Text = field.Kind switch
         {
             SearchKind.Text when field.Id == "body" => "正文支持单字、双字和跨词短语，匹配处以粗体下划线显示。",

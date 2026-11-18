@@ -40,6 +40,7 @@ if (args.Contains("organization-live")) await OrganizationChecks.Run(true);
 if (args.Length == 0 || args.Contains("search-conditions")) await SearchChecks.Conditions();
 if (args.Length == 0 || args.Contains("search-index")) await SearchChecks.Index();
 if (args.Length == 0 || args.Contains("search-builder")) await SearchChecks.Builder();
+if (args.Length == 0 || args.Contains("search-extension")) await SearchChecks.Extension();
 if (args.Length == 0 || args.Contains("search-fields")) await SearchChecks.Fields();
 if (args.Contains("imap-conflicts")) await ConflictChecks.Run();
 if (args.Contains("imap-sync")) await ProtocolChecks.ImapSync();

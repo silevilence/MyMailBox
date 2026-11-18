@@ -59,7 +59,7 @@ internal sealed partial class MailSearchView
             SearchKind.Boolean => _boolValue.SelectedItem as string,
             _ => _value.Text
         };
-        return match == SearchMatch.Exists || !string.IsNullOrWhiteSpace(value) ? new(field.Id, match, value ?? "") : null;
+        return match == SearchMatch.Exists || !string.IsNullOrWhiteSpace(value) ? new FieldCriterion(field.Id, match, value ?? "") { Operator = field.Operator } : null;
     }
 
     private ConditionNode? Draw()
@@ -71,7 +71,7 @@ internal sealed partial class MailSearchView
             var branches = new List<Branch>();
             void Visit(ConditionNode node, int depth)
             {
-                if (node.Criterion is { } c && !_service.Fields.Any(f => f.Id == c.Field))
+                if (node.Criterion is { } c && !_service.Fields.Any(f => f.Id == c.Field && (c.Operator is null || c.Operator == f.Operator)))
                     throw new InvalidDataException("字段 " + c.Field + " 无法在条件编辑器显示，已保留原表达式。");
                 var label = node.Criterion is not null ? ConditionEditor.Describe(node, _service.Fields) :
                     node.Logic switch { ConditionLogic.And => "同时满足", ConditionLogic.Or => "满足任一", _ => "取反" };

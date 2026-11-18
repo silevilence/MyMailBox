@@ -57,6 +57,22 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         return Own(pages.AddUpdatePreparation(new(InstanceId + "/" + preparation.Id,
             async token => await Run(async t => { await save.Value(t); return true; }, token))));
     }
+    public IDisposable AddSearchExtension(SearchExtension extension)
+    {
+        var plan = Target(extension.CandidateContains); var extract = Target(extension.Extract); var match = Target(extension.Match);
+        bool CanRead(Guid account)
+        {
+            try { permissions.Require("mail.read",account.ToString()); return true; }
+            catch (UnauthorizedAccessException) { return false; }
+        }
+        SearchCandidate[] Allowed(IReadOnlyList<SearchCandidate> items) => items.Where(item=>CanRead(item.Account)).ToArray();
+        return Own(pages.AddSearchExtension(extension with
+        {
+            CanRead = CanRead, CandidateContains = value => Run(_ => Task.FromResult(plan.Value(value))).GetAwaiter().GetResult(),
+            Extract = (items,token) => Run(t => extract.Value(Allowed(items),t),token),
+            Match = (value,items,token) => Run(t => match.Value(value,Allowed(items),t),token)
+        }));
+    }
     public IDisposable AddExporter(IMessageExporter exporter)
     {
         var scoped = new ScopedExporter(this, exporter);

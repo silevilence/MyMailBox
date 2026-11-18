@@ -32,6 +32,7 @@ public interface IContributions
     IDisposable Add(Page page);
     IDisposable AddSelector(Selector selector);
     IDisposable AddNative(NativePage page);
+    IDisposable AddSearchExtension(SearchExtension extension) => throw new NotSupportedException("宿主尚不支持搜索扩展。");
     IDisposable AddExporter(IMessageExporter exporter);
     IDisposable AddUpdatePreparation(UpdatePreparation preparation) => throw new NotSupportedException("宿主尚不支持更新保存参与者。");
 }

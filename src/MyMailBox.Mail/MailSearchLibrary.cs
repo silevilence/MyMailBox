@@ -10,6 +10,9 @@ public sealed partial class MailSearchService
         cmd.CommandText = """
             CREATE TABLE IF NOT EXISTS saved_search(id TEXT PRIMARY KEY,name TEXT NOT NULL,expression TEXT NOT NULL,
                 sort INTEGER NOT NULL,account TEXT,folder TEXT,version INTEGER NOT NULL);
+            CREATE TABLE IF NOT EXISTS derived_search_value(field TEXT NOT NULL,id TEXT NOT NULL,source TEXT NOT NULL,value TEXT,PRIMARY KEY(field,id));
+            CREATE TRIGGER IF NOT EXISTS derived_local_deleted AFTER DELETE ON messages BEGIN DELETE FROM derived_search_value WHERE id=old.id; END;
+            CREATE TRIGGER IF NOT EXISTS derived_imap_deleted AFTER DELETE ON imap_summaries BEGIN DELETE FROM derived_search_value WHERE id=old.folder || '/' || old.uid; END;
             CREATE TABLE IF NOT EXISTS remote_search_hit(batch TEXT NOT NULL,id TEXT NOT NULL,created INTEGER NOT NULL,PRIMARY KEY(batch,id));
             """;
         cmd.ExecuteNonQuery();
@@ -48,7 +51,7 @@ public sealed partial class MailSearchService
         if (string.IsNullOrWhiteSpace(search.Name)) throw new InvalidDataException("请填写搜索名称。");
         if (!search.HasScope(await Library(token))) throw new InvalidDataException("搜索范围已失效，请重新选择。");
         using var db = _store.Open(); using var cmd = db.CreateCommand();
-        Compile(db, cmd, search.Condition(), [], token);
+        Compile(db, cmd, search.Condition(), [], token, validateOnly:true);
         cmd.CommandText = """
             INSERT INTO saved_search VALUES($id,$name,$expression,$sort,$account,$folder,$version)
             ON CONFLICT(id) DO UPDATE SET name=excluded.name,expression=excluded.expression,sort=excluded.sort,

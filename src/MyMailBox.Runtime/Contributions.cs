@@ -9,6 +9,16 @@ public sealed class Contributions(Action<Action>? dispatch = null) : IContributi
     private readonly Dictionary<string, Selector> _selectors = [];
     private readonly Dictionary<string, NativePage> _native = [];
     private readonly Dictionary<string, IMessageExporter> _exporters = [];
+    private readonly Dictionary<string, SearchExtension> _searchExtensions = [];
+    public IReadOnlyList<SearchExtension> SearchExtensions { get { lock (_gate) return _searchExtensions.Values.ToArray(); } }
+    public IDisposable AddSearchExtension(SearchExtension extension)
+    {
+        if (!System.Text.RegularExpressions.Regex.IsMatch(extension.Id, @"\Aplugin\.[a-z0-9-]+(?:\.[a-z0-9-]+)+\.v[1-9][0-9]*\z") ||
+            !System.Text.RegularExpressions.Regex.IsMatch(extension.Operator, @"\A[a-z][a-z0-9-]*\z"))
+            throw new InvalidDataException("搜索字段需要插件命名空间和版本，运算符需要稳定标识。");
+        lock (_gate) _searchExtensions.Add(extension.Id, extension);
+        Notify(); return new Cleanup(() => { lock (_gate) _searchExtensions.Remove(extension.Id); Notify(); });
+    }
     private readonly Dictionary<string, UpdatePreparation> _preparations = [];
     public IReadOnlyList<UpdatePreparation> UpdatePreparations { get { lock (_gate) return _preparations.Values.ToArray(); } }
     public IDisposable AddUpdatePreparation(UpdatePreparation preparation)

@@ -9,7 +9,7 @@ public static class DefaultProfile
     public static PluginConfiguration Core => new(1, [new("platform", "core.platform", "1.0.0")]);
     public static PluginConfiguration Ordinary => new(1, [new("welcome", "welcome", "1.0.0"), new("prototype", "prototype", "1.0.0"), new("selector", "selector", "1.0.0"), new("local-mail", "local-mail", "1.0.0"), new("accounts", "accounts", "1.0.0"), new("mail-selectors", "mail-selectors", "1.0.0"), new("reminders", "reminders", "1.0.0"), new("updates", "updates", "1.0.0")]);
 
-    public static PluginCatalog Catalog(string? workspace = null, IMailStore? mailStore = null, IMimeReader? mimeReader = null, Action<string>? openWorkspace = null, IMailPdfPrinter? printer = null, Action<string>? notification = null, Action<Updates.PreparedUpdate>? installUpdate = null)
+    public static PluginCatalog Catalog(string? workspace = null, IMailStore? mailStore = null, IMimeReader? mimeReader = null, Action<string>? openWorkspace = null, IMailPdfPrinter? printer = null, Action<string>? notification = null, Action<Updates.PreparedUpdate>? installUpdate = null, Func<IReadOnlyList<SearchExtension>>? searchExtensions = null)
     {
         var catalog = new PluginCatalog();
         var location = workspace ?? Environment.GetEnvironmentVariable("MYMAILBOX_HOME")
@@ -39,7 +39,7 @@ public static class DefaultProfile
             var store = new Mail.SqliteMailStore(Path.Combine(location, "mail"));
             var accounts = new Mail.AccountService(store);
             var protocols = new Mail.ProtocolMailService(store);
-            var search = new Mail.MailSearchService(store, protocols);
+            var search = new Mail.MailSearchService(store, protocols, searchExtensions);
             ctx.Effect(() => host.Add(new Page("search", "搜索邮件", "", [], [], (_, _) => Task.FromResult("")) { Search = search }));
             var inbox = new Mail.UnifiedInboxService(store, accounts, new Mail.ProtocolReceiveProvider(store, protocols));
             ctx.Effect(() => host.Add(new Page("inbox", "统一收件箱", "", [], [], (_, _) => Task.FromResult("")) { UnifiedInbox = inbox }));

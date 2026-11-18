@@ -10,13 +10,13 @@ public sealed partial class MailSearchService
     {
         _metadata.Prepare(token); _bodyIndex.Prepare(false, null, token);
         using var db = _store.Open(); using var cmd = db.CreateCommand();
-        var expression = Compile(db, cmd, condition, [], token);
+        var expression = Compile(db, cmd, condition, [], token, singleId:messageId);
         cmd.Parameters.AddWithValue("$id", messageId);
         cmd.CommandText = Documents + $" SELECT {expression} FROM docs WHERE id=$id";
         return cmd.ExecuteScalar() switch { long n => n == 0 ? ConditionResult.False : ConditionResult.True, _ => ConditionResult.Unknown };
     }, token);
 
-    private string Compile(SqliteConnection db, SqliteCommand cmd, ConditionTree tree, HashSet<string> unavailable, CancellationToken token)
+    private string Compile(SqliteConnection db, SqliteCommand cmd, ConditionTree tree, HashSet<string> unavailable, CancellationToken token, bool validateOnly=false, string? singleId=null, List<string>? highlights=null)
     {
         if (tree.Version != ConditionTree.CurrentVersion) throw new InvalidDataException("无法识别条件树版本。");
         int count = 0;
@@ -25,7 +25,13 @@ public sealed partial class MailSearchService
             if (++count > 512 || depth > 40) throw new ConditionException(node.Position, "条件过于复杂。");
             if (node.Logic == ConditionLogic.Predicate && node.Criterion is { } criterion && node.Children.Length == 0)
             {
-                var field = Fields.SingleOrDefault(f => f.Id == criterion.Field);
+                if (criterion.Field.StartsWith("plugin.",StringComparison.Ordinal))
+                {
+                    var extension = _extensions().SingleOrDefault(e => e.Id == criterion.Field && e.Operator == criterion.Operator && criterion.Match == SearchMatch.Extension);
+                    if (extension is null) { unavailable.Add(criterion.Field); return "NULL"; }
+                    return validateOnly ? "NULL" : PrepareExtension(db, criterion, extension, count, token, singleId, highlights);
+                }
+                var field = BuiltinFields.SingleOrDefault(f => f.Id == criterion.Field);
                 if (field is null)
                 {
                     if (!criterion.Field.StartsWith("plugin.", StringComparison.Ordinal)) throw new ConditionException(node.Position, "未知字段 " + criterion.Field);
