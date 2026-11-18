@@ -142,7 +142,8 @@ public sealed partial class ProtocolMailService : IProtocolMailService, IImapSyn
             failure.Data["receive-offline"] = true;
             throw failure;
         }
-        catch (Exception e) when (e is ProtocolException or CommandException)
+        catch (ProtocolException) { throw new InvalidDataException("服务器连接中断或响应格式异常，请重新连接后重试。"); }
+        catch (CommandException)
         { throw new InvalidDataException("服务器请求失败，请检查服务器配置后重试。"); }
     }
     public Task<IReadOnlyList<RemoteFolder>> Folders(Guid account, CancellationToken cancellation = default) => ReadOperation<IReadOnlyList<RemoteFolder>>(account, async () =>
