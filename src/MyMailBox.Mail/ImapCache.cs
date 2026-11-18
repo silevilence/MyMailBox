@@ -15,7 +15,8 @@ internal sealed class ImapCache(SqliteMailStore store, Guid account, MailEndpoin
     internal static void Initialize(SqliteMailStore store)
     {
         using var db = store.Open();
-        using var command = db.CreateCommand();
+        using var tx = db.BeginTransaction();
+        using var command = db.CreateCommand(); command.Transaction = tx;
         command.CommandText = """
             CREATE TABLE IF NOT EXISTS imap_folders(
                 id TEXT PRIMARY KEY REFERENCES folders(id) ON DELETE CASCADE, account TEXT NOT NULL, source TEXT NOT NULL,
@@ -28,6 +29,13 @@ internal sealed class ImapCache(SqliteMailStore store, Guid account, MailEndpoin
                 PRIMARY KEY(folder,uid));
             """;
         command.ExecuteNonQuery();
+        command.CommandText = "SELECT count(*) FROM pragma_table_info('imap_summaries') WHERE name='date_ms'";
+        if (Convert.ToInt32(command.ExecuteScalar()) == 0)
+        {
+            command.CommandText = "ALTER TABLE imap_summaries ADD COLUMN date_ms INTEGER NOT NULL DEFAULT 0";
+            command.ExecuteNonQuery();
+        }
+        tx.Commit();
     }
 
     private SqliteCommand Lookup(SqliteConnection db, string path, SqliteTransaction? transaction = null)
@@ -98,7 +106,7 @@ internal sealed class ImapCache(SqliteMailStore store, Guid account, MailEndpoin
         using var command = db.CreateCommand();
         command.Transaction = tx;
         command.CommandText = """
-            INSERT INTO imap_summaries(folder,uid,subject,sender,size) VALUES($folder,$uid,$subject,$sender,$size)
+            INSERT INTO imap_summaries(folder,uid,subject,sender,size,date_ms) VALUES($folder,$uid,$subject,$sender,$size,$date)
             ON CONFLICT(folder,uid) DO NOTHING
             """;
         command.Parameters.AddWithValue("$folder", folder.Id.ToString());
@@ -106,6 +114,7 @@ internal sealed class ImapCache(SqliteMailStore store, Guid account, MailEndpoin
         var subject = command.Parameters.Add("$subject", SqliteType.Text);
         var sender = command.Parameters.Add("$sender", SqliteType.Text);
         var size = command.Parameters.Add("$size", SqliteType.Integer);
+        var date = command.Parameters.Add("$date", SqliteType.Integer);
         int added = 0;
         foreach (var item in batch)
         {
@@ -114,6 +123,7 @@ internal sealed class ImapCache(SqliteMailStore store, Guid account, MailEndpoin
             subject.Value = item.Envelope?.Subject ?? "（无主题）";
             sender.Value = item.Envelope?.From.ToString() ?? "";
             size.Value = (long)(item.Size ?? 0);
+            date.Value = item.Envelope?.Date?.ToUnixTimeMilliseconds() ?? 0;
             added += command.ExecuteNonQuery();
         }
         tx.Commit();
@@ -148,6 +158,36 @@ internal sealed class ImapCache(SqliteMailStore store, Guid account, MailEndpoin
             items.Add(new(Guid.Parse(reader.GetString(0)), (uint)reader.GetInt64(1), (uint)reader.GetInt64(2),
                 reader.GetString(3), reader.GetString(4), reader.GetInt64(5), reader.IsDBNull(6) ? null : Guid.Parse(reader.GetString(6)), reader.GetBoolean(7)));
         return new(items.Take(limit).ToArray(), items.Count > limit);
+    }
+
+    internal IReadOnlyList<InboxMessage> Inbox(MailAccount identity, InboxPosition? before, int limit)
+    {
+        using var db = store.Open();
+        using var command = Lookup(db, "INBOX");
+        command.CommandText = """
+            SELECT s.date_ms,s.folder || '/' || printf('%010d',s.uid) AS item_key,s.subject,s.sender,s.message IS NOT NULL
+            FROM imap_summaries s JOIN imap_folders f ON f.id=s.folder
+            WHERE f.account=$account AND f.source=$source AND f.path=$path COLLATE NOCASE AND (s.missing=0 OR s.message IS NOT NULL)
+            AND (s.date_ms,item_key)<($time,$key) ORDER BY s.date_ms DESC,item_key DESC LIMIT $limit
+            """;
+        return ProtocolReceiveProvider.ReadInbox(command, identity, before, limit);
+    }
+
+    internal ImapCachedMail FindInboxMessage(string key)
+    {
+        using var db = store.Open();
+        using var command = Lookup(db, "INBOX");
+        command.CommandText = """
+            SELECT f.id,f.validity,s.uid,s.subject,s.sender,s.size,s.message,s.missing
+            FROM imap_folders f JOIN imap_summaries s ON s.folder=f.id
+            WHERE f.account=$account AND f.source=$source AND f.path=$path COLLATE NOCASE
+                AND s.folder || '/' || printf('%010d',s.uid)=$key
+            """;
+        command.Parameters.AddWithValue("$key", key);
+        using var r = command.ExecuteReader();
+        if (!r.Read()) throw new InvalidDataException("此邮件已不在当前收件箱，请刷新。");
+        return new(Guid.Parse(r.GetString(0)), (uint)r.GetInt64(1), (uint)r.GetInt64(2), r.GetString(3), r.GetString(4),
+            r.GetInt64(5), r.IsDBNull(6) ? null : Guid.Parse(r.GetString(6)), r.GetBoolean(7));
     }
 
     private SqliteCommand FindMessage(SqliteConnection db, string path, ImapCachedMail item, SqliteTransaction? transaction = null)

@@ -68,6 +68,18 @@ internal static partial class ProtocolChecks
         var folder = (await store.Folders()).Single(f => f.AccountId == bob.Id);
         var list = await store.List(folder.Id, 0, 200); var raw = await store.Read(list.Items[0].Id);
         MailChecks.Check((await new MyMailBox.Mail.MimeReader().Parse(raw)).Text.Contains("真实 SMTP"), "POP raw MIME lost");
+        var provider = new ProtocolReceiveProvider(store, reopened);
+        var unified = new UnifiedInboxService(store, accounts, provider);
+        await provider.Receive(alice, 20, default);
+        var unifiedFirst = await unified.Inbox(null, null, 5);
+        var unifiedNext = await unified.Inbox(null, unifiedFirst.Messages[^1].Position, 5);
+        MailChecks.Check(unifiedFirst.HasMore && !unifiedNext.Messages.Intersect(unifiedFirst.Messages).Any(), "Unified pages overlap");
+        foreach (var identity in new[] { alice, bob })
+        {
+            var filtered = await unified.Inbox(identity.Id, null, 5);
+            MailChecks.Check(filtered.Messages.Count == 5 && filtered.Messages.All(m => m.Account == identity.Id), "Real protocol account filter failed");
+            MailChecks.Check((await unified.Open(identity.Id, filtered.Messages[0].Position.Key)).Contains("真实 SMTP"), "Real unified inbox cannot read mail");
+        }
         var removed = await reopened.ReceivePop(bob.Id, true);
         MailChecks.Check(removed.Imported == 0 && removed.DeleteRequested >= 25, "POP deletion not applied to verified persisted mail");
         MailChecks.Check((await reopened.ReceivePop(bob.Id, false)).Existing == 0 && (await store.List(folder.Id, 0, 200)).Items.Count >= 25, "POP source deletion damaged local copy");

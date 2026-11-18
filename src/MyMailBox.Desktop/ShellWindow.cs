@@ -113,6 +113,10 @@ public sealed class ShellWindow : Window
         var page = _pages.Pages.FirstOrDefault(p => p.Id == id);
         if (page is null) return;
         _renderedPage = page; _selectorRevision = _pages.SelectorRevision; _exporterRevision = _pages.ExporterRevision;
+        if (page.UnifiedInbox is { } inbox)
+        {
+            var view = new UnifiedInboxView(inbox); _hostView = view; _body.Content = view; return;
+        }
         if (page.Protocols is { } protocols)
         {
             var view = new ProtocolView(protocols); _hostView = view; _body.Content = view; return;

@@ -29,6 +29,7 @@ if (args.Length == 0 || args.Contains("accounts")) await AccountChecks.Run();
 if (args.Length == 0 || args.Contains("protocols")) await ProtocolChecks.Run();
 if (args.Length == 0 || args.Contains("graph")) await GraphChecks.Run();
 if (args.Length == 0 || args.Contains("outbox")) await ProtocolChecks.Outbox();
+if (args.Length == 0 || args.Contains("multi-sync")) await MultiSyncChecks.Run();
 if (args.Contains("imap-sync")) await ProtocolChecks.ImapSync();
 if (args.Contains("protocol-live")) await ProtocolChecks.Live();
 if (args.Contains("protocol-faults")) await ProtocolChecks.Faults();

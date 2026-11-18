@@ -59,6 +59,11 @@ internal static class ProtocolUiChecks
             var folder = store.Folders().GetAwaiter().GetResult().Single(f => f.AccountId == bob.Id);
             var messages = store.List(folder.Id, 0, 100).GetAwaiter().GetResult().Items;
             if (!messages.Any(m => m.Subject == "UI-真实测试-中文")) throw new Exception("UI POP did not persist SMTP message");
+            ui.Click("nav-accounts/inbox"); ui.Select("unified-filter", 1);
+            ui.Click("unified-auto"); ui.Status("unified-status", "接收完成");
+            ui.Find("unified-list").AsListBox().Select(0); ui.Click("unified-open");
+            if (!SpinWait.SpinUntil(() => ui.Find("unified-body").AsTextBox().Text.Length > 0, 10000)) throw new Exception("Unified body missing");
+            ui.Click("unified-auto"); ui.Status("unified-status", "已暂停");
             ui.Click("nav-local-mail/inbox");
             Capture.Element(window).ToFile(Path.Combine(output, "04-local.png"));
             var process = Process.GetProcessById(app.ProcessId); window.Close();

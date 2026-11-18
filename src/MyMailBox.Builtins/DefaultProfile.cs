@@ -39,6 +39,9 @@ public static class DefaultProfile
             var store = new Mail.SqliteMailStore(Path.Combine(location, "mail"));
             var accounts = new Mail.AccountService(store);
             var protocols = new Mail.ProtocolMailService(store);
+            var inbox = new Mail.UnifiedInboxService(store, accounts, new Mail.ProtocolReceiveProvider(store, protocols));
+            ctx.Effect(() => host.Add(new Page("inbox", "统一收件箱", "", [], [], (_, _) => Task.FromResult("")) { UnifiedInbox = inbox }));
+            ctx.Effect(() => new Mail.ReceiveRunner(inbox, notification));
             ctx.Effect(() => new Mail.OutboxRunner(protocols, notification));
             var graph = new Mail.GraphMailService(new Mail.SqliteMailStore(Path.Combine(location, "mail")));
             ctx.Effect(() => graph);

@@ -30,6 +30,7 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
             Protocols = page.Protocols is { } protocols ? new(new ScopedAccounts(this, Target(protocols.Accounts)), new ScopedProtocols(this, Target(protocols.Service)))
                 { Outbox = protocols.Outbox is { } outbox ? new ScopedOutbox(this, Target(outbox)) : null,
                   ImapSync = protocols.ImapSync is { } sync ? new ScopedImapSync(this, Target(sync)) : null } : null,
+            UnifiedInbox = page.UnifiedInbox is { } inbox ? new ScopedUnifiedInbox(this, Target(inbox)) : null,
             Graph = page.Graph is { } graph ? new(new ScopedAccounts(this, Target(graph.Accounts)), new ScopedGraph(this, Target(graph.Service))) : null,
             Selections = page.Selections is { } selections ? new ScopedSelections(this, Target(selections)) : null,
             Export = page.Export is { } export ? new(new ScopedMailStore(this, Target(export.Store)), new ScopedSelections(this, Target(export.Selections))) : null,
@@ -191,6 +192,19 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         public Task<GraphMessages> Messages(Guid account, string folder, string? next = null, CancellationToken cancellation = default) => scope.Run(t => service.Value.Messages(account, folder, next, t), cancellation);
         public Task<Guid> Download(Guid account, string message, CancellationToken cancellation = default) => scope.Run(t => service.Value.Download(account, message, t), cancellation);
     }
+    private sealed class ScopedUnifiedInbox(PluginScope scope, ServiceTarget<IUnifiedInbox> service) : IUnifiedInbox
+    {
+        public Task<IReadOnlyList<ReceiveStatus>> Status(CancellationToken token = default) => scope.Run(t => service.Value.Status(t), token);
+        public async Task Configure(Guid account, bool automatic, int range, CancellationToken token = default) =>
+            await scope.Run(async t => { await service.Value.Configure(account, automatic, range, t); return true; }, token);
+        public async Task Refresh(Guid account, CancellationToken token = default) =>
+            await scope.Run(async t => { await service.Value.Refresh(account, t); return true; }, token);
+        public Task<UnifiedPage> Inbox(Guid? account, InboxPosition? before, int limit, CancellationToken token = default) =>
+            scope.Run(t => service.Value.Inbox(account, before, limit, t), token);
+        public Task<string> Open(Guid account, string key, CancellationToken token = default) =>
+            scope.Run(t => service.Value.Open(account, key, t), token);
+    }
+
     private sealed class ScopedOutbox(PluginScope scope, ServiceTarget<IOutboxService> service) : IOutboxService
     {
         private async Task Use(Func<IOutboxService, CancellationToken, Task> work, CancellationToken cancellation) =>

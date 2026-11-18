@@ -123,8 +123,14 @@ public sealed partial class ProtocolMailService : IProtocolMailService, IImapSyn
         catch (NotSupportedException) { throw new InvalidDataException("服务器不支持所选加密或认证方式；不会降级为明文连接，请核对 TLS 端口和认证配置。"); }
         catch (OperationCanceledException) { throw; }
         catch (InvalidDataException) { throw; }
-        catch (Exception e) when (e is IOException or System.Net.Sockets.SocketException or ProtocolException or CommandException or TimeoutException)
-        { throw new InvalidDataException("服务器连接或请求失败，请检查网络、代理和服务器配置后重试。"); }
+        catch (Exception e) when (e is IOException or System.Net.Sockets.SocketException or TimeoutException)
+        {
+            var failure = new InvalidDataException("服务器连接中断，请检查网络、代理和服务器配置后重试。");
+            failure.Data["receive-offline"] = true;
+            throw failure;
+        }
+        catch (Exception e) when (e is ProtocolException or CommandException)
+        { throw new InvalidDataException("服务器请求失败，请检查服务器配置后重试。"); }
     }
     public Task<IReadOnlyList<RemoteFolder>> Folders(Guid account, CancellationToken cancellation = default) => ReadOperation<IReadOnlyList<RemoteFolder>>(account, async () =>
     {
