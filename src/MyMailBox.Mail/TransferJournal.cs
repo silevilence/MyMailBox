@@ -18,6 +18,16 @@ internal sealed class TransferJournal(SqliteMailStore store)
                 phase TEXT NOT NULL,detail TEXT NOT NULL,target TEXT,hash TEXT,created INTEGER NOT NULL);
             CREATE INDEX IF NOT EXISTS transfers_account ON transfers(source_account,created);
             CREATE INDEX IF NOT EXISTS transfers_target ON transfers(target);
+            CREATE TABLE IF NOT EXISTS transfer_events(sequence INTEGER PRIMARY KEY,operation TEXT NOT NULL REFERENCES transfers(id),
+                time INTEGER NOT NULL,phase TEXT NOT NULL,detail TEXT NOT NULL);
+            CREATE INDEX IF NOT EXISTS transfer_events_operation ON transfer_events(operation,sequence);
+            CREATE TRIGGER IF NOT EXISTS transfer_planned AFTER INSERT ON transfers BEGIN
+                INSERT INTO transfer_events(operation,time,phase,detail) VALUES(NEW.id,unixepoch(),NEW.phase,NEW.detail);
+            END;
+            CREATE TRIGGER IF NOT EXISTS transfer_progress AFTER UPDATE ON transfers
+              WHEN OLD.phase<>NEW.phase OR OLD.detail<>NEW.detail BEGIN
+                INSERT INTO transfer_events(operation,time,phase,detail) VALUES(NEW.id,unixepoch(),NEW.phase,NEW.detail);
+            END;
             CREATE TRIGGER IF NOT EXISTS protect_transfer_target BEFORE DELETE ON messages
               WHEN EXISTS(SELECT 1 FROM transfers WHERE target=OLD.id AND phase='cleaning')
               BEGIN SELECT RAISE(ABORT,'transfer cleanup in progress'); END;
@@ -32,6 +42,16 @@ internal sealed class TransferJournal(SqliteMailStore store)
         var c = db.CreateCommand(); c.CommandText = sql;
         foreach (var (key, value) in args) c.Parameters.AddWithValue("$" + key, value);
         return c;
+    }
+
+    internal IReadOnlyList<TransferEvent> History(Guid id)
+    {
+        using var db = store.Open();
+        using var c = Command(db, "SELECT time,phase,detail FROM transfer_events WHERE operation=$id ORDER BY sequence", ("id",id.ToString()));
+        using var r = c.ExecuteReader();
+        var events = new List<TransferEvent>();
+        while (r.Read()) events.Add(new(DateTimeOffset.FromUnixTimeSeconds(r.GetInt64(0)),r.GetString(1),r.GetString(2)));
+        return events;
     }
 
     internal void Plan(TransferRequest r, string source, string dest)
@@ -87,7 +107,7 @@ internal sealed class TransferJournal(SqliteMailStore store)
         c.ExecuteNonQuery(); token.ThrowIfCancellationRequested(); tx.Commit();
     }
 
-    internal byte[] VerifyTarget(MailTransfer step)
+    internal void VerifyTarget(MailTransfer step)
     {
         using var db = store.Open();
         using var c = Command(db, """
@@ -99,7 +119,6 @@ internal sealed class TransferJournal(SqliteMailStore store)
         var raw = (byte[])r[0];
         if (raw.Length != r.GetInt64(1) || r.GetString(2) != step.Sha256 || Convert.ToHexString(SHA256.HashData(raw)) != step.Sha256)
             throw new InvalidDataException("目标原文校验失败。已停止清理来源。");
-        return raw;
     }
 
     internal void Update(Guid id, string phase, string detail)

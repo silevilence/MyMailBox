@@ -203,6 +203,10 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
             scope.Run(t=>service.Value.Plan(request,t),token);
         public Task<MailTransfer> Continue(Guid operation,IProgress<MailTransfer>? progress=null,CancellationToken token=default) =>
             scope.Run(t=>service.Value.Continue(operation,progress,t),token);
+        public Task<IReadOnlyList<TransferEvent>> History(Guid operation, CancellationToken token = default) =>
+            scope.Run(t=>service.Value.History(operation,t),token);
+        public async Task Cancel(Guid operation, CancellationToken token = default) =>
+            await scope.Run(async t=>{ await service.Value.Cancel(operation,t); return true; },token);
         public Task<IReadOnlyList<MailTransfer>> Recent(Guid sourceAccount,int offset,int limit,CancellationToken token=default) =>
             scope.Run(t=>service.Value.Recent(sourceAccount,offset,limit,t),token);
     }

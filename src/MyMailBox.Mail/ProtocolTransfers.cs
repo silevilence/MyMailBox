@@ -33,6 +33,20 @@ public sealed partial class ProtocolMailService
             return _transfers.Recent(sourceAccount, offset, limit);
         }, token);
 
+    Task<IReadOnlyList<TransferEvent>> IMailTransferService.History(Guid operation, CancellationToken token) =>
+        Task.Run(() => _transfers.History(operation), token);
+
+    Task IMailTransferService.Cancel(Guid operation, CancellationToken token) => Task.Run(() =>
+    {
+        using var lease = LockTransfers();
+        var current = _transfers.Get(operation);
+        if (current.Phase is "done" or "canceled") return;
+        var detail = current.Phase == "cleaning"
+            ? "已结束后续处理，目标副本保留。若此前的来源清理回执丢失，请核对原目录。"
+            : "已取消后续处理，已写入的目标副本和来源均保留。";
+        _transfers.Update(operation,"canceled",detail);
+    }, token);
+
     private FileStream LockTransfers()
     {
         try { return new FileStream(_store.DatabasePath + ".transfer.lock", FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None); }
@@ -47,6 +61,8 @@ public sealed partial class ProtocolMailService
         if (step.Phase is "done" or "canceled") return step;
         try
         {
+            progress?.Report(step);
+            token.ThrowIfCancellationRequested();
             var account = await ManagedAccount(request.SourceAccount, token);
             if (step.Phase == "planned")
             {
@@ -65,6 +81,7 @@ public sealed partial class ProtocolMailService
             token.ThrowIfCancellationRequested();
             if (step.Phase == "verified")
             {
+                if (!request.Move) _transfers.VerifyTarget(step);
                 _transfers.Update(operation, request.Move ? "cleaning" : "done", request.Move ? "目标已保存，准备核对并清理来源。" : "复制完成，来源原样保留。");
                 step = _transfers.Get(operation); progress?.Report(step);
             }

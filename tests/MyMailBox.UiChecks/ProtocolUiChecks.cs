@@ -76,6 +76,8 @@ internal static class ProtocolUiChecks
             ui.Text("org-label", "验收"); ui.Click("org-add-label"); ui.Status("org-status", "成功 1");
             if (marked.SelectedItems.Length != 1) throw new Exception("Marking discarded selection");
             ui.Expand("跨邮箱归档"); ui.Click("transfer-copy"); ui.Status("org-status", "复制完成");
+            ui.Status("transfer-detail", "完整性已验证");
+            if (ui.Find("transfer-resume").IsEnabled) throw new Exception("Completed transfer offered a retry");
             if (ui.Find("transfer-history").AsListBox().Items.Length == 0) throw new Exception("Archive history missing");
             ui.Click("nav-accounts/inbox"); ui.Select("unified-filter", 1);
             ui.Click("unified-auto"); ui.Status("unified-status", "接收完成");

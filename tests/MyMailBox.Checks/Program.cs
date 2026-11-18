@@ -3,6 +3,7 @@ using MyMailBox.Builtins;
 using MyMailBox.Contracts;
 using MyMailBox.Runtime;
 
+if (args.Length == 4 && args[0] == "transfer-crash-worker") { await TransferChecks.CrashWorker(args[1], Guid.Parse(args[2]), args[3]); return; }
 if (args.Length > 0 && args[0] == "crash-writer") { StorageChecks.CrashWriter(args[1], int.Parse(args[2]), args[3]); return; }
 if (args.Length > 0 && args[0] == "schedule-crash-worker") { await ScheduleRecoveryChecks.CrashWorker(args[1], args[2]); return; }
 // Every full or targeted run uses disposable test data, even when the caller has a real workspace configured.
@@ -32,6 +33,7 @@ if (args.Length == 0 || args.Contains("outbox")) await ProtocolChecks.Outbox();
 if (args.Length == 0 || args.Contains("multi-sync")) await MultiSyncChecks.Run();
 if (args.Length == 0 || args.Contains("organization")) await OrganizationChecks.Run(false);
 if (args.Length == 0 || args.Contains("mail-actions")) await MailActionChecks.Run(false);
+if (args.Length == 0 || args.Contains("transfer-recovery")) await TransferChecks.Recovery();
 if (args.Contains("transfer-live")) await TransferChecks.Live();
 if (args.Contains("mail-actions-live")) await MailActionChecks.Run(true);
 if (args.Contains("organization-live")) await OrganizationChecks.Run(true);

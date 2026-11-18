@@ -12,6 +12,9 @@ internal sealed partial class OrganizationView
     private readonly ListBox _history = new() { MaxHeight = 200 };
     private readonly Button _stopTransfer = new() { Content = "停止当前归档", IsVisible = false };
     private CancellationTokenSource? _transferRun;
+    private readonly TextBlock _transferDetail = new() { TextWrapping = TextWrapping.Wrap };
+    private Button? _continueTransfer, _cancelTransfer, _previousTransfers, _nextTransfers;
+    private int _historyOffset;
 
     private void AddTransfers()
     {
@@ -30,16 +33,47 @@ internal sealed partial class OrganizationView
         Field(panel, "此账户的归档记录", _history, "transfer-history");
         var historyActions = new WrapPanel();
         Action(historyActions, "刷新记录", "transfer-refresh", () => LoadHistory(null));
-        Action(historyActions, "继续所选操作", "transfer-resume", async () =>
+        _continueTransfer = Action(historyActions, "继续所选操作", "transfer-resume", async () =>
         {
             if (_history.SelectedItem is not MailTransfer transfer) throw new InvalidDataException("请先选择归档记录。");
             await ContinueTransfers([transfer]);
         });
+        _cancelTransfer = Action(historyActions, "结束后续处理并保留副本", "transfer-cancel", async () =>
+        {
+            if (_history.SelectedItem is not MailTransfer t) return;
+            await _page.Transfers!.Cancel(t.Request.Id,_stop.Token);
+            await LoadHistory(t.Request.Id);
+        });
+        _previousTransfers = Action(historyActions,"上一页记录","transfer-prev",async () => { _historyOffset-=25; await LoadHistory(null); });
+        _nextTransfers = Action(historyActions,"下一页记录","transfer-next",async () => { _historyOffset+=25; await LoadHistory(null); });
         panel.Children.Add(historyActions);
+        AutomationProperties.SetAutomationId(_transferDetail,"transfer-detail"); panel.Children.Add(_transferDetail);
+        _history.SelectionChanged += async (_,_) =>
+        {
+            var t = _history.SelectedItem as MailTransfer;
+            _continueTransfer.IsEnabled = _cancelTransfer.IsEnabled = t is not null && t.Phase is not ("done" or "canceled");
+            _transferDetail.Text = "";
+            if (t is null) return;
+            try
+            {
+                var events = await _page.Transfers!.History(t.Request.Id,_stop.Token);
+                if (!ReferenceEquals(t,_history.SelectedItem)) return;
+                _transferDetail.Text = $"{t.SourcePath} → {t.DestinationPath} · {PhaseName(t.Phase)}\n" +
+                    string.Join("\n",events.Select(e=>$"{e.Time.LocalDateTime:T} · {PhaseName(e.Phase)} · {e.Detail}"));
+            }
+            catch (OperationCanceledException) { }
+            catch (Exception e) { if (!_stop.IsCancellationRequested) _transferDetail.Text=e.Message; }
+        };
         _panel.Children.Add(new Expander { Header = "跨邮箱归档", Content = panel });
         AutomationProperties.SetAutomationId(_stopTransfer, "transfer-stop");
         _stopTransfer.Click += (_, _) => _transferRun?.Cancel();
     }
+
+    private static string PhaseName(string phase) => phase switch
+    {
+        "planned"=>"等待读取来源", "stored"=>"目标已写入", "verified"=>"完整性已验证",
+        "cleaning"=>"来源清理待确认", "done"=>"已完成", "canceled"=>"已停止", _=>phase
+    };
 
     private async Task LoadTransferOptions()
     {
@@ -53,8 +87,9 @@ internal sealed partial class OrganizationView
     private async Task LoadHistory(Guid? selected)
     {
         selected ??= (_history.SelectedItem as MailTransfer)?.Request.Id;
-        var items = await _page.Transfers!.Recent(Account.Id, 0, 50, _stop.Token);
-        _history.ItemsSource = items;
+        var items = await _page.Transfers!.Recent(Account.Id, _historyOffset, 26, _stop.Token);
+        _previousTransfers!.IsEnabled = _historyOffset > 0; _nextTransfers!.IsEnabled = items.Count > 25;
+        _history.ItemsSource = items.Take(25).ToArray();
         _history.SelectedItem = items.FirstOrDefault(t => t.Request.Id == selected) ?? items.FirstOrDefault();
     }
 
@@ -79,7 +114,11 @@ internal sealed partial class OrganizationView
         {
             foreach (var transfer in planned)
             {
-                var result = await _page.Transfers!.Continue(transfer.Request.Id, null, run.Token);
+                var progress = new Progress<MailTransfer>(s=>
+                {
+                    if (_transferRun == run) _status.Text=$"{s.SourcePath} → {s.DestinationPath} · {PhaseName(s.Phase)}";
+                });
+                var result = await _page.Transfers!.Continue(transfer.Request.Id, progress, run.Token);
                 lines.Add($"{transfer.Request.Key} · {result.Detail}");
             }
         }
@@ -87,7 +126,12 @@ internal sealed partial class OrganizationView
         { lines.Add("已停止，已写入的副本和操作记录已保留。"); }
         finally { _transferRun = null; _stopTransfer.IsVisible = false; }
         if (_stop.IsCancellationRequested) return;
-        await LoadMessages(_offset); await LoadHistory(planned[^1].Request.Id);
+        _historyOffset = 0; await LoadHistory(planned[^1].Request.Id);
+        if (planned.Any(t=>t.Request.Move) && Folder is not null)
+        {
+            try { await LoadMessages(_offset); }
+            catch (Exception e) when (!_stop.IsCancellationRequested) { lines.Add("刷新来源目录失败：" + e.Message); }
+        }
         _status.Text = string.Join("\n", lines);
     }
 }

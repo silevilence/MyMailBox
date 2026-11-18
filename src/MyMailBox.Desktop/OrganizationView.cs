@@ -76,7 +76,7 @@ internal sealed partial class OrganizationView : UserControl, IDisposable
         layout.Children.Add(_stopTransfer); layout.Children.Add(new ScrollViewer { Content = _panel }); Content = layout;
         _accounts.SelectionChanged += (_,_) =>
         {
-            _archiveTarget.ItemsSource = null; _history.ItemsSource = null;
+            _historyOffset = 0; _archiveTarget.ItemsSource = null; _history.ItemsSource = null;
             ResetActions(); _destination.ItemsSource = null; _folders.ItemsSource = null; _list.Items.Clear(); _confirm = null; _more = false; _offset = 0;
             _scope.Text = _accounts.SelectedItem is not MailAccount a ? "" : a.Provider switch
             {

@@ -57,6 +57,25 @@ internal static partial class TransferChecks
         MailChecks.Check(again.TargetMessage == completed.TargetMessage && (await store.List(SqliteMailStore.Inbox, 0, 20)).Items.Count == 2, "Replay duplicated target");
         try { await service.Plan(move with { Id = Guid.NewGuid(), Destination = source }); throw new Exception("Unexpected remote target acceptance"); }
         catch (InvalidDataException) { }
+        // Lose the final journal update after the server has already expunged the UID.
+        var afterDelete = Make(messages.Items[0].Key,true);
+        await service.Plan(afterDelete);
+        var settings = await service.Settings(account.Id);
+        var interrupted = await service.Continue(afterDelete.Id,new AtPhase(step =>
+        {
+            if (step.Phase=="stored")
+                service.Save(account.Id,settings with { Incoming=settings.Incoming! with { Proxy=MailProxy.Http, ProxyHost="127.0.0.1",ProxyPort=1 } },null,null).GetAwaiter().GetResult();
+        }));
+        MailChecks.Check(interrupted.Phase=="cleaning" && interrupted.TargetMessage.HasValue,"Network loss did not retain verified target");
+        await service.Save(account.Id,settings,null,null);
+        Sql("CREATE TRIGGER lose_ack BEFORE UPDATE OF phase ON transfers WHEN NEW.phase='done' AND OLD.phase='cleaning' BEGIN SELECT RAISE(ABORT,'injected'); END");
+        var uncertain=await service.Continue(afterDelete.Id);
+        MailChecks.Check(uncertain.Phase=="cleaning" && (await service.Messages(account.Id,source,0,20)).Items.Count==0,
+            "Did not exercise post-expunge interruption");
+        Sql("DROP TRIGGER lose_ack");
+        var recovered=await new ProtocolMailService(store).Continue(afterDelete.Id);
+        MailChecks.Check(recovered.Phase=="done" && recovered.TargetMessage==uncertain.TargetMessage &&
+            recovered.Detail.Contains("不存在"),"Post-expunge retry lost or repeated the target");
         await client.DisconnectAsync(true);
         Console.WriteLine("PASS cross-store real IMAP: full MIME, failed write retains source, target hash verification, unsupported cleanup retained, restart idempotence, local-only importer capability");
     }
