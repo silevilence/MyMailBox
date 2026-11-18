@@ -268,6 +268,8 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
     {
         public Task<IReadOnlyList<AutomationPlan>> Plans(CancellationToken token=default)=>scope.Run(t=>service.Value.Plans(t),token);
         public Task<AutomationPlan> Save(AutomationPlan plan,CancellationToken token=default)=>scope.Run(t=>service.Value.Save(plan,t),token);
+        public Task<TargetSnapshot> Select(AutomationPlan plan,DateTimeOffset? at=null,CancellationToken token=default)=>scope.Run(t=>service.Value.Select(plan,at,t),token);
+        public Task<string?> Recheck(AutomationPlan plan,TargetSnapshot snapshot,TargetMail mail,CancellationToken token=default)=>scope.Run(t=>service.Value.Recheck(plan,snapshot,mail,t),token);
         public Task<ConditionReport> Inspect(AutomationPlan plan,bool observe=false,CancellationToken token=default)=>scope.Run(t=>service.Value.Inspect(plan,observe,t),token);
         public Task<SearchLibrary> Library(CancellationToken token=default)=>scope.Run(t=>service.Value.Library(t),token);
     }

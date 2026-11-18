@@ -85,7 +85,7 @@ public sealed partial class ProtocolMailService
                 try {var q=await remote.GetQuotaAsync(cancellation);if(q.StorageLimit is >0 && q.CurrentStorageSize is {} used)quota=100d*used/q.StorageLimit.Value;}
                 catch(ImapCommandException){ }
             }
-            cache.Measure(folder,count,quota);
+            cache.Measure(folder,count,quota,remote.DirectorySeparator);
             return new ImapSyncResult(added, remote.UidValidity, next, count);
         });
 

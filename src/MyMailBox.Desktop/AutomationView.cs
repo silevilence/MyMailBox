@@ -28,7 +28,7 @@ internal sealed partial class AutomationView : UserControl,IDisposable
         Field(_panel,"统计邮件过滤（可留空）",_filter,"auto-filter");Field(_panel,"运行前置条件",_when,"auto-condition");
         _panel.Children.Add(new TextBlock{TextWrapping=TextWrapping.Wrap,Text="可用 count、unread、logical、cached、disk、free、quota、pending、exists、all、net、ac、minute、last。例：(unread>=10 OR logical>=1048576) AND net=1。"});
         Field(_panel,"迟滞（按各阈值的单位）",_hysteresis,"auto-hysteresis");Field(_panel,"冷却分钟",_cooldown,"auto-cooldown");
-        _panel.Children.Add(_enabled);var actions=new WrapPanel();Button(actions,"预览统计","auto-preview",()=>Inspect(false));Button(actions,"记录采样","auto-observe",()=>Inspect(true));
+        AddTarget();_panel.Children.Add(_enabled);var actions=new WrapPanel();Button(actions,"预览统计","auto-preview",()=>Inspect(false));Button(actions,"记录采样","auto-observe",()=>Inspect(true));
         Button(actions,"保存任务","auto-save",Save);_panel.Children.Add(actions);
         AutomationProperties.SetAutomationId(_status,"auto-status");_panel.Children.Add(_status);Content=new ScrollViewer{Content=_panel};
         AttachedToVisualTree+=async(_,_)=>await Guard(async()=>{_library=await service.Library(_stop.Token);_scope.ItemsSource=_library.Scopes;await Refresh();Load(null);});
@@ -44,13 +44,13 @@ internal sealed partial class AutomationView : UserControl,IDisposable
     private async Task Refresh(){_plans.ItemsSource=await _service.Plans(_stop.Token);_plans.SelectedItem=_plans.Items.OfType<AutomationPlan>().FirstOrDefault(p=>p.Id==_loaded?.Id);}
     private void Load(AutomationPlan? p)
     {
-        _loaded=p;_name.Text=p?.Name ?? "";_filter.Text=p?.When.Filter ?? "";_when.Text=p?.When.Expression ?? "unread>=1";_enabled.IsChecked=p?.Enabled ?? true;
+        LoadTarget(p?.Target);_loaded=p;_name.Text=p?.Name ?? "";_filter.Text=p?.When.Filter ?? "";_when.Text=p?.When.Expression ?? "unread>=1";_enabled.IsChecked=p?.Enabled ?? true;
         _hysteresis.Value=p?.When.Hysteresis ?? 0;_cooldown.Value=p?.When.CooldownMinutes ?? 0;_scope.SelectedItem=_library?.Scopes.FirstOrDefault(s=>s.Account==p?.When.Account && s.Folder==p?.When.Folder);
     }
     private AutomationPlan Draft()
     {
         if(_scope.SelectedItem is not SearchScope scope)throw new InvalidDataException("请重新选择统计范围。");
-        return new(_loaded?.Id ?? Guid.NewGuid(),_loaded?.Version ?? 0,_name.Text ?? "",new(scope.Account,scope.Folder,_filter.Text ?? "",_when.Text ?? "",_hysteresis.Value ?? 0,(int)(_cooldown.Value ?? 0)),_enabled.IsChecked==true);
+        return new(_loaded?.Id ?? Guid.NewGuid(),_loaded?.Version ?? 0,_name.Text ?? "",new(scope.Account,scope.Folder,_filter.Text ?? "",_when.Text ?? "",_hysteresis.Value ?? 0,(int)(_cooldown.Value ?? 0)),_enabled.IsChecked==true){Target=Target()};
     }
     private async Task Save(){_loaded=await _service.Save(Draft(),_stop.Token);await Refresh();_status.Text="已保存任务「"+_loaded.Name+"」。";}
     private async Task Inspect(bool observe)

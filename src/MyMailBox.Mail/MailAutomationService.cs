@@ -28,6 +28,7 @@ public sealed partial class MailAutomationService : IMailAutomation
     {
         if(string.IsNullOrWhiteSpace(plan.Name)||plan.When.Hysteresis<0||plan.When.CooldownMinutes<0)throw new InvalidDataException("请填写任务名、非负迟滞和冷却时间。");
         await Inspect(plan,false,token);
+        if(plan.Target is not null)await Select(plan,null,token);
         using var db=_store.Open();using var tx=db.BeginTransaction();using var c=db.CreateCommand();c.Transaction=tx;
         c.CommandText="SELECT version FROM automation_plan WHERE id=$id";c.Parameters.AddWithValue("$id",plan.Id.ToString());
         if(Convert.ToInt32(c.ExecuteScalar())!=plan.Version)throw new InvalidDataException("任务已修改，请重新载入。");
