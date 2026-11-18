@@ -10,6 +10,7 @@ using Application = FlaUI.Core.Application;
 internal static class ProtocolUiChecks
 {
     [System.Runtime.InteropServices.DllImport("user32.dll")]private static extern bool PostMessage(nint hwnd,uint msg,nint wParam,nint lParam);
+    [System.Runtime.InteropServices.DllImport("user32.dll")]private static extern bool IsWindowVisible(nint hwnd);
     public static void Run()
     {
         var repo = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../"));
@@ -121,7 +122,22 @@ internal static class ProtocolUiChecks
             ui.Click("nav-reminders/activity");ui.Click("activity-refresh");ui.Status("activity-status","第 1");ui.Click("activity-open");
             ui.Click("nav-local-mail/inbox");
             Capture.Element(window).ToFile(Path.Combine(output, "04-local.png"));
-            var process = Process.GetProcessById(app.ProcessId); window.Close();
+            using var process = Process.GetProcessById(app.ProcessId);
+            ui.Click("nav-desktop/lifetime");ui.Check("lifetime-close-tray");ui.Check("lifetime-min-tray");ui.Click("lifetime-save");ui.Status("lifetime-status","已保存");
+            nint hwnd=window.Properties.NativeWindowHandle.Value;window.Close();
+            if(!SpinWait.SpinUntil(()=>!IsWindowVisible(hwnd),5000)||process.HasExited)throw new Exception("关闭到托盘未保留宿主。");
+            store.Import(archiveInput,old,new MyMailBox.Mail.MimeReader().Parse(old).GetAwaiter().GetResult()).GetAwaiter().GetResult();
+            var hiddenRun=auto.Start(archive.Id,"manual/hidden").GetAwaiter().GetResult();
+            var hiddenInbox=new UnifiedInboxService(store,accounts,new ProtocolReceiveProvider(store,service));hiddenInbox.Refresh(alice.Id).GetAwaiter().GetResult();
+            if(!SpinWait.SpinUntil(()=>auto.Runs(archive.Id).Result.Any(r=>r.Id==hiddenRun.Id&&r.Done==1)&&
+                hiddenInbox.Status().Result.Any(r=>r.Account==alice.Id&&r.State=="ready"),20000))throw new Exception("托盘后台任务或接收未完成。");
+            void Activate()
+            {
+                using var second=Process.Start(start)!;if(!second.WaitForExit(8000)||second.ExitCode!=0||!SpinWait.SpinUntil(()=>IsWindowVisible(hwnd),5000))throw new Exception("再次启动没有恢复原窗口。");
+            }
+            Activate();window.Patterns.Window.Pattern.SetWindowVisualState(FlaUI.Core.Definitions.WindowVisualState.Minimized);
+            if(!SpinWait.SpinUntil(()=>!IsWindowVisible(hwnd),5000))throw new Exception("最小化到托盘失败。");
+            Activate();ui.Click("lifetime-exit");
             if (!process.WaitForExit(15000)) throw new Exception("Protocol UI did not shut down cleanly");
             File.WriteAllText(Path.Combine(output, "result.txt"), "PASS actual desktop: save/reopen/validation, IMAP folder+paging, authentication failure+recovery, SMTP To/Cc/Bcc, repeat-send prevention, POP persistence+dedupe, shutdown");
             Console.WriteLine("PASS protocol UI: " + output);
@@ -131,6 +147,7 @@ internal static class ProtocolUiChecks
             Capture.Element(window).ToFile(Path.Combine(output, "failure.png"));
             File.WriteAllText(Path.Combine(output, "tree.txt"), window.ToString());
             try { window.Close(); } catch { }
+            if(!app.HasExited)app.Kill();
             throw;
         }
     }

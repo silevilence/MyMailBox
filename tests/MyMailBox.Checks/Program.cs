@@ -3,6 +3,7 @@ using MyMailBox.Builtins;
 using MyMailBox.Contracts;
 using MyMailBox.Runtime;
 
+if(args.Length==2 && args[0]=="owner-probe"){WorkspaceOwnerChecks.TryOpen(args[1]);return;}
 if (args.Length==2 && args[0]=="perf-index" && int.TryParse(args[1],out var indexSize) && indexSize is 10000 or 100000)
 {await PerformanceFixture.Index(indexSize);return;}
 if (args.Length==4 && args[0]=="perf-measure" && int.TryParse(args[1],out var measureSize) && measureSize is 10000 or 100000 && args[2] is "indexed" or "source" && args[3] is "sync" or "idle")
@@ -49,6 +50,7 @@ if (args.Length == 0 || args.Contains("search-conditions")) await SearchChecks.C
 if (args.Length == 0 || args.Contains("search-index")) await SearchChecks.Index();
 if (args.Length == 0 || args.Contains("search-builder")) await SearchChecks.Builder();
 if (args.Length == 0 || args.Contains("search-extension")) await SearchChecks.Extension();
+if (args.Length == 0 || args.Contains("workspace-owner")) await WorkspaceOwnerChecks.Run();
 if (args.Length == 0 || args.Contains("activity")) await ActivityChecks.Run();
 if (args.Length == 0 || args.Contains("task-history")) await AutomationChecks.History();
 if (args.Contains("task-events-live")) await AutomationChecks.Events(true);

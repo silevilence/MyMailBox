@@ -30,6 +30,7 @@ public sealed class App : Application
             var applicationVersion = System.Reflection.Assembly.GetExecutingAssembly().GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
                 .Cast<System.Reflection.AssemblyInformationalVersionAttribute>().Single().InformationalVersion;
             var runtime = new PluginRuntime(pages, diagnostics: diagnostics);
+            DesktopLifetime? lifetime=null;
             HotConfiguration? hotConfiguration = null;
             IDisposable? settings = null;
             IDisposable? manager = null;
@@ -86,7 +87,12 @@ public sealed class App : Application
                     var upgrade = MyMailBox.Updates.UpdateHandoff.ReadState(workspace);
                     DefaultProfile.Recovery(pages, error.Message + (upgrade is null ? "" : "\n更新恢复备份：" + upgrade.Backup), directory);
                 }
-                finally { initialized.TrySetResult(); }
+                finally
+                {
+                    try{lifetime=new DesktopLifetime(desktop.MainWindow,pages,workspace);if(desktop.Args?.Contains("--tray")==true)desktop.MainWindow.Hide();}
+                    catch(Exception e){pages.Notice="托盘未能初始化："+e.Message;}
+                    initialized.TrySetResult();
+                }
             });
             var closing = false;
             var readyToClose = false;
@@ -95,6 +101,7 @@ public sealed class App : Application
                 if (readyToClose) return;
                 args.Cancel = true;
                 if (closing) return;
+                if(pendingUpdate is null && lifetime?.ShouldHide(args)==true){desktop.MainWindow.Hide();return;}
                 closing = true;
                 try
                 {
@@ -108,9 +115,9 @@ public sealed class App : Application
                             if (plugin.Origin == MyMailBox.Contracts.PluginOrigin.External && (plugin.Manifest.SdkMin > update.PluginSdk || plugin.Manifest.SdkMax < update.PluginSdk))
                                 throw new InvalidOperationException($"插件 {item.Id} 不兼容新版本 SDK {update.PluginSdk}，请先更新或停用该插件。");
                         }
-                        using var saving = new CancellationTokenSource(TimeSpan.FromMinutes(2));
-                        foreach (var participant in pages.UpdatePreparations) await participant.Save(saving.Token);
                     }
+                    using var saving = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+                    foreach (var participant in pages.UpdatePreparations) await participant.Save(saving.Token);
                     if (hotConfiguration is not null) await hotConfiguration.DisposeAsync();
                     settings?.Dispose(); manager?.Dispose(); diagnosticsPage?.Dispose();
                     await runtime.DisposeAsync();
@@ -121,7 +128,7 @@ public sealed class App : Application
                         await new MyMailBox.Mail.WorkspaceBackup(workspace, store).Create(backup);
                         MyMailBox.Updates.UpdateHandoff.Launch(ready, workspace, backup, AppContext.BaseDirectory);
                     }
-                    readyToClose = true; desktop.MainWindow.Close();
+                    lifetime?.Dispose();readyToClose = true; desktop.MainWindow.Close();
                 }
                 catch (Exception error)
                 {
