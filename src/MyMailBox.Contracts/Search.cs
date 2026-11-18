@@ -26,7 +26,10 @@ public sealed record SearchPage(IReadOnlyList<SearchHit> Items, bool HasMore, in
 public interface IMailSearch
 {
     IReadOnlyList<SearchField> Fields { get; }
+    Task<SearchLibrary> Library(CancellationToken token = default);
+    Task Save(SavedSearch search, CancellationToken token = default);
     Task<SearchPage> Search(SearchRequest request, CancellationToken token = default);
+    Task<ConditionResult> EvaluateSaved(string messageId, Guid savedId, CancellationToken token = default);
     Task<ConditionResult> Evaluate(string messageId, ConditionTree condition, CancellationToken token = default);
     Task RebuildBodyIndex(IProgress<SearchIndexProgress>? progress = null, CancellationToken token = default);
     Task<int> Position(SearchHit hit, SearchOrder order, CancellationToken token = default);

@@ -13,7 +13,7 @@ public sealed partial class MailSearchService : IMailSearch
     public MailSearchService(SqliteMailStore store, ProtocolMailService protocols)
     {
         _store = store; _protocols = protocols; _metadata = new(store);
-        SearchMetadata.Initialize(store); BodySearchIndex.Initialize(store); _bodyIndex = new(store);
+        SearchMetadata.Initialize(store); BodySearchIndex.Initialize(store); _bodyIndex = new(store); InitializeLibrary();
     }
 
     public Task RebuildBodyIndex(IProgress<SearchIndexProgress>? progress = null, CancellationToken token = default) => Task.Run(() =>

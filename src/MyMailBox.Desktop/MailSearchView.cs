@@ -31,7 +31,10 @@ internal sealed partial class MailSearchView : UserControl, IDisposable
         _field.ItemTemplate = new FuncDataTemplate<SearchField>((f, _) => new TextBlock { Text = f?.Name });
         _match.ItemTemplate = new FuncDataTemplate<SearchMatch>((m, _) => new TextBlock { Text = MatchName(m) });
         Field(_panel, "字段", _field, "search-field"); Field(_panel, "匹配方式", _match, "search-match");
-        Field(_panel, "条件值", _value, "search-value"); _panel.Children.Add(_hint);
+        Field(_panel, "条件值", _value, "search-value");
+        foreach (var (control, name) in new (Control, string)[] { (_dateValue, "日期"), (_sizeValue, "字节数"), (_boolValue, "是否") })
+        { AutomationProperties.SetName(control, name); _panel.Children.Add(control); }
+        _panel.Children.Add(_hint);
         var advanced = new StackPanel { Spacing = 4 };
         Field(advanced, "组合表达式", _expression, "search-expression");
         advanced.Children.Add(new TextBlock { TextWrapping = TextWrapping.Wrap, Text =
@@ -39,6 +42,7 @@ internal sealed partial class MailSearchView : UserControl, IDisposable
             "用 : 包含、= 精确、^= 开头、$= 结尾、~ 正则、? 存在、< 早于、>= 当天或以后。含空格的值用双引号包住。" +
             """引号内用 \" 表示引号、\\ 表示反斜杠。""" +
             "\n字段：" + string.Join("、", service.Fields.Select(f => f.Id + "（" + f.Name + "）")) });
+        AddBuilder(advanced);
         Action(advanced, "重建正文索引", "search-reindex", async () =>
         {
             await service.RebuildBodyIndex(new Progress<SearchIndexProgress>(p => _status.Text = $"正在建立正文索引 {p.Completed}/{p.Total}，可继续浏览邮件。"), _stop.Token);
@@ -87,7 +91,7 @@ internal sealed partial class MailSearchView : UserControl, IDisposable
         _results.SelectionChanged += (_, _) => { _body.Text = ""; SetSelection(); };
         _value.KeyDown += async (_, e) => { if (e.Key == Key.Enter) { e.Handled = true; await Guard(RunInput); } };
         _prev.IsEnabled = _next.IsEnabled = false; SetSelection();
-        AttachedToVisualTree += async (_, _) => await Guard(() => Run(new([])));
+        AttachedToVisualTree += async (_, _) => await Guard(async () => { await RefreshLibrary(); await Run(new([])); });
     }
     private static void Field(Panel panel, string label, Control control, string id)
     {
@@ -112,12 +116,15 @@ internal sealed partial class MailSearchView : UserControl, IDisposable
         SearchMatch.Before => "早于",
         SearchMatch.OnOrAfter => "当天或以后",
         SearchMatch.AtLeast => "不少于",
+        SearchMatch.StartsWith => "开头为", SearchMatch.EndsWith => "结尾为", SearchMatch.Regex => "正则", SearchMatch.Exists => "有值",
         _ => "不超过"
     };
     private void SelectField()
     {
         if (_field.SelectedItem is not SearchField field) return;
-        _match.ItemsSource = field.Matches; _match.SelectedIndex = 0;
+        _value.IsVisible = field.Kind == SearchKind.Text; _dateValue.IsVisible = field.Kind == SearchKind.LocalDate;
+        _sizeValue.IsVisible = field.Kind == SearchKind.Number; _boolValue.IsVisible = field.Kind == SearchKind.Boolean;
+        _match.ItemsSource = field.Kind == SearchKind.Text ? new[] { SearchMatch.Contains, SearchMatch.Equals, SearchMatch.StartsWith, SearchMatch.EndsWith, SearchMatch.Regex, SearchMatch.Exists } : field.Matches; _match.SelectedIndex = 0;
         _hint.Text = field.Kind switch
         {
             SearchKind.Text when field.Id == "body" => "正文支持单字、双字和跨词短语，匹配处以粗体下划线显示。",
@@ -135,10 +142,9 @@ internal sealed partial class MailSearchView : UserControl, IDisposable
     }
     private Task RunInput()
     {
-        var criteria = _field.SelectedItem is SearchField field && _match.SelectedItem is SearchMatch match && !string.IsNullOrWhiteSpace(_value.Text)
-            ? new[] { new FieldCriterion(field.Id, match, _value.Text!) } : [];
+        var definition = CurrentDefinition(Guid.Empty);
         _previousRequest = null;
-        return Run(new(criteria, (SearchOrder)_order.SelectedIndex) { Condition = string.IsNullOrWhiteSpace(_expression.Text) ? null : ConditionTree.Parse(_expression.Text) });
+        return Run(new([], definition.Order) { Condition = string.IsNullOrWhiteSpace(definition.Expression) && definition.Account is null ? null : definition.Condition() });
     }
 
     private async Task Locate(SearchHit hit)

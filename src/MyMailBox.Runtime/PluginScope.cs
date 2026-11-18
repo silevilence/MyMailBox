@@ -216,9 +216,12 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
     private sealed class ScopedSearch(PluginScope scope, ServiceTarget<IMailSearch> service) : IMailSearch
     {
         public IReadOnlyList<SearchField> Fields => service.Value.Fields.ToArray();
+        public Task<SearchLibrary> Library(CancellationToken token=default) => scope.Run(t=>service.Value.Library(t),token);
+        public async Task Save(SavedSearch search,CancellationToken token=default) => await scope.Run(async t=>{await service.Value.Save(search,t);return true;},token);
         public Task<SearchPage> Search(SearchRequest request,CancellationToken token=default) =>
             scope.Run(t=>service.Value.Search(request,t),token);
         public async Task RebuildBodyIndex(IProgress<SearchIndexProgress>? progress=null,CancellationToken token=default) => await scope.Run(async t => { await service.Value.RebuildBodyIndex(progress,t); return true; },token);
+        public Task<ConditionResult> EvaluateSaved(string messageId,Guid savedId,CancellationToken token=default) => scope.Run(t=>service.Value.EvaluateSaved(messageId,savedId,t),token);
         public Task<ConditionResult> Evaluate(string messageId,ConditionTree condition,CancellationToken token=default) => scope.Run(t=>service.Value.Evaluate(messageId,condition,t),token);
         public Task<int> Position(SearchHit hit,SearchOrder order,CancellationToken token=default) => scope.Run(t=>service.Value.Position(hit,order,t),token);
         public Task<string> Read(SearchHit hit,CancellationToken token=default) => scope.Run(t=>service.Value.Read(hit,t),token);
