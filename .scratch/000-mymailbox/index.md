@@ -4,7 +4,7 @@ CI 修复验证：普通 push/PR 不再触发构建；修正 `runner.temp` 的�
 
 推送前复核：Exchange 验收地址及应用 ID 已从待推送历史移除。真实 ID 仅在本地忽略配置保留，Actions 从 `MYMAILBOX_GRAPH_CLIENT_ID` Secret 注入；普通用户仍直接登录，不填写 ID。真实服务地址由用户逐账户提供。
 
-日期：2026 年 11 月 18 日。**完成 66；进行中 3；阻塞 1；未开始 38。** 50 的 ANSI 中文及正文修复通过，研究选型完成；32 已内置发布者应用注册，普通用户直接登录，无需输入 Client ID，待个人账户真实登录/读取验收；35 的 EWS 认证仍失败，但 ActiveSync 带凭据 OPTIONS 已返回 200，声明最高协议 16.1，待部署、设备策略及测试目录读写验收。Exchange 产品须由用户逐账户填写服务器及身份，不绑定验收公司域名。证据见 [PST 修复](../../docs/validation/2026-11-17-pst-ansi-fix.md)、[Outlook.com 配置](../../docs/validation/outlook-com-setup.md)、[公司端点调查](../../docs/validation/2026-11-17-exchange-discovery.md)。
+日期：2026 年 11 月 18 日。**完成 67；进行中 3；阻塞 1；未开始 37。** 50 的 ANSI 中文及正文修复通过，研究选型完成；32 已内置发布者应用注册，普通用户直接登录，无需输入 Client ID，待个人账户真实登录/读取验收；35 的 EWS 认证仍失败，但 ActiveSync 带凭据 OPTIONS 已返回 200，声明最高协议 16.1，待部署、设备策略及测试目录读写验收。Exchange 产品须由用户逐账户填写服务器及身份，不绑定验收公司域名。证据见 [PST 修复](../../docs/validation/2026-11-17-pst-ansi-fix.md)、[Outlook.com 配置](../../docs/validation/outlook-com-setup.md)、[公司端点调查](../../docs/validation/2026-11-17-exchange-discovery.md)。
 
 - [000-mymailbox 开发规格与完成标准](spec.md)
 - [全部规格索引](../index.md)
@@ -165,7 +165,7 @@ flowchart TD
 | [75 按计划把超过 30 天的邮件归档到本地](issues/75-archive-task.md) | 必做 | [74](issues/74-task-targets.md)、[45](issues/45-move-recovery.md)、[72](issues/72-scheduler-recovery.md) | ready-for-agent | 完成 |
 | [76 在任务中组合复制标记导出和提醒动作](issues/76-task-actions.md) | 必做 | [75](issues/75-archive-task.md)、[58](issues/58-bulk-export.md)、[42](issues/42-same-store-actions.md) | ready-for-agent | 完成 |
 | [77 通过事件手动操作和前置任务触发自动化](issues/77-event-tasks.md) | 必做 | [72](issues/72-scheduler-recovery.md)、[66](issues/66-rule-stages.md)、[76](issues/76-task-actions.md) | ready-for-agent | 完成 |
-| [78 审查自动化历史并从失败步骤继续](issues/78-task-history.md) | 必做 | [75](issues/75-archive-task.md)、[77](issues/77-event-tasks.md) | ready-for-agent | 未开始 |
+| [78 审查自动化历史并从失败步骤继续](issues/78-task-history.md) | 必做 | [75](issues/75-archive-task.md)、[77](issues/77-event-tasks.md) | ready-for-agent | 完成 |
 | [79 用外部条件动作和调度插件运行任务](issues/79-automation-sdk.md) | 必做 | [64](issues/64-search-plugin.md)、[78](issues/78-task-history.md)、[08](issues/08-plugin-upgrade.md) | ready-for-agent | 未开始 |
 | [80 集中管理同步提醒和任务通知](issues/80-notifications.md) | 必做 | [69](issues/69-reminder.md)、[40](issues/40-multi-sync.md)、[78](issues/78-task-history.md) | ready-for-agent | 未开始 |
 

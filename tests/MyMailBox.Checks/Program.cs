@@ -49,6 +49,7 @@ if (args.Length == 0 || args.Contains("search-conditions")) await SearchChecks.C
 if (args.Length == 0 || args.Contains("search-index")) await SearchChecks.Index();
 if (args.Length == 0 || args.Contains("search-builder")) await SearchChecks.Builder();
 if (args.Length == 0 || args.Contains("search-extension")) await SearchChecks.Extension();
+if (args.Length == 0 || args.Contains("task-history")) await AutomationChecks.History();
 if (args.Contains("task-events-live")) await AutomationChecks.Events(true);
 if (args.Length == 0 || args.Contains("task-events")) await AutomationChecks.Events(false);
 if (args.Length == 0 || args.Contains("task-actions")) await AutomationChecks.Actions();

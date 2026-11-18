@@ -20,6 +20,9 @@ public sealed partial class MailAutomationService : IMailAutomation
             CREATE TABLE IF NOT EXISTS automation_item(run TEXT NOT NULL,ordinal INTEGER NOT NULL,op TEXT NOT NULL,destination TEXT,state TEXT NOT NULL,detail TEXT NOT NULL,PRIMARY KEY(run,ordinal));
             CREATE TABLE IF NOT EXISTS automation_step(run TEXT NOT NULL,item INTEGER NOT NULL,step INTEGER NOT NULL,op TEXT NOT NULL,
                 kind INTEGER NOT NULL,state TEXT NOT NULL,attempts INTEGER NOT NULL,detail TEXT NOT NULL,PRIMARY KEY(run,item,step));
+            CREATE TABLE IF NOT EXISTS automation_gate_sample(run TEXT PRIMARY KEY,report TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS automation_retired(cause_hash TEXT PRIMARY KEY);
+            CREATE INDEX IF NOT EXISTS automation_run_by_time ON automation_run(at);
             CREATE TABLE IF NOT EXISTS automation_outcome(id TEXT PRIMARY KEY,success INTEGER NOT NULL,at INTEGER NOT NULL);
             """;c.ExecuteNonQuery();
     }

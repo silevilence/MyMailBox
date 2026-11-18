@@ -35,14 +35,14 @@ internal sealed partial class AutomationView
         p.Children.Add(actions);_history.ItemTemplate=new FuncDataTemplate<AutomationRun>((r,_)=>new TextBlock{Text=r is null?"":RunLabel(r)});
         Field(p,"最近执行",_history,"auto-history");
         actions=new WrapPanel();Button(actions,"刷新历史","auto-history-refresh",()=>History((_history.SelectedItem as AutomationRun)?.Id));
-        Button(actions,"暂停","auto-pause",()=>Change(false));Button(actions,"继续或重试","auto-resume",()=>Change(true));p.Children.Add(actions);
+        Button(actions,"暂停","auto-pause",()=>Change(false));Button(actions,"继续或重试","auto-resume",()=>Change(true));p.Children.Add(actions);HistoryTools(p);
         _panel.Children.Add(new Expander{Header="动作、时间与执行记录",Content=p});
     }
     private Guid SavedId()=>_loaded?.Id??throw new InvalidDataException("请先保存或载入任务。");
     private static string GateLabel(ConditionResult result)=>result switch{ConditionResult.True=>"满足",ConditionResult.False=>"未满足",_=>"未知"};
     private static string RunLabel(AutomationRun run)
     {
-        var state=run.State switch{"ready"=>"等待执行","running"=>"运行中","paused"=>"已暂停","done"=>"已完成","skipped"=>"已跳过","failed"=>"失败",_=>run.State};
+        var state=run.State switch{"ready"=>"等待执行","running"=>"运行中","paused"=>"已暂停","done"=>"已完成","skipped"=>"已跳过","failed"=>"失败","canceled"=>"已取消",_=>run.State};
         return $"{run.At.LocalDateTime:g} · {state} · {run.Cause} · 完成 {run.Done} / 跳过 {run.Skipped} / 失败 {run.Failed} · {run.Detail}";
     }
     private async Task History(Guid? selected)
@@ -56,7 +56,7 @@ internal sealed partial class AutomationView
     private async Task Change(bool resume)
     {
         if(_history.SelectedItem is not AutomationRun r)throw new InvalidDataException("请先选择执行记录。");
-        await _service.Control(r.Id,resume,_stop.Token);await History(r.Id);
+        await _service.Control(r.Id,resume,_stop.Token);await ShowAudit(0);
     }
     private void LoadArchive(AutomationPlan? plan)
     {

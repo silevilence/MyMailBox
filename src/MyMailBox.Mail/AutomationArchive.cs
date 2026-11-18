@@ -22,8 +22,8 @@ public sealed partial class MailAutomationService
     }
     public Task<IReadOnlyList<AutomationRun>> Runs(Guid plan,CancellationToken token=default)=>Task.Run<IReadOnlyList<AutomationRun>>(()=>
     {
-        using var db=_store.Open();using var c=db.CreateCommand();c.CommandText=RunRows+" WHERE plan=$p ORDER BY at DESC,rowid DESC LIMIT 100";
-        c.Parameters.AddWithValue("$p",plan.ToString());using var r=c.ExecuteReader();var runs=new List<AutomationRun>();while(r.Read())runs.Add(ReadRun(r));return runs;
+        using var db=_store.Open();using var c=db.CreateCommand();c.CommandText=RunRows+" WHERE ($p IS NULL OR plan=$p) ORDER BY at DESC,rowid DESC LIMIT 100";
+        c.Parameters.AddWithValue("$p",plan==Guid.Empty?DBNull.Value:plan.ToString());using var r=c.ExecuteReader();var runs=new List<AutomationRun>();while(r.Read())runs.Add(ReadRun(r));return runs;
     },token);
     private Guid? Existing(SqliteCommand c)
     {
@@ -42,6 +42,8 @@ public sealed partial class MailAutomationService
         bool run=gate.Result==ConditionResult.True && snapshot.Items.Count>0;
         string detail=gate.Result==ConditionResult.True?(run?"已冻结目标与执行时刻。":"当前没有可处理邮件。"):gate.Detail+" 前置条件未满足。";
         using var tx=db.BeginTransaction();c.Transaction=tx;
+        c.CommandText="SELECT count(*) FROM automation_retired WHERE cause_hash=$retired";c.Parameters.AddWithValue("$retired",CauseHash(plan.ToString(),cause));
+        if((long)c.ExecuteScalar()!>0)throw new InvalidDataException("此执行记录已过保留期，重复触发已拦截。");
         if(Existing(c) is Guid other){tx.Commit();return Run(other);}
         c.CommandText="SELECT version FROM automation_plan WHERE id=$p";
         if(Convert.ToInt32(c.ExecuteScalar())!=definition.Version)throw new InvalidDataException("准备执行期间配置已变更，请重试。");
@@ -49,6 +51,7 @@ public sealed partial class MailAutomationService
         c.Parameters.AddWithValue("$id",id.ToString());c.Parameters.AddWithValue("$state",run?"ready":"skipped");
         c.Parameters.AddWithValue("$detail",detail);c.Parameters.AddWithValue("$at",at.ToUnixTimeSeconds());
         c.Parameters.AddWithValue("$def",JsonSerializer.Serialize(definition));c.Parameters.AddWithValue("$snap",JsonSerializer.Serialize(snapshot));c.ExecuteNonQuery();
+        c.CommandText="INSERT INTO automation_gate_sample VALUES($id,$report)";c.Parameters.AddWithValue("$report",JsonSerializer.Serialize(gate));c.ExecuteNonQuery();
         if(signal is not null)
         {
             c.CommandText="INSERT INTO automation_lineage VALUES($id,$kind,$origin,$eventAt,$chain)";
@@ -67,12 +70,13 @@ public sealed partial class MailAutomationService
     {
         using var db=_store.Open();using var tx=db.BeginTransaction();using var c=db.CreateCommand();c.Transaction=tx;
         c.Parameters.AddWithValue("$id",run.ToString());
-        c.CommandText=resume?"UPDATE automation_run SET state='ready',detail='等待恢复' WHERE id=$id AND state IN ('paused','failed')":
+        c.CommandText=resume?"UPDATE automation_run SET state='ready',detail='等待恢复' WHERE id=$id AND (state IN ('paused','failed') OR (state='done' AND EXISTS(SELECT 1 FROM automation_item WHERE run=$id AND state='partial')))":
             "UPDATE automation_run SET state='paused',detail='已暂停后续邮件' WHERE id=$id AND state IN ('ready','running')";
         if(c.ExecuteNonQuery()!=1)throw new InvalidDataException("当前状态不能执行此操作。");
-        if(resume){c.CommandText="UPDATE automation_item SET state='pending' WHERE run=$id AND state='failed'";c.ExecuteNonQuery();}tx.Commit();
+        if(resume){c.CommandText="UPDATE automation_item SET state='pending' WHERE run=$id AND state IN ('failed','partial'); UPDATE automation_step SET state='failed' WHERE run=$id AND state='continued'";c.ExecuteNonQuery();}tx.Commit();
     },token);
 
+    private sealed class ExecutionStopped : Exception { }
     private FileStream? ArchiveLock()
     {
         try{return new(_store.DatabasePath+".automation.lock",FileMode.OpenOrCreate,FileAccess.ReadWrite,FileShare.None);}
@@ -101,7 +105,7 @@ public sealed partial class MailAutomationService
             try
             {
                 var (state,note)=plan.Actions.Length>0?await ApplySteps(run,ordinal,plan,snap,mail,token):("done","");
-                if(state=="done" && plan.Archive is not null)(state,note)=await ArchiveItem(plan,snap,mail,op,dest,c,token);
+                if(state=="done" && plan.Archive is not null)(state,note)=await ArchiveItem(run,plan,snap,mail,op,dest,c,token);
                 c.CommandText="UPDATE automation_item SET state=$s,detail=$note WHERE run=$id AND ordinal=$n";
                 c.Parameters.AddWithValue("$s",state);c.Parameters.AddWithValue("$note",note);c.ExecuteNonQuery();
             }
@@ -109,7 +113,7 @@ public sealed partial class MailAutomationService
             catch(Exception e)
             {
                 using var tx=db.BeginTransaction();c.Transaction=tx;
-                c.CommandText="UPDATE automation_item SET state='failed',detail=$err WHERE run=$id AND ordinal=$n; UPDATE automation_run SET state='failed',detail=$err WHERE id=$id";
+                c.CommandText="UPDATE automation_item SET state='failed',detail=$err WHERE run=$id AND ordinal=$n; UPDATE automation_run SET state='failed',detail=$err WHERE id=$id AND state='running'";
                 c.Parameters.AddWithValue("$err",e.Message);c.ExecuteNonQuery();PublishOutcome(tx,plan.Id,run,false);tx.Commit();return Run(run);
             }
         }
@@ -120,9 +124,10 @@ public sealed partial class MailAutomationService
         if(finished)_notify?.Invoke("邮件自动化已完成："+plan.Name);
         return Run(run);
     }
-    private async Task<(string,string)> ArchiveItem(AutomationPlan plan,TargetSnapshot snap,TargetMail mail,Guid op,Guid? dest,SqliteCommand c,CancellationToken token)
+    private async Task<(string,string)> ArchiveItem(Guid run,AutomationPlan plan,TargetSnapshot snap,TargetMail mail,Guid op,Guid? dest,SqliteCommand c,CancellationToken token)
     {
         var archive=plan.Archive!;
+        Task<string?> Guard(CancellationToken t)=>Run(run).State=="running"?RecheckCurrent(plan,snap,mail,plan.Actions.Length>0,t):Task.FromException<string?>(new ExecutionStopped());
         if(mail.Sent is null)return("skipped","缺少发送日期，无法确定归档年月。");
         if(dest is null)
         {
@@ -146,17 +151,20 @@ public sealed partial class MailAutomationService
         {
             using var db=_store.Open();using var receipt=db.CreateCommand();receipt.CommandText="SELECT count(*) FROM mail_move_undo WHERE id=$op AND message=$key";receipt.Parameters.AddWithValue("$op",op.ToString());receipt.Parameters.AddWithValue("$key",mail.Key);
             if((long)receipt.ExecuteScalar()!>0)return("done","已核实本地移动回执。");
+            if(Run(run).State!="running")return("pending","等待恢复。");
             if(await RecheckCurrent(plan,snap,mail,plan.Actions.Length>0,token) is {} changed)return("skipped",changed);
             var row=(await _protocols.Apply(new MailActionRequest(mail.Account,mail.Folder,[mail.Key],MailAction.Move,dest){OperationId=op},token)).Single();
             if(!row.Success)throw new InvalidDataException(row.Detail);return("done",row.Detail);
         }
         var transfer=await _protocols.Plan(new(op,mail.Account,mail.Folder,mail.Key,dest.Value,true),token);
         if(transfer.Phase=="planned" && await RecheckCurrent(plan,snap,mail,plan.Actions.Length>0,token) is {} stale)return("skipped",stale);
-        var completed=await _protocols.ContinueTransfer(op,null,t=>RecheckCurrent(plan,snap,mail,plan.Actions.Length>0,t),token);
+        MailTransfer completed;
+        try{completed=await _protocols.ContinueTransfer(op,null,Guard,token);}catch(ExecutionStopped){return("pending","后续工作已停止。");}
         return completed.Phase switch{"done"=>("done",completed.Detail),"canceled"=>("skipped",completed.Detail),_=>throw new InvalidDataException(completed.Detail)};
     }
     internal async Task Tick(CancellationToken token)
     {
+        MaintainHistory();
         await DispatchSignals(token);
         foreach(var plan in await Plans(token))
         {

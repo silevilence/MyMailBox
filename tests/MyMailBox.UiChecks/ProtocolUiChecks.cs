@@ -117,7 +117,7 @@ internal static class ProtocolUiChecks
             ui.Click("nav-accounts/automation");ui.Select("auto-plans",0);ui.Click("auto-load");ui.Expand("动作、时间与执行记录");
             ui.Click("auto-archive-preview");ui.Status("auto-status","2025/04");ui.Click("auto-start");
             if(!SpinWait.SpinUntil(()=>auto.Runs(archive.Id).GetAwaiter().GetResult().Any(r=>r.State=="done"),15000))throw new Exception("UI archive failed to finish");
-            ui.Click("auto-history-refresh");ui.Status("auto-status","完成 1");
+            ui.Click("auto-history-refresh");ui.Status("auto-status","完成 1");ui.Click("auto-run-details");ui.Status("auto-status","任务配置版本 1");
             ui.Click("nav-local-mail/inbox");
             Capture.Element(window).ToFile(Path.Combine(output, "04-local.png"));
             var process = Process.GetProcessById(app.ProcessId); window.Close();

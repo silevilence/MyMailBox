@@ -276,6 +276,9 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         public Task<AutomationRun> Start(Guid plan,string cause,CancellationToken token=default)=>scope.Run(t=>service.Value.Start(plan,cause,t),token);
         public Task<IReadOnlyList<AutomationRun>> Runs(Guid plan,CancellationToken token=default)=>scope.Run(t=>service.Value.Runs(plan,t),token);
         public Task<AutomationRun> Advance(Guid run,CancellationToken token=default)=>scope.Run(t=>service.Value.Advance(run,t),token);
+        public Task<AutomationAudit> Audit(Guid run,int offset=0,int limit=50,CancellationToken token=default)=>scope.Run(t=>service.Value.Audit(run,offset,limit,t),token);
+        public Task<string> ExportAudit(Guid run,CancellationToken token=default)=>scope.Run(t=>service.Value.ExportAudit(run,t),token);
+        public async Task Cancel(Guid run,CancellationToken token=default)=>await scope.Run(async t=>{await service.Value.Cancel(run,t);return true;},token);
         public async Task Control(Guid run,bool resume,CancellationToken token=default)=>await scope.Run(async t=>{await service.Value.Control(run,resume,t);return true;},token);
         public Task<ConditionReport> Inspect(AutomationPlan plan,bool observe=false,CancellationToken token=default)=>scope.Run(t=>service.Value.Inspect(plan,observe,t),token);
         public Task<IReadOnlyList<MailFolder>> ArchiveFolders(CancellationToken token=default)=>scope.Run(t=>service.Value.ArchiveFolders(t),token);

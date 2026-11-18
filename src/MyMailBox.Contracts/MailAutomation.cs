@@ -12,6 +12,8 @@ public sealed record AutomationTrigger(string Kind,Guid? Source=null,bool? Previ
 public sealed record ActionPreview(string[] Effects,int Selected,long Bytes,string Approval);
 public sealed record TaskStepLog(int Item,int Step,TaskActionKind Kind,string State,int Attempts,string Detail);
 public sealed record ArchivePlan(Guid Account,Guid Folder,bool Daily,int LocalMinute,string Zone);
+public sealed record AutomationItemLog(int Ordinal,string Subject,string State,string Detail);
+public sealed record AutomationAudit(AutomationRun Run,int Version,string Condition,ConditionReport? Observed,string TriggerScope,string TargetScope,DateTimeOffset SnapshotAt,int Selected,long Bytes,string[] Actions,IReadOnlyList<AutomationItemLog> Items,int Offset);
 public sealed record AutomationRun(Guid Id,Guid Plan,string Cause,string State,string Detail,int Done,int Skipped,int Failed,DateTimeOffset At);
 public sealed record AutomationPlan(Guid Id,int Version,string Name,AutomationCondition When,bool Enabled)
 {
@@ -36,6 +38,9 @@ public interface IMailAutomation
     Task<AutomationRun> Start(Guid plan,string cause,CancellationToken token=default);
     Task<IReadOnlyList<AutomationRun>> Runs(Guid plan,CancellationToken token=default);
     Task<AutomationRun> Advance(Guid run,CancellationToken token=default);
+    Task<AutomationAudit> Audit(Guid run,int offset=0,int limit=50,CancellationToken token=default);
+    Task<string> ExportAudit(Guid run,CancellationToken token=default);
+    Task Cancel(Guid run,CancellationToken token=default);
     Task Control(Guid run,bool resume,CancellationToken token=default);
     Task<IReadOnlyList<MailFolder>> ArchiveFolders(CancellationToken token=default);
     Task<SearchLibrary> Library(CancellationToken token=default);
