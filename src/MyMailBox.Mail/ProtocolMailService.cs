@@ -12,7 +12,7 @@ using MyMailBox.Contracts;
 namespace MyMailBox.Mail;
 
 /// <summary>Short-lived protocol sessions: no timers, implicit sends, or automatic retries.</summary>
-public sealed partial class ProtocolMailService : IProtocolMailService, IImapSyncService
+public sealed partial class ProtocolMailService : IProtocolMailService, IImapSyncService, IOutboxService
 {
     private readonly SqliteMailStore _store;
     private readonly AccountService _accounts;
@@ -29,6 +29,8 @@ public sealed partial class ProtocolMailService : IProtocolMailService, IImapSyn
             """;
         command.ExecuteNonQuery();
         ImapCache.Initialize(store);
+        OutboxStore.Initialize(store);
+        _outbox = new(store);
     }
     private async Task<MailAccount> Account(Guid id, AccountCapabilities required, CancellationToken token)
     {

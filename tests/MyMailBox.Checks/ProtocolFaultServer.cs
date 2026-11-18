@@ -18,6 +18,9 @@ internal sealed class ProtocolFaultServer : IAsyncDisposable
     public bool Uids { get; set; } = true;
     public bool DropSecondRetrieval { get; set; }
     public bool DropAfterData { get; set; }
+    public List<string> RcptCommands { get; } = [];
+    public int Submissions { get; private set; }
+    public bool AcceptAll { get; set; }
     public bool RejectSender { get; set; }
     public int Deletes { get; private set; }
     public string? Received { get; private set; }
@@ -56,12 +59,16 @@ internal sealed class ProtocolFaultServer : IAsyncDisposable
             if (command.StartsWith("EHLO")) await writer.WriteLineAsync("250-localhost\r\n250-AUTH PLAIN\r\n250 SIZE 26214400");
             else if (command.StartsWith("AUTH")) await writer.WriteLineAsync("235 authenticated");
             else if (command.StartsWith("MAIL")) await writer.WriteLineAsync(RejectSender ? "550 sender refused" : "250 sender");
-            else if (command.StartsWith("RCPT")) await writer.WriteLineAsync(command.Contains("reject@") ? "550 no recipient" : "250 recipient");
+            else if (command.StartsWith("RCPT"))
+            {
+                RcptCommands.Add(command);
+                await writer.WriteLineAsync(!AcceptAll && command.Contains("reject@") ? "550 no recipient" : "250 recipient");
+            }
             else if (command == "DATA")
             {
                 await writer.WriteLineAsync("354 continue"); var data = new StringBuilder();
                 while (await reader.ReadLineAsync(_stop.Token) is { } line && line != ".") data.AppendLine(line);
-                Received = data.ToString(); if (DropAfterData) return; await writer.WriteLineAsync("250 accepted");
+                Received = data.ToString(); Submissions++; if (DropAfterData) return; await writer.WriteLineAsync("250 accepted");
             }
             else if (command == "QUIT") { await writer.WriteLineAsync("221 bye"); return; }
             else await writer.WriteLineAsync("250 okay");

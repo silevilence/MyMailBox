@@ -15,6 +15,13 @@ public sealed partial class ProtocolMailService
     }
     public async Task<SendOutcome> Send(Guid account, TextMail message, CancellationToken cancellation = default)
     {
+        var id = Guid.NewGuid();
+        await Enqueue(id, account, message, cancellation);
+        return await Deliver(id, cancellation);
+    }
+
+    public async Task Enqueue(Guid id, Guid account, TextMail message, CancellationToken cancellation = default)
+    {
         var identity = await Account(account, AccountCapabilities.Send, cancellation);
         using var mime = new MimeMessage();
         // This slice supports the account's configured identity only. Server policy remains authoritative.
@@ -33,8 +40,17 @@ public sealed partial class ProtocolMailService
         if (message.Subject.Contains('\r') || message.Subject.Contains('\n')) throw new InvalidDataException("主题不能包含换行。");
         mime.Subject = message.Subject; mime.Body = new TextPart("plain") { Text = message.Body };
         mime.Date = DateTimeOffset.Now; mime.MessageId = MimeKit.Utils.MimeUtils.GenerateMessageId();
-        using var client = new SendingClient();
-        await ReadOperation(account, async () => { await Connect(client, account, true, cancellation); return true; });
+        using var stream = new MemoryStream();
+        await mime.WriteToAsync(stream, cancellation);
+        if (stream.Length > MimeReader.MaxMessageBytes) throw new InvalidDataException("邮件超过 25 MiB。");
+        var requestHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+            System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new { identity.Address, message })));
+        _outbox.Enqueue(id, account, mime.Subject, stream.ToArray(), recipients.Select(r => r.Address).ToArray(), requestHash);
+    }
+
+    private static async Task<SendOutcome> Submit(SendingClient client, MimeMessage mime, string[] remaining, CancellationToken cancellation)
+    {
+        var recipients = remaining.Select(value => MailboxAddress.Parse(value)).ToArray();
         try
         {
             // Bcc recipients travel only in the SMTP envelope; never create a Bcc header.
@@ -49,8 +65,6 @@ public sealed partial class ProtocolMailService
         {
             return new("unknown", "发送中断，服务器是否接收无法确认。请先核对收件箱，避免重复发送；不会自动重试。", [], client.Rejected.ToArray());
         }
-        // QUIT failure after DATA acceptance cannot turn a successful submission into a retry.
-        try { await client.DisconnectAsync(true, CancellationToken.None); } catch (Exception e) when (e is IOException or System.Net.Sockets.SocketException or MailKit.ProtocolException) { }
         return new(client.Rejected.Count == 0 ? "sent" : "partial", client.Rejected.Count == 0 ? "服务器已接收邮件。" : "部分收件人已获服务器接收，另有收件人被拒绝。请勿向全部收件人重复发送。", client.Accepted.ToArray(), client.Rejected.ToArray());
     }
 }

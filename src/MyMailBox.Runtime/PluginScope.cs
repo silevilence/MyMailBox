@@ -28,7 +28,8 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
             Reader = page.Reader is { } reader ? new(new ScopedMailStore(this, Target(reader.Store)), new ScopedMimeReader(this, Target(reader.Parser)), reader.Html is { } html ? new ScopedHtml(this, Target(html)) : null, reader.Remote is { } remote ? new ScopedRemote(this, Target(remote)) : null, reader.Attachments is { } attachments ? new ScopedAttachments(this, Target(attachments)) : null) : null,
             Accounts = page.Accounts is { } accounts ? new ScopedAccounts(this, Target(accounts)) : null,
             Protocols = page.Protocols is { } protocols ? new(new ScopedAccounts(this, Target(protocols.Accounts)), new ScopedProtocols(this, Target(protocols.Service)))
-                { ImapSync = protocols.ImapSync is { } sync ? new ScopedImapSync(this, Target(sync)) : null } : null,
+                { Outbox = protocols.Outbox is { } outbox ? new ScopedOutbox(this, Target(outbox)) : null,
+                  ImapSync = protocols.ImapSync is { } sync ? new ScopedImapSync(this, Target(sync)) : null } : null,
             Graph = page.Graph is { } graph ? new(new ScopedAccounts(this, Target(graph.Accounts)), new ScopedGraph(this, Target(graph.Service))) : null,
             Selections = page.Selections is { } selections ? new ScopedSelections(this, Target(selections)) : null,
             Export = page.Export is { } export ? new(new ScopedMailStore(this, Target(export.Store)), new ScopedSelections(this, Target(export.Selections))) : null,
@@ -190,6 +191,23 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         public Task<GraphMessages> Messages(Guid account, string folder, string? next = null, CancellationToken cancellation = default) => scope.Run(t => service.Value.Messages(account, folder, next, t), cancellation);
         public Task<Guid> Download(Guid account, string message, CancellationToken cancellation = default) => scope.Run(t => service.Value.Download(account, message, t), cancellation);
     }
+    private sealed class ScopedOutbox(PluginScope scope, ServiceTarget<IOutboxService> service) : IOutboxService
+    {
+        private async Task Use(Func<IOutboxService, CancellationToken, Task> work, CancellationToken cancellation) =>
+            await scope.Run(async t => { await work(service.Value, t); return true; }, cancellation);
+        public Task Enqueue(Guid id, Guid account, TextMail message, CancellationToken cancellation = default) =>
+            Use((s,t) => s.Enqueue(id, account, message, t), cancellation);
+        public Task<SendOutcome> Deliver(Guid id, CancellationToken cancellation = default) =>
+            scope.Run(t => service.Value.Deliver(id, t), cancellation);
+        public Task<IReadOnlyList<OutboxItem>> List(Guid account, int offset, int limit, CancellationToken cancellation = default) =>
+            scope.Run(t => service.Value.List(account, offset, limit, t), cancellation);
+        public Task<IReadOnlyList<string>> History(Guid id, CancellationToken cancellation = default) =>
+            scope.Run(t => service.Value.History(id, t), cancellation);
+        public Task Cancel(Guid id, CancellationToken cancellation = default) => Use((s,t) => s.Cancel(id, t), cancellation);
+        public Task Retry(Guid id, CancellationToken cancellation = default) => Use((s,t) => s.Retry(id, t), cancellation);
+        public Task SaveCopy(Guid id, CancellationToken cancellation = default) => Use((s,t) => s.SaveCopy(id, t), cancellation);
+    }
+
     private sealed class ScopedImapSync(PluginScope scope, ServiceTarget<IImapSyncService> service) : IImapSyncService
     {
         public Task<IReadOnlyList<string>> CachedFolders(Guid account, CancellationToken cancellation = default) =>

@@ -51,6 +51,8 @@ internal static class ProtocolUiChecks
             ui.Text("smtp-subject", "UI-真实测试-中文"); ui.Text("smtp-body", "通过桌面发送的正文"); ui.Click("smtp-send"); Status("服务器已接收");
             if (ui.Find("smtp-send").IsEnabled) throw new Exception("Completed send can be accidentally repeated");
             Capture.Element(window).ToFile(Path.Combine(output, "02-smtp.png"));
+            Tab(5); ui.Click("outbox-refresh"); ui.Status("outbox-detail", "服务器已接收");
+            if (ui.Find("outbox-retry").IsEnabled) throw new Exception("Delivered mail can be retried");
             ui.Select("protocol-account", 1); Status("已载入"); Tab(3); ui.Click("pop-receive"); Status("本批新增");
             ui.Click("pop-receive"); Status("本批新增 0");
             Capture.Element(window).ToFile(Path.Combine(output, "03-pop.png"));

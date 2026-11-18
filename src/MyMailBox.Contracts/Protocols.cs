@@ -12,6 +12,7 @@ public sealed record RemoteSummary(uint Uid, string Subject, string From, DateTi
 public sealed record RemoteMailPage(IReadOnlyList<RemoteSummary> Items, int Offset, bool HasMore, uint UidValidity);
 public sealed record ProtocolPage(IAccountService Accounts, IProtocolMailService Service)
 {
+    public IOutboxService? Outbox { get; init; }
     public IImapSyncService? ImapSync { get; init; }
 }
 public sealed record TextMail(string To, string Cc, string Bcc, string Subject, string Body);
