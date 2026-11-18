@@ -19,6 +19,8 @@ public sealed record ProtocolPage(IAccountService Accounts, IProtocolMailService
 public sealed record TextMail(string To, string Cc, string Bcc, string Subject, string Body)
 {
     public string? Html { get; init; }
+    public string? FromIdentity {get;init;}
+    public Guid[] PartIds {get;init;} = [];
 }
 public sealed record SendOutcome(string State, string Message, IReadOnlyList<string> Accepted, IReadOnlyList<string> Rejected);
 public sealed record PopOutcome(int Imported, int Existing, int DeleteRequested, bool HasMore, string Message);

@@ -34,7 +34,7 @@ internal sealed partial class ComposerView : UserControl,IDisposable
         _drafts.ItemTemplate=new FuncDataTemplate<MailDraft>((d,_)=>new TextBlock{Text=string.IsNullOrWhiteSpace(d?.Subject)?"（无主题草稿）":d.Subject});
         _editors.ItemTemplate=new FuncDataTemplate<ComposerEditor>((e,_)=>new TextBlock{Text=e?.Name});
         _templates.ItemTemplate=new FuncDataTemplate<EditorTemplate>((t,_)=>new TextBlock{Text=t?.Name});
-        Field("发件账户",_accounts,"compose-account");_form.Children.Add(_identity);
+        Field("发件账户",_accounts,"compose-account");_form.Children.Add(_identity);AddProfile();
         Field("该账户的草稿",_drafts,"compose-drafts");
         var draftTools=new WrapPanel();Button(draftTools,"打开所选草稿","compose-open",async()=>{await Flush();if(_drafts.SelectedItem is MailDraft d)Load(_page.Drafts.List(d.Account).Single(x=>x.Id==d.Id));});
         Button(draftTools,"新建草稿","compose-new",async()=>{await Flush();var a=Account();Load(MailDraft.New(a.Id,a.Address));});_form.Children.Add(draftTools);
@@ -44,6 +44,7 @@ internal sealed partial class ComposerView : UserControl,IDisposable
         Button(formats,"打开富文本副本","compose-rich",()=>Format(true));
         Button(formats,"从当前纯文本重建富文本","compose-convert",()=>Format(true,true));_form.Children.Add(formats);
         Field("正文",_plain,"compose-body");_form.Children.Add(_richHost);
+        AddFiles();
         Field("模板",_templates,"compose-template");
         var tools=new WrapPanel();Button(tools,"插入模板","compose-insert",InsertTemplate);
         Button(tools,"拼写检查","compose-spell",async()=>{await Flush();if(_draft is {} d && _editor is {} e)_status.Text=await e.Spell(d.Body.Plain,_stop.Token);});
@@ -105,7 +106,7 @@ internal sealed partial class ComposerView : UserControl,IDisposable
     private async Task SwitchAccount()
     {
         await Flush();if(_accounts.SelectedItem is not MailAccount a){_status.Text="请先配置可发送邮件的账户。";return;}
-        ListDrafts(a.Id);Load((_drafts.SelectedItem as MailDraft) ?? MailDraft.New(a.Id,a.Address));
+        LoadProfile(a);ListDrafts(a.Id);Load((_drafts.SelectedItem as MailDraft) ?? MailDraft.New(a.Id,a.Address));
     }
     private async Task SwitchEditor()
     {
@@ -119,14 +120,14 @@ internal sealed partial class ComposerView : UserControl,IDisposable
     private void Load(MailDraft d)
     {
         _binding=true;try{
-            CloseRich();_draft=d;_to.Text=d.To;_cc.Text=d.Cc;_bcc.Text=d.Bcc;_subject.Text=d.Subject;_plain.Text=d.Body.Plain;_identity.Text="发件身份："+d.Identity;
+            CloseRich();_draft=d;_to.Text=d.To;_cc.Text=d.Cc;_bcc.Text=d.Bcc;_subject.Text=d.Subject;_plain.Text=d.Body.Plain;_identity.Text="发件身份："+d.Identity;_from.SelectedItem=d.Identity;_files.ItemsSource=d.Parts;
             _plain.IsVisible=!d.Body.Rich; if(d.Body.Rich)OpenRich(d);_status.Text=d.Version>0?"已恢复草稿。":"新草稿。";
         }finally{_binding=false;}
     }
     private void CloseRich(){_rich?.Dispose();_rich=null;_richHost.Content=null;}
     private void OpenRich(MailDraft d)
     {
-        var view=new RichComposeView(d.Body,body=>{if(_draft?.Id==d.Id && _draft.Body.Rich)Persist(_draft with{Body=body});},s=>_status.Text=s,()=>_status.Text="富文本编辑器已就绪。"){Height=205};
+        var view=new RichComposeView(d.Body,body=>{if(_draft?.Id==d.Id && _draft.Body.Rich)Persist(_draft with{Body=body});},s=>_status.Text=s,()=>_status.Text="富文本编辑器已就绪。",cid=>d.Parts.FirstOrDefault(p=>p.Cid==cid) is {} p ? (p.Mime,_page.Drafts.PartData(d.Account,p.Id)) : null){Height=205};
         _rich=view;_richHost.Content=view;
     }
     private void TrySave(){try{Capture();}catch(Exception e){_status.Text="尚未保存："+e.Message;}}
@@ -162,7 +163,7 @@ internal sealed partial class ComposerView : UserControl,IDisposable
     private async Task Send()
     {
         await Flush();var d=_draft ?? throw new InvalidDataException("请先创建草稿。");
-        var a=Account();if(d.Account!=a.Id || !string.Equals(d.Identity,a.Address,StringComparison.OrdinalIgnoreCase))throw new InvalidDataException("发件身份已变更，请重新选择当前身份再发送。");
+        var a=Account();if(d.Account!=a.Id || !_page.Drafts.Profile(a.Id).Aliases.Append(a.Address).Contains(d.Identity,StringComparer.OrdinalIgnoreCase))throw new InvalidDataException("发件身份已变更，请重新选择当前身份再发送。");
         if(d.Version==0)_draft=d=_page.Drafts.Save(d);
         await _page.Outbox.Enqueue(d.Id,a.Id,d.Message(),_stop.Token);_page.Drafts.Submitted(d.Id,d.Version);
         CloseRich();_draft=null;ListDrafts(a.Id);Load(MailDraft.New(a.Id,a.Address));

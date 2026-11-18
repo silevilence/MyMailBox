@@ -61,8 +61,9 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
     }
     public IDisposable AddEditor(ComposerEditor editor)
     {
-        var open=Target(editor.Open);var spell=Target(editor.Spell);
+        var open=Target(editor.Open);var spell=Target(editor.Spell);var signature=editor.Signature is {} sig ? Target(sig) : null;
         return Own(pages.AddEditor(editor with {Id=InstanceId+"/"+editor.Id,Templates=editor.Templates.ToArray(),
+            Signature=signature is null ? null : account=>{permissions.Require("mail.compose");return Run(_=>Task.FromResult(signature.Value(account))).GetAwaiter().GetResult();},
             Open=body=>{permissions.Require("mail.compose");return Run(_=>Task.FromResult(open.Value(body))).GetAwaiter().GetResult();},
             Spell=(text,token)=>{permissions.Require("mail.compose");return Run(t=>spell.Value(text,t),token);}}));
     }
@@ -240,6 +241,10 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
 
     private sealed class ScopedDrafts(PluginScope scope,ServiceTarget<IMailDrafts> service) : IMailDrafts
     {
+        public SendingProfile Profile(Guid account)=>scope.Run(_=>Task.FromResult(service.Value.Profile(account))).GetAwaiter().GetResult();
+        public void Configure(Guid account,SendingProfile profile)=>scope.Run(_=>{service.Value.Configure(account,profile);return Task.FromResult(true);}).GetAwaiter().GetResult();
+        public Task<ComposerPart> AddPart(Guid draft,Guid account,string name,Stream data,bool inline,CancellationToken token=default)=>scope.Run(t=>service.Value.AddPart(draft,account,name,data,inline,t),token);
+        public byte[] PartData(Guid account,Guid id)=>scope.Run(_=>Task.FromResult(service.Value.PartData(account,id))).GetAwaiter().GetResult();
         public IReadOnlyList<MailDraft> List(Guid account)=>scope.Run(_=>Task.FromResult(service.Value.List(account))).GetAwaiter().GetResult();
         public MailDraft Save(MailDraft draft)=>scope.Run(_=>Task.FromResult(service.Value.Save(draft))).GetAwaiter().GetResult();
         public void Submitted(Guid draft,int version)=>scope.Run(_=>{service.Value.Submitted(draft,version);return Task.FromResult(true);}).GetAwaiter().GetResult();

@@ -4,13 +4,13 @@ using System.Text.Json;
 
 namespace MyMailBox.Mail;
 
-public sealed class MailDraftStore : IMailDrafts
+public sealed partial class MailDraftStore : IMailDrafts
 {
     private readonly SqliteMailStore _store;
     public MailDraftStore(SqliteMailStore store)
     {
         _store=store;using var db=store.Open();using var c=db.CreateCommand();
-        c.CommandText="CREATE TABLE IF NOT EXISTS compose_draft(id TEXT PRIMARY KEY,version INTEGER NOT NULL,account TEXT NOT NULL,content TEXT NOT NULL,submitted INTEGER NOT NULL DEFAULT 0,changed INTEGER NOT NULL)";c.ExecuteNonQuery();
+        c.CommandText="CREATE TABLE IF NOT EXISTS compose_draft(id TEXT PRIMARY KEY,version INTEGER NOT NULL,account TEXT NOT NULL,content TEXT NOT NULL,submitted INTEGER NOT NULL DEFAULT 0,changed INTEGER NOT NULL)";c.ExecuteNonQuery();InitializeParts();
     }
     public IReadOnlyList<MailDraft> List(Guid account)
     {
@@ -45,7 +45,10 @@ public sealed class MailDraftStore : IMailDrafts
         foreach(var e in doc.QuerySelectorAll("script,style,iframe,object,svg,math,form,template"))e.Remove();
         foreach(var e in doc.Body!.QuerySelectorAll("*").Reverse().ToArray())
         {
-            if(e.LocalName is "b" or "strong" or "i" or "em" or "u" or "s" or "p" or "br" or "div" or "ol" or "ul" or "li" or "blockquote")
+            if(e.LocalName=="img" && e.GetAttribute("src") is {} src && src.StartsWith("cid:",StringComparison.OrdinalIgnoreCase) &&
+                src.Length<128 && src[4..].All(c=>char.IsAsciiLetterOrDigit(c)||c is '-' or '.' or '@'))
+            {foreach(var attr in e.Attributes.Where(a=>a.Name is not ("src" or "alt")).ToArray())e.RemoveAttribute(attr.Name);}
+            else if(e.LocalName is "b" or "strong" or "i" or "em" or "u" or "s" or "p" or "br" or "div" or "ol" or "ul" or "li" or "blockquote")
             {foreach(var attr in e.Attributes.ToArray())e.RemoveAttribute(attr.Name);}
             else{var parent=e.Parent!;while(e.FirstChild is {} child)parent.InsertBefore(child,e);e.Remove();}
         }

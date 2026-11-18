@@ -15,6 +15,7 @@ namespace MyMailBox.Mail;
 public sealed partial class ProtocolMailService : IProtocolMailService, IImapSyncService, IOutboxService, IMailOrganizer, IMailActionService, IMailTransferService, IOfflineMarks
 {
     private readonly SqliteMailStore _store;
+    private readonly MailDraftStore _draftStore;
     private readonly LocalMailActions _localActions;
     private readonly TransferJournal _transfers;
     private readonly AccountService _accounts;
@@ -22,6 +23,7 @@ public sealed partial class ProtocolMailService : IProtocolMailService, IImapSyn
     public ProtocolMailService(SqliteMailStore store) : this(store, () => new ImapClient()) { }
     public ProtocolMailService(SqliteMailStore store, Func<ImapClient> imapClients)
     {
+        _draftStore=new(store);
         _imapClients = imapClients;
         _store = store; _accounts = new(store);
         using var db = store.Open(); using var command = db.CreateCommand();

@@ -45,6 +45,8 @@ if (args.Length == 0 || args.Contains("search-builder")) await SearchChecks.Buil
 if (args.Length == 0 || args.Contains("search-extension")) await SearchChecks.Extension();
 if (args.Length == 0 || args.Contains("rule-stages")) await ReceiveRuleChecks.Stages();
 if (args.Length == 0 || args.Contains("rule-preview")) await ReceiveRuleChecks.Preview();
+if (args.Length == 0 || args.Contains("compose-parts")) await ComposerChecks.Parts();
+if (args.Contains("compose-live")) await ComposerChecks.PartsLive();
 if (args.Length == 0 || args.Contains("drafts")) await ComposerChecks.Drafts();
 if (args.Length == 0 || args.Contains("receive-rules")) await ReceiveRuleChecks.MainRules();
 if (args.Length == 0 || args.Contains("search-fields")) await SearchChecks.Fields();

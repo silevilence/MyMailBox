@@ -24,8 +24,10 @@ public sealed partial class ProtocolMailService
     {
         var identity = await Account(account, AccountCapabilities.Send, cancellation);
         using var mime = new MimeMessage();
-        // This slice supports the account's configured identity only. Server policy remains authoritative.
-        mime.From.Add(MailboxAddress.Parse(identity.Address));
+        var profile=_draftStore.Profile(account);
+        var from=message.FromIdentity ?? identity.Address;
+        if(!profile.Aliases.Append(identity.Address).Contains(from,StringComparer.OrdinalIgnoreCase))throw new InvalidDataException("所选身份不属于当前发送账户。");
+        mime.From.Add(MailboxAddress.Parse(from));
         void Addresses(string value, InternetAddressList destination)
         {
             if (string.IsNullOrWhiteSpace(value)) return;
@@ -38,11 +40,11 @@ public sealed partial class ProtocolMailService
         var recipients = mime.To.Mailboxes.Concat(mime.Cc.Mailboxes).Concat(blind.Mailboxes).DistinctBy(a => a.Address, StringComparer.OrdinalIgnoreCase).ToArray();
         if (recipients.Length == 0) throw new InvalidDataException("请至少填写一位收件人。");
         if (message.Subject.Contains('\r') || message.Subject.Contains('\n')) throw new InvalidDataException("主题不能包含换行。");
-        mime.Subject = message.Subject; mime.Body = string.IsNullOrEmpty(message.Html) ? new TextPart("plain") { Text = message.Body } : new BodyBuilder { TextBody=message.Body,HtmlBody=MailDraftStore.SafeMarkup(message.Html) }.ToMessageBody();
+        mime.Subject = message.Subject; mime.Body = _draftStore.Body(account,message,cancellation);
         mime.Date = DateTimeOffset.Now; mime.MessageId = MimeKit.Utils.MimeUtils.GenerateMessageId();
         using var stream = new MemoryStream();
         await mime.WriteToAsync(stream, cancellation);
-        if (stream.Length > MimeReader.MaxMessageBytes) throw new InvalidDataException("邮件超过 25 MiB。");
+        if (stream.Length > profile.MaxBytes) throw new InvalidDataException($"编码后的整封邮件超过当前账户上限 {profile.MaxBytes:N0} 字节。");
         var requestHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
             System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new { identity.Address, message })));
         _outbox.Enqueue(id, account, mime.Subject, stream.ToArray(), recipients.Select(r => r.Address).ToArray(), requestHash);
