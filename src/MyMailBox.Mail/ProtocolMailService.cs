@@ -28,6 +28,10 @@ public sealed partial class ProtocolMailService : IProtocolMailService, IImapSyn
         _store = store; _accounts = new(store);
         using var db = store.Open(); using var command = db.CreateCommand();
         command.CommandText = """
+            CREATE TABLE IF NOT EXISTS automatic_mail(
+                operation TEXT PRIMARY KEY, sender TEXT NOT NULL, fingerprint TEXT NOT NULL, recipient TEXT COLLATE NOCASE NOT NULL,
+                kind TEXT NOT NULL, at INTEGER NOT NULL, UNIQUE(sender,fingerprint,recipient,kind));
+            CREATE INDEX IF NOT EXISTS automatic_mail_rate ON automatic_mail(sender,at);
             CREATE TABLE IF NOT EXISTS protocol_settings(account_id TEXT PRIMARY KEY REFERENCES accounts(id), settings TEXT NOT NULL, incoming_ref TEXT, outgoing_ref TEXT);
             CREATE TRIGGER IF NOT EXISTS remove_protocol_credentials AFTER UPDATE OF removed ON accounts WHEN NEW.removed=1 BEGIN
                 DELETE FROM credentials WHERE id IN (SELECT incoming_ref FROM protocol_settings WHERE account_id=NEW.id UNION SELECT outgoing_ref FROM protocol_settings WHERE account_id=NEW.id);

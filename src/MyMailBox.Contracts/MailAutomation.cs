@@ -5,7 +5,7 @@ public sealed record TargetSelection(Guid? Account,Guid? Folder,bool Descendants
     int AgeDays,int KeepNewest,bool KeepStarred,string KeepLabel,SearchOrder Order,int MaxCount,long MaxBytes,long? LowWaterBytes);
 public sealed record TargetMail(string Id,Guid Account,Guid Folder,string Key,string Subject,DateTimeOffset? Sent,long Size,uint? Validity,string? Hash,string Stamp);
 public sealed record TargetSnapshot(Guid Id,DateTimeOffset At,string TriggerScope,string TargetScope,IReadOnlyList<TargetMail> Items,long ScopeBytes,long SelectedBytes,string Detail);
-public enum TaskActionKind { Copy, Read, Unread, Star, Unstar, Label, SaveAttachments, ExportEml, Notify, Trash, DeletePermanently, Extension }
+public enum TaskActionKind { Copy, Read, Unread, Star, Unstar, Label, SaveAttachments, ExportEml, Notify, Trash, DeletePermanently, Extension, AutoReply, AutoForward }
 public enum StepFailure { Stop, Continue, Retry }
 public sealed record TaskAction(TaskActionKind Kind,Guid? Destination=null,string Argument="",StepFailure Failure=StepFailure.Stop,int Retries=0){public AutomationBinding? Extension{get;init;}}
 public sealed record AutomationTrigger(string Kind,Guid? Source=null,bool? PreviousSuccess=null);

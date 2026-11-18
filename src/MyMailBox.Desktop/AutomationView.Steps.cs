@@ -12,11 +12,11 @@ internal sealed partial class AutomationView
     private readonly ComboBox _actionKind=new(),_actionFolder=new(),_failure=new(){ItemsSource=new[]{"失败后停止","失败后继续","有限重试"},SelectedIndex=0};
     private readonly NumericUpDown _tries=Number(3,1);
     private readonly TextBox _argument=new();
-    private readonly CheckBox _confirmAction=new(){Content="我确认执行上次预览的删除影响"};
+    private readonly CheckBox _confirmAction=new(){Content="我确认上次预览的删除或自动外发影响"};
     private string? _actionApproval;
     private static string ActionName(TaskActionKind kind)=>kind switch
     {
-        TaskActionKind.Extension=>"插件动作",TaskActionKind.Copy=>"复制",TaskActionKind.Read=>"标为已读",TaskActionKind.Unread=>"标为未读",TaskActionKind.Star=>"添加星标",
+        TaskActionKind.AutoReply=>"自动回复",TaskActionKind.AutoForward=>"转发可读正文",TaskActionKind.Extension=>"插件动作",TaskActionKind.Copy=>"复制",TaskActionKind.Read=>"标为已读",TaskActionKind.Unread=>"标为未读",TaskActionKind.Star=>"添加星标",
         TaskActionKind.Unstar=>"移除星标",TaskActionKind.Label=>"添加分类",TaskActionKind.SaveAttachments=>"保存附件",TaskActionKind.ExportEml=>"导出 EML",
         TaskActionKind.Notify=>"通知",TaskActionKind.Trash=>"移至垃圾箱",TaskActionKind.DeletePermanently=>"永久删除",_=>kind.ToString()
     };
@@ -25,7 +25,17 @@ internal sealed partial class AutomationView
         var p=new StackPanel{Spacing=4};_actionKind.ItemsSource=Enum.GetValues<TaskActionKind>().Where(k=>k!=TaskActionKind.Extension).ToArray();
         _actionKind.ItemTemplate=new FuncDataTemplate<TaskActionKind>((v,_)=>new TextBlock{Text=ActionName(v)});_actionKind.SelectedIndex=0;
         Field(p,"动作",_actionKind,"auto-action-kind");Scope(_actionFolder);Field(p,"复制到目录",_actionFolder,"auto-action-destination");
-        Field(p,"分类、通知文字或导出路径",_argument,"auto-action-text");Button(p,"选择导出目录","auto-action-directory",async()=>
+        var argumentLabel = new TextBlock { Text = "分类、通知文字或导出路径" };
+        p.Children.Add(argumentLabel);p.Children.Add(_argument);
+        Avalonia.Automation.AutomationProperties.SetAutomationId(_argument,"auto-action-text");
+        void LabelArgument()
+        {
+            argumentLabel.Text = _actionKind.SelectedItem switch { TaskActionKind.AutoReply => "自动回复正文",
+                TaskActionKind.AutoForward => "固定转发邮箱地址", _ => "分类、通知文字或导出路径" };
+            Avalonia.Automation.AutomationProperties.SetName(_argument,argumentLabel.Text);
+        }
+        _actionKind.SelectionChanged += (_,_) => LabelArgument();LabelArgument();
+        Button(p,"选择导出目录","auto-action-directory",async()=>
         {
             var top=TopLevel.GetTopLevel(this);if(top is null)return;
             var list=await top.StorageProvider.OpenFolderPickerAsync(new(){Title="选择任务导出目录"});if(list.FirstOrDefault()?.TryGetLocalPath() is {} path)_argument.Text=path;
@@ -45,6 +55,7 @@ internal sealed partial class AutomationView
             var preview=await _service.PreviewActions(Draft(),_stop.Token);_actionApproval=preview.Approval;_confirmAction.IsChecked=false;
             _status.Text=$"将处理 {preview.Selected} 封、{preview.Bytes:N0} 字节。\n"+string.Join("\n",preview.Effects.Select((e,i)=>$"{i+1}. {e}"));
         });
+        Avalonia.Automation.AutomationProperties.SetAutomationId(_confirmAction,"auto-confirm-impact");
         p.Children.Add(_confirmAction);_panel.Children.Add(new Expander{Header="组合动作",Content=p});
     }
     private void ShowSteps(){_stepList.ItemsSource=_actions.Select((a,i)=>$"{i+1}. {ActionName(a.Kind)} {a.Extension?.Id??a.Argument}").ToArray();_confirmAction.IsChecked=false;}

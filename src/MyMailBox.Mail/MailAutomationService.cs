@@ -36,6 +36,7 @@ public sealed partial class MailAutomationService : IMailAutomation
     public async Task<AutomationPlan> Save(AutomationPlan plan,CancellationToken token=default)
     {
         if(string.IsNullOrWhiteSpace(plan.Name)||plan.When.Hysteresis<0||plan.When.CooldownMinutes<0)throw new InvalidDataException("请填写任务名、非负迟滞和冷却时间。");
+        if (!plan.Enabled && plan.Actions.Any(SendsMail)) plan = plan with { Approval = null };
         plan=await NormalizeExtensions(plan,token);
         await CheckExtensions(plan,_clock.GetUtcNow(),token);
         await Inspect(plan,false,token);

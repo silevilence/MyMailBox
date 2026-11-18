@@ -7,13 +7,22 @@ namespace MyMailBox.Mail;
 public sealed partial class MailAutomationService
 {
     private static bool Destructive(TaskAction a)=>a.Kind is TaskActionKind.Trash or TaskActionKind.DeletePermanently;
-    private static string Approval(AutomationPlan plan)=>Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new{plan.Id,plan.When,plan.Target,plan.Archive,plan.Actions,plan.Triggers,plan.PluginCondition,plan.PluginSchedule})));
+    private static bool SendsMail(TaskAction a) => a.Kind is TaskActionKind.AutoReply or TaskActionKind.AutoForward;
+    private static string Approval(AutomationPlan plan)
+    {
+        var definition = new { plan.Id, plan.When, plan.Target, plan.Archive, plan.Actions, plan.Triggers, plan.PluginCondition, plan.PluginSchedule };
+        var bytes = plan.Actions.Any(SendsMail)
+            ? JsonSerializer.SerializeToUtf8Bytes(new { definition, plan.Enabled })
+            : JsonSerializer.SerializeToUtf8Bytes(definition);
+        return Convert.ToHexString(SHA256.HashData(bytes));
+    }
     public async Task<ActionPreview> PreviewActions(AutomationPlan plan,CancellationToken token=default)
     {
         await ValidateActions(plan,token,false);
         var targets=await Select(plan,token:token);var folders=(await Library(token)).Scopes;
         var effects=plan.Actions.Select(a=>a.Kind switch
         {
+            TaskActionKind.AutoReply or TaskActionKind.AutoForward => ProtocolMailService.DescribeAutomatic(a.Kind == TaskActionKind.AutoForward, a.Argument),
             TaskActionKind.Extension=>"扩展动作："+Extensions.First(d=>d.Id==a.Extension!.Id).Name,TaskActionKind.Copy=>"复制完整邮件 → "+folders.First(s=>s.Folder==a.Destination).Name,
             TaskActionKind.SaveAttachments=>"保存附件 → "+a.Argument,TaskActionKind.ExportEml=>"导出完整 EML → "+a.Argument,
             TaskActionKind.Notify=>"显示通知："+a.Argument,TaskActionKind.Label=>"添加分类："+a.Argument,
@@ -48,6 +57,12 @@ public sealed partial class MailAutomationService
                 if(string.IsNullOrWhiteSpace(a.Argument)||!Path.IsPathFullyQualified(a.Argument)||!Directory.Exists(a.Argument))throw new InvalidDataException("请选择已有的导出目录。");
             }
             if(a.Kind is TaskActionKind.Notify or TaskActionKind.Label && string.IsNullOrWhiteSpace(a.Argument))throw new InvalidDataException("请输入通知或分类文本。");
+            if (SendsMail(a))
+            {
+                await _protocols.ValidateAutomatic(source, a.Kind == TaskActionKind.AutoForward, a.Argument, token);
+                if (save && p.Enabled && p.Approval != Approval(p))
+                    throw new InvalidDataException("保存自动外发前请预览收件人和范围，并明确确认。");
+            }
             if(Destructive(a))
             {
                 if(account.Provider is not ("local" or "pop3"))throw new InvalidDataException("此提供者未声明可自动执行的删除能力。");
@@ -79,20 +94,29 @@ public sealed partial class MailAutomationService
             step.Parameters.AddWithValue("$op",Guid.NewGuid().ToString());step.Parameters.AddWithValue("$kind",(int)a.Kind);step.ExecuteNonQuery();
             step.CommandText="SELECT op,state,detail FROM automation_step"+key;
             Guid op;string state,note;using(var r=step.ExecuteReader()){r.Read();op=Guid.Parse(r.GetString(0));state=r.GetString(1);note=r.GetString(2);}
-            if(state=="done")continue;
+            if(state is "done" or "skipped")continue;
             if(state=="continued"){partial=true;continue;}
-            bool safeReplay=a.Kind is TaskActionKind.Extension or TaskActionKind.SaveAttachments or TaskActionKind.Read or TaskActionKind.Unread or TaskActionKind.Star or TaskActionKind.Unstar or TaskActionKind.Label or TaskActionKind.ExportEml;
+            bool safeReplay=SendsMail(a) || a.Kind is TaskActionKind.Extension or TaskActionKind.SaveAttachments or TaskActionKind.Read or TaskActionKind.Unread or TaskActionKind.Star or TaskActionKind.Unstar or TaskActionKind.Label or TaskActionKind.ExportEml;
             if(state=="uncertain"||state=="started"&&!safeReplay)
             {
                 Set("uncertain","上次步骤回执缺失，已停止。请核对副本、导出物或通知记录。");throw new InvalidDataException("存在未确认的外部效果，请核对步骤记录。");
             }
-            if(Destructive(a) && await RecheckCurrent(p,snapshot,mail,i>0,token) is {} changed)
+            if((Destructive(a) || SendsMail(a)) && await RecheckCurrent(p,snapshot,mail,i>0,token) is {} changed)
             {Set("skipped",changed);return("skipped",changed);}
             int limit=a.Failure==StepFailure.Retry?1+a.Retries:1;
             for(int attempt=1;attempt<=limit;attempt++)
             {
                 step.CommandText="UPDATE automation_step SET state='started',attempts=attempts+1"+key;step.ExecuteNonQuery();
-                try{note=await ApplyAction(run,a,mail,op,token);Set("done",note);break;}
+                try
+                {
+                    if (SendsMail(a))
+                    {
+                        var result = await AutomaticStep(run,a,mail,op,token);
+                        Set(result.Skipped ? "skipped" : "done", result.Detail);
+                    }
+                    else { note=await ApplyAction(run,a,mail,op,token);Set("done",note); }
+                    break;
+                }
                 catch(ExtensionPaused){Set("ready","等待原扩展和权限恢复。");throw;}
                 catch(OperationCanceledException){throw;}
                 catch(Exception e)
@@ -113,6 +137,23 @@ public sealed partial class MailAutomationService
         }
         return partial?("partial","部分步骤失败，已按策略继续。"):("done","已完成所有步骤。");
     }
+    private async Task<AutomaticMailResult> AutomaticStep(Guid run,TaskAction a,TargetMail mail,Guid operation,CancellationToken token)
+    {
+        using var db = _store.Open();
+        using var cmd = db.CreateCommand();
+        cmd.CommandText = "SELECT r.definition,p.definition FROM automation_run r JOIN automation_plan p ON p.id=r.plan WHERE r.id=$id";
+        cmd.Parameters.AddWithValue("$id",run.ToString());
+        using (var row = cmd.ExecuteReader())
+        {
+            if (!row.Read()) throw new InvalidDataException("自动外发任务已移除。");
+            var frozen = JsonSerializer.Deserialize<AutomationPlan>(row.GetString(0))!;
+            var current = JsonSerializer.Deserialize<AutomationPlan>(row.GetString(1))!;
+            if (!current.Enabled || frozen.Approval != Approval(frozen) || current.Approval != frozen.Approval)
+                throw new InvalidDataException("自动外发批准已变更，请重新预览任务。");
+        }
+        return await _protocols.ApplyAutomatic(operation,mail.Account,mail.Folder,mail.Key,a.Kind==TaskActionKind.AutoForward,a.Argument,token);
+    }
+
     private async Task<string> ApplyAction(Guid run,TaskAction a,TargetMail mail,Guid operation,CancellationToken token)
     {
         if(a.Kind==TaskActionKind.Extension)

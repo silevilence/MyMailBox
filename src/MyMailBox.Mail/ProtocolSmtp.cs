@@ -23,7 +23,7 @@ public sealed partial class ProtocolMailService
     public Task Enqueue(Guid id, Guid account, TextMail message, CancellationToken cancellation = default) => Queue(id,account,message,null,cancellation);
     public Task Schedule(Guid id,Guid account,TextMail message,SendPlan plan,CancellationToken token=default) => Queue(id,account,message,plan,token);
     public Task<SendPlan?> GetSendPlan(Guid id,CancellationToken token=default) => Task.Run(()=>_outbox.Plan(id),token);
-    private async Task Queue(Guid id,Guid account,TextMail message,SendPlan? plan,CancellationToken cancellation)
+    private async Task Queue(Guid id,Guid account,TextMail message,SendPlan? plan,CancellationToken cancellation,string? automatic=null)
     {
         var identity = await Account(account, AccountCapabilities.Send, cancellation);
         using var mime = new MimeMessage();
@@ -41,12 +41,19 @@ public sealed partial class ProtocolMailService
         mime.Subject = message.Subject; mime.Body = _draftStore.Body(account,message,cancellation);
         if(message.InReplyTo is {Length:>0} parent)mime.InReplyTo=parent;
         foreach(var reference in message.References.Distinct(StringComparer.Ordinal))mime.References.Add(reference);
+        if (automatic is not null)
+        {
+            mime.Headers.Add("Auto-Submitted", automatic);
+            mime.Headers.Add("X-MyMailBox-Automation", id.ToString("D"));
+            mime.Headers.Add("X-Auto-Response-Suppress","All");
+        }
         mime.Date = DateTimeOffset.Now; mime.MessageId = MimeKit.Utils.MimeUtils.GenerateMessageId();
         using var stream = new MemoryStream();
         await mime.WriteToAsync(stream, cancellation);
         if (stream.Length > profile.MaxBytes) throw new InvalidDataException($"编码后的整封邮件超过当前账户上限 {profile.MaxBytes:N0} 字节。");
         var requestHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-            System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new { identity.Address, message })));
+            automatic is null ? System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new { identity.Address, message }) :
+            System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new { identity.Address, message, automatic })));
         var addresses=recipients.Select(r=>r.Address).ToArray();
         if(plan is null)_outbox.Enqueue(id,account,mime.Subject,stream.ToArray(),addresses,requestHash);
         else _outbox.Schedule(id,account,mime.Subject,stream.ToArray(),addresses,requestHash,plan);

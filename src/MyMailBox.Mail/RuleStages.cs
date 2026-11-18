@@ -68,6 +68,7 @@ public sealed partial class ReceiveRuleService
             var action=work.Rule.Actions[i]; var prior=journal.FirstOrDefault(row=>row.Ordinal==i);
             if(prior is not null)
             {
+                if(prior.State=="skipped"){notes.Add(prior.Detail);continue;}
                 if(prior.State!="done")
                 {
                     if(prior.Kind!=RuleActionKind.Move || !LocalMoveConfirmed(prior))
@@ -83,7 +84,18 @@ public sealed partial class ReceiveRuleService
             var record=StartAction(work,i,action,folder,key);
             try
             {
-                if(action.Kind==RuleActionKind.Move)
+                if (SendsMail(action))
+                {
+                    using var db = store.Open();using var check = db.CreateCommand();
+                    check.CommandText = "SELECT definition FROM receive_rule WHERE id=$id AND enabled=1";
+                    check.Parameters.AddWithValue("$id",work.Rule.Id.ToString());
+                    var active = check.ExecuteScalar() is string json ? System.Text.Json.JsonSerializer.Deserialize<ReceiveRule>(json) : null;
+                    if (active is null || work.Rule.MailApproval != Approval(work.Rule) || active.MailApproval != work.Rule.MailApproval)
+                        throw new InvalidDataException("规则的外发批准已变更或停用。");
+                    var detail = await Outbound.ApplyAutomatic(record.Operation,work.Account,folder,key,action.Kind==RuleActionKind.AutoForward,action.MailArgument??"",token);
+                    Record(record,detail.Skipped ? "skipped" : "done",detail.Detail,key);notes.Add(detail.Detail);
+                }
+                else if(action.Kind==RuleActionKind.Move)
                 {
                     var row=(await mailActions.Apply(new MailActionRequest(work.Account,folder,[key],MailAction.Move,action.Destination){OperationId=record.Operation},token)).Single();
                     if(!row.Success)throw new InvalidDataException(row.Detail);

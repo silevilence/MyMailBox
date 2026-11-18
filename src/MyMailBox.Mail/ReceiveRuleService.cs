@@ -8,6 +8,11 @@ public sealed partial class ReceiveRuleService(SqliteMailStore store, MailSearch
 {
     public ReceiveRuleService(SqliteMailStore store, MailSearchService search, ProtocolMailService protocols) : this(store,search,protocols,protocols) { }
 
+    private static bool SendsMail(RuleAction a) => a.Kind is RuleActionKind.AutoReply or RuleActionKind.AutoForward;
+    private ProtocolMailService Outbound => mailActions as ProtocolMailService ?? throw new InvalidDataException("此宿主未提供自动外发能力。");
+    private static string Approval(ReceiveRule rule) => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+        JsonSerializer.SerializeToUtf8Bytes(rule with { Version = 0, Name = rule.Name.Trim(), MailApproval = null })));
+
     public async Task<RuleDashboard> Dashboard(CancellationToken token = default)
     {
         var scopes = (await search.Library(token)).Scopes;
@@ -29,10 +34,17 @@ public sealed partial class ReceiveRuleService(SqliteMailStore store, MailSearch
         search.ValidateCondition(Conditions(rule));
         foreach (var a in rule.Actions)
         {
+            if (SendsMail(a))
+            {
+                await Outbound.ValidateAutomatic(rule.Account,a.Kind==RuleActionKind.AutoForward,a.MailArgument ?? "",token);
+                if (rule.Enabled && rule.MailApproval != Approval(rule))
+                    throw new InvalidDataException("保存外发规则前请试运行并确认收件人和范围。");
+            }
             if (!Enum.IsDefined(a.Kind) || a.Kind == RuleActionKind.Label && string.IsNullOrWhiteSpace(a.Label)) throw new InvalidDataException("动作或标签值无效。");
             if (a.Kind == RuleActionKind.Move && (a.Destination is null || !library.Scopes.Any(s => s.Folder == a.Destination && s.Account == rule.Account)))
                 throw new InvalidDataException("移动需要明确的账户及同账户目标目录。");
         }
+        if (!rule.Enabled || !rule.Actions.Any(SendsMail)) rule = rule with { MailApproval = null };
         using var db = store.Open(); using var tx = db.BeginTransaction(); using var c = db.CreateCommand(); c.Transaction = tx;
         c.CommandText = "SELECT version FROM receive_rule WHERE id=$id"; c.Parameters.AddWithValue("$id", rule.Id.ToString());
         int version = Convert.ToInt32(c.ExecuteScalar());

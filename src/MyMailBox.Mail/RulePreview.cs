@@ -23,7 +23,7 @@ public sealed partial class MailSearchService
         var scope=library.Scopes.FirstOrDefault(s=>s.Account==rule.Account && s.Folder==rule.Folder);
         var warnings=unavailable.Select(x=>"缺少扩展能力 "+x+"，执行会暂停。").ToList();
         if(scope is null)warnings.Add("原范围已不可用。");
-        var effects=rule.Actions.Select(a=>a.Kind switch{RuleActionKind.Move=>"移动并移出源目录 → "+(library.Scopes.FirstOrDefault(s=>s.Folder==a.Destination)?.Name ?? "目标缺失"),
+        var effects=rule.Actions.Select(a=>a.Kind switch{RuleActionKind.AutoReply or RuleActionKind.AutoForward => ProtocolMailService.DescribeAutomatic(a.Kind==RuleActionKind.AutoForward,a.MailArgument??""),RuleActionKind.Move=>"移动并移出源目录 → "+(library.Scopes.FirstOrDefault(s=>s.Folder==a.Destination)?.Name ?? "目标缺失"),
             RuleActionKind.Label=>"添加标签 "+a.Label,RuleActionKind.Star=>"加星标",RuleActionKind.Unstar=>"取消星标",RuleActionKind.Read=>"设为已读",_=>"设为未读"}).ToArray();
         return new RulePreview(scope?.Name ?? "已失效的范围",counts.Values.Sum(),counts.GetValueOrDefault("match"),counts.GetValueOrDefault("unknown"),counts.GetValueOrDefault("exception"),samples,effects,warnings);
     },token);
@@ -48,8 +48,13 @@ public sealed partial class MailSearchService
 
 public sealed partial class ReceiveRuleService
 {
-    public async Task<RulePreview> Preview(ReceiveRule rule,CancellationToken token=default) =>
-        await search.Preview(rule,await search.Library(token),token);
+    public async Task<RulePreview> Preview(ReceiveRule rule,CancellationToken token=default)
+    {
+        var preview = await search.Preview(rule,await search.Library(token),token);
+        foreach (var action in rule.Actions.Where(SendsMail))
+            await Outbound.ValidateAutomatic(rule.Account,action.Kind==RuleActionKind.AutoForward,action.MailArgument??"",token);
+        return rule.Actions.Any(SendsMail) ? preview with { MailApproval = Approval(rule) } : preview;
+    }
 
     private string? Access(Work work,ConditionTree tree)
     {

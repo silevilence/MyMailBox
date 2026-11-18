@@ -120,6 +120,15 @@ internal static class ProtocolUiChecks
             ui.Click("compose-plain");if(ui.Find("compose-body").AsTextBox().Text!="editable body")throw new Exception("Rich/plain draft handoff lost body");
             ui.Click("nav-accounts/rules"); ui.Text("rule-name","界面试运行");ui.Text("rule-condition","subject:Local");
             ui.Click("rule-add-action");ui.Click("rule-preview");ui.Status("rule-status","命中");
+            ui.Click("rule-new"); ui.Text("rule-name","界面受控转发");ui.Text("rule-condition","subject:absent-outbound-test");
+            var outboundScope = ui.Find("rule-scope").AsComboBox();
+            outboundScope.Expand();outboundScope.Items.Single(i=>i.Text=="Alice IMAP SMTP").Select();outboundScope.Collapse();
+            ui.Select("rule-kind",(int)RuleActionKind.AutoForward);ui.Text("rule-label","bob@localhost");ui.Click("rule-add-action");
+            ui.Click("rule-save");ui.Status("rule-status","试运行并确认");
+            ui.Click("rule-preview");ui.Status("rule-status","bob@localhost");ui.Status("rule-status","不含附件");
+            ui.Check("rule-confirm-mail");ui.Click("rule-save");ui.Status("rule-status","已保存");
+            ui.Text("rule-condition","subject:changed-outbound-test");ui.Click("rule-save");ui.Status("rule-status","试运行并确认");
+            Console.WriteLine("PASS real outbound rule UI: default-off, fixed recipient/body-only preview, explicit approval and stale-scope rejection");
             if(!PostMessage(window.Properties.NativeWindowHandle.Value,0x218,18,0))throw new Exception("Could not post resume to isolated application window");
             if(!SpinWait.SpinUntil(()=>auto.Runs(systemPlan.Id).GetAwaiter().GetResult().Any(r=>r.State=="done"),15000))throw new Exception("Windows resume event did not trigger automation");
             ui.Click("nav-accounts/automation");var planChoices=ui.Find("auto-plans").AsComboBox();planChoices.Expand();planChoices.Items.Single(i=>i.Text=="旧邮件测试").Select();planChoices.Collapse();ui.Click("auto-load");ui.Expand("动作、时间与执行记录");

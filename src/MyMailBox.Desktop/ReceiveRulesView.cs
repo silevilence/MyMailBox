@@ -19,6 +19,9 @@ internal sealed partial class ReceiveRulesView : UserControl, IDisposable
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap };
     private readonly ListBox _trace = new() { MaxHeight=150 };
     private readonly List<RuleAction> _draft = [];
+    private readonly CheckBox _confirmMail = new() { Content = "我已核对本次试运行的范围和自动外发目标", IsVisible = false };
+    private Guid _draftId = Guid.NewGuid();
+    private string? _mailApproval;
     private ReceiveRule? _editing;
     private RuleDashboard? _dashboard;
 
@@ -35,14 +38,18 @@ internal sealed partial class ReceiveRulesView : UserControl, IDisposable
         _panel.Children.Add(new TextBlock { Text = "例：subject:合同 AND from:example.test。条件语法与高级搜索相同。", TextWrapping = TextWrapping.Wrap });
         _kind.ItemsSource = Enum.GetValues<RuleActionKind>();
         _kind.ItemTemplate = new FuncDataTemplate<RuleActionKind>((k, _) => new TextBlock { Text = ActionName(k) });
-        Field("动作", _kind, "rule-kind"); Field("标签名", _label, "rule-label"); Field("移动到", _destination, "rule-target");
-        _kind.SelectionChanged += (_, _) => { _label.IsEnabled = _kind.SelectedItem is RuleActionKind.Label; _destination.IsEnabled = _kind.SelectedItem is RuleActionKind.Move; }; _kind.SelectedIndex = 0;
+        Field("动作", _kind, "rule-kind"); var argumentLabel = new TextBlock(); _panel.Children.Add(argumentLabel); _panel.Children.Add(_label);
+        AutomationProperties.SetAutomationId(_label,"rule-label"); Field("移动到", _destination, "rule-target");
+        _kind.SelectionChanged += (_, _) => { _label.IsEnabled = _kind.SelectedItem is RuleActionKind.Label or RuleActionKind.AutoReply or RuleActionKind.AutoForward;
+            argumentLabel.Text = _kind.SelectedItem switch { RuleActionKind.AutoReply => "自动回复正文",RuleActionKind.AutoForward => "固定转发邮箱地址",_ => "标签名" };
+            AutomationProperties.SetName(_label,argumentLabel.Text); _destination.IsEnabled = _kind.SelectedItem is RuleActionKind.Move; }; _kind.SelectedIndex = 0;
         _scope.SelectionChanged += (_, _) => FilterTargets();
-        _actions.ItemTemplate = new FuncDataTemplate<RuleAction>((a, _) => new TextBlock { Text = a is null ? "" : ActionName(a.Kind) + " " + (a.Label ?? _dashboard?.Scopes.FirstOrDefault(s => s.Folder == a.Destination && a.Destination.HasValue)?.Name) });
+        _actions.ItemTemplate = new FuncDataTemplate<RuleAction>((a, _) => new TextBlock { Text = a is null ? "" : ActionName(a.Kind) + " " + (a.MailArgument ?? a.Label ?? _dashboard?.Scopes.FirstOrDefault(s => s.Folder == a.Destination && a.Destination.HasValue)?.Name) });
         var tools = new WrapPanel(); Button(tools, "添加动作", "rule-add-action", () => { AddAction(); return Task.CompletedTask; });
         Button(tools, "移除所选动作", "rule-remove-action", () => { if (_actions.SelectedIndex >= 0) _draft.RemoveAt(_actions.SelectedIndex); ShowActions(); return Task.CompletedTask; }); _panel.Children.Add(tools);
         Field("按顺序执行", _actions, "rule-actions");
         _panel.Children.Add(_enabled); _panel.Children.Add(_halt); _panel.Children.Add(_history);
+        AutomationProperties.SetAutomationId(_confirmMail,"rule-confirm-mail");_panel.Children.Add(_confirmMail);
         var save = new WrapPanel(); Button(save,"试运行当前草稿","rule-preview",Preview);
         Button(save, "保存规则", "rule-save", Save); Button(save, "刷新记录", "rule-refresh", () => Refresh(_editing?.Id)); _panel.Children.Add(save);
         _runs.ItemTemplate = new FuncDataTemplate<RuleRun>((r, _) => new TextBlock { Text = r is null ? "" : $"{r.Name} v{r.Version} · {r.Detail}", TextWrapping = TextWrapping.Wrap });
@@ -76,7 +83,7 @@ internal sealed partial class ReceiveRulesView : UserControl, IDisposable
     {
         try { await work(); } catch (OperationCanceledException) { } catch (Exception e) { if (!_stop.IsCancellationRequested) _status.Text = e.Message; }
     }
-    private static string ActionName(RuleActionKind k) => k switch { RuleActionKind.Read => "标为已读", RuleActionKind.Unread => "标为未读", RuleActionKind.Star => "加星标", RuleActionKind.Unstar => "取消星标", RuleActionKind.Label => "添加标签", _ => "移动邮件" };
+    private static string ActionName(RuleActionKind k) => k switch { RuleActionKind.Read => "标为已读", RuleActionKind.Unread => "标为未读", RuleActionKind.Star => "加星标", RuleActionKind.Unstar => "取消星标", RuleActionKind.Label => "添加标签", RuleActionKind.AutoReply => "自动回复", RuleActionKind.AutoForward => "转发可读正文", _ => "移动邮件" };
     private void FilterTargets()
     {
         _destination.ItemsSource = _dashboard?.Scopes.Where(s => s.Folder.HasValue && s.Account == (_scope.SelectedItem as SearchScope)?.Account).ToArray();
@@ -86,15 +93,21 @@ internal sealed partial class ReceiveRulesView : UserControl, IDisposable
         if (_kind.SelectedItem is not RuleActionKind kind) return;
         var target = (_destination.SelectedItem as SearchScope)?.Folder;
         if (kind == RuleActionKind.Move && target is null) throw new InvalidDataException("请先选择账户范围和移动目标。");
-        _draft.Add(new(kind, kind == RuleActionKind.Label ? _label.Text : null, kind == RuleActionKind.Move ? target : null)); ShowActions();
+        _draft.Add(new(kind, kind == RuleActionKind.Label ? _label.Text : null, kind == RuleActionKind.Move ? target : null) { MailArgument = kind is RuleActionKind.AutoReply or RuleActionKind.AutoForward ? _label.Text?.Trim() : null }); ShowActions();
     }
-    private void ShowActions() => _actions.ItemsSource = _draft.ToArray();
+    private void ShowActions()
+    {
+        _actions.ItemsSource = _draft.ToArray();
+        _confirmMail.IsVisible = _draft.Any(a => a.Kind is RuleActionKind.AutoReply or RuleActionKind.AutoForward);
+        _confirmMail.IsChecked = false;
+    }
     private void Edit(ReceiveRule? rule)
     {
+        _draftId=rule?.Id??Guid.NewGuid();_mailApproval=rule?.MailApproval;
         _editing = rule; _name.Text = rule?.Name ?? ""; _condition.Text = rule?.Condition ?? ""; _except.Text = rule?.Exception ?? "";
         _scope.SelectedItem = _dashboard?.Scopes.FirstOrDefault(s => s.Account == rule?.Account && s.Folder == rule?.Folder);
         _order.Value = rule?.Order ?? 100; _enabled.IsChecked = rule?.Enabled ?? true; _halt.IsChecked = rule?.Stop ?? false; _history.IsChecked = rule?.IncludeHistory ?? false;
-        _draft.Clear(); if (rule is not null) _draft.AddRange(rule.Actions); ShowActions();
+        _draft.Clear(); if (rule is not null) _draft.AddRange(rule.Actions); ShowActions();_confirmMail.IsChecked=_mailApproval is not null;
     }
     private async Task Refresh(Guid? selected)
     {
@@ -106,12 +119,13 @@ internal sealed partial class ReceiveRulesView : UserControl, IDisposable
     private ReceiveRule Draft()
     {
         if (_scope.SelectedItem is not SearchScope scope) throw new InvalidDataException("请选择有效规则范围。");
-        return new(_editing?.Id ?? Guid.NewGuid(), _editing?.Version ?? 0, _name.Text ?? "", scope.Account, scope.Folder, _condition.Text ?? "", _except.Text ?? "",
-            _draft.ToArray(), (int)(_order.Value ?? 100), _enabled.IsChecked == true, _halt.IsChecked == true, _history.IsChecked == true);
+        return new(_draftId, _editing?.Version ?? 0, _name.Text ?? "", scope.Account, scope.Folder, _condition.Text ?? "", _except.Text ?? "",
+            _draft.ToArray(), (int)(_order.Value ?? 100), _enabled.IsChecked == true, _halt.IsChecked == true, _history.IsChecked == true) { MailApproval = _confirmMail.IsChecked == true ? _mailApproval : null };
     }
     private async Task Preview()
     {
         var preview=await _service.Preview(Draft(),_stop.Token);
+        _mailApproval=preview.MailApproval;_confirmMail.IsChecked=false;
         _status.Text=$"{preview.Scope} · 共 {preview.Total} 封，命中 {preview.Matches} 封，例外 {preview.Exceptions} 封，未知 {preview.Unknown} 封。\n"+
             string.Join(" → ",preview.Effects)+"\n"+string.Join("\n",preview.Warnings.Concat(preview.Samples));
     }

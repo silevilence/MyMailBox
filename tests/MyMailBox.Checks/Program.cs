@@ -58,6 +58,8 @@ if (args.Length == 0 || args.Contains("task-history")) await AutomationChecks.Hi
 if (args.Length == 0 || args.Contains("task-plugins")) await AutomationChecks.Plugins();
 if (args.Contains("task-events-live")) await AutomationChecks.Events(true);
 if (args.Length == 0 || args.Contains("task-events")) await AutomationChecks.Events(false);
+if (args.Length == 0 || args.Contains("automatic-mail")) await AutomationChecks.AutomaticMail();
+if (args.Contains("automatic-mail-live")) await AutomationChecks.AutomaticMailLive();
 if (args.Length == 0 || args.Contains("task-actions")) await AutomationChecks.Actions();
 if (args.Contains("task-archive-live")) await AutomationChecks.ArchiveLive();
 if (args.Length == 0 || args.Contains("task-archive")) await AutomationChecks.Archive();

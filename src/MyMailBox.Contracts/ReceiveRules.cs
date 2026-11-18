@@ -1,13 +1,13 @@
 namespace MyMailBox.Contracts;
 
-public enum RuleActionKind { Read, Unread, Star, Unstar, Label, Move }
-public sealed record RuleAction(RuleActionKind Kind, string? Label = null, Guid? Destination = null);
+public enum RuleActionKind { Read, Unread, Star, Unstar, Label, Move, AutoReply, AutoForward }
+public sealed record RuleAction(RuleActionKind Kind, string? Label = null, Guid? Destination = null) { public string? MailArgument { get; init; } }
 public sealed record ReceiveRule(Guid Id, int Version, string Name, Guid? Account, Guid? Folder,
-    string Condition, string Exception, RuleAction[] Actions, int Order, bool Enabled, bool Stop, bool IncludeHistory);
+    string Condition, string Exception, RuleAction[] Actions, int Order, bool Enabled, bool Stop, bool IncludeHistory) { public string? MailApproval { get; init; } }
 public sealed record RuleRun(string Id, string Event, Guid Rule, int Version, string Name, string State, string Detail);
 public sealed record RuleDashboard(IReadOnlyList<ReceiveRule> Rules, IReadOnlyList<RuleRun> Runs, IReadOnlyList<SearchScope> Scopes);
 public sealed record RuleActionLog(Guid Operation, int Ordinal, RuleActionKind Kind, string State, Guid Source, string Key, Guid? Destination, string? Target, Guid? Undo, string Detail);
-public sealed record RulePreview(string Scope,int Total,int Matches,int Unknown,int Exceptions,IReadOnlyList<string> Samples,IReadOnlyList<string> Effects,IReadOnlyList<string> Warnings);
+public sealed record RulePreview(string Scope,int Total,int Matches,int Unknown,int Exceptions,IReadOnlyList<string> Samples,IReadOnlyList<string> Effects,IReadOnlyList<string> Warnings) { public string? MailApproval { get; init; } }
 public interface IReceiveRules
 {
     Task<RulePreview> Preview(ReceiveRule rule,CancellationToken token=default);
