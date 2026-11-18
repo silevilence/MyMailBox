@@ -43,6 +43,7 @@ if (args.Length == 0 || args.Contains("search-conditions")) await SearchChecks.C
 if (args.Length == 0 || args.Contains("search-index")) await SearchChecks.Index();
 if (args.Length == 0 || args.Contains("search-builder")) await SearchChecks.Builder();
 if (args.Length == 0 || args.Contains("search-extension")) await SearchChecks.Extension();
+if (args.Length == 0 || args.Contains("task-conditions")) await AutomationChecks.Conditions();
 if (args.Length == 0 || args.Contains("rule-stages")) await ReceiveRuleChecks.Stages();
 if (args.Length == 0 || args.Contains("rule-preview")) await ReceiveRuleChecks.Preview();
 if (args.Length == 0 || args.Contains("send-plan")) await ComposerChecks.SendPlans();

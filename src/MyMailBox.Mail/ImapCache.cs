@@ -22,6 +22,7 @@ internal sealed partial class ImapCache(SqliteMailStore store, Guid account, Mai
                 id TEXT PRIMARY KEY REFERENCES folders(id) ON DELETE CASCADE, account TEXT NOT NULL, source TEXT NOT NULL,
                 path TEXT NOT NULL, validity INTEGER NOT NULL, watermark INTEGER NOT NULL, coverage INTEGER NOT NULL,
                 UNIQUE(account,source,path));
+            CREATE TABLE IF NOT EXISTS imap_measure(folder TEXT PRIMARY KEY REFERENCES imap_folders(id) ON DELETE CASCADE,total INTEGER NOT NULL,quota REAL,sampled INTEGER NOT NULL);
             CREATE TABLE IF NOT EXISTS imap_edits(id TEXT PRIMARY KEY,account TEXT NOT NULL,folder TEXT NOT NULL,uid INTEGER NOT NULL,
                 path TEXT NOT NULL,subject TEXT NOT NULL,mark INTEGER NOT NULL,state TEXT NOT NULL,detail TEXT NOT NULL);
             CREATE INDEX IF NOT EXISTS imap_edits_folder ON imap_edits(folder,state);
@@ -214,6 +215,11 @@ internal sealed partial class ImapCache(SqliteMailStore store, Guid account, Mai
         tx.Commit();
     }
 
+    internal void Measure(Folder folder,int total,double? quota)
+    {
+        using var db=store.Open();using var c=db.CreateCommand();c.CommandText="INSERT OR REPLACE INTO imap_measure VALUES($f,$total,$quota,unixepoch())";
+        c.Parameters.AddWithValue("$f",folder.Id.ToString());c.Parameters.AddWithValue("$total",total);c.Parameters.AddWithValue("$quota",(object?)quota??DBNull.Value);c.ExecuteNonQuery();
+    }
     internal void Finish(Folder folder, uint watermark, int coverage)
     {
         using var db = store.Open();

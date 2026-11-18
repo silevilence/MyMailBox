@@ -9,13 +9,7 @@ public sealed partial class MailSearchService
     internal Task<RulePreview> Preview(ReceiveRule rule,SearchLibrary library,CancellationToken token) => Task.Run(() =>
     {
         using var db=_store.Open(readOnly:true);using var cmd=db.CreateCommand();
-        cmd.CommandText="""
-            CREATE TEMP TABLE search_meta AS SELECT * FROM main.search_meta LIMIT 0;
-            CREATE UNIQUE INDEX temp.preview_meta_key ON search_meta(id);
-            CREATE TEMP VIEW preview_meta AS SELECT * FROM temp.search_meta UNION ALL SELECT x.* FROM main.search_meta x WHERE NOT EXISTS(SELECT 1 FROM temp.search_meta t WHERE t.id=x.id);
-            CREATE TEMP TABLE derived_search_value(field TEXT,id TEXT,source TEXT,value TEXT,PRIMARY KEY(field,id));
-            """;
-        cmd.ExecuteNonQuery(); _metadata.Prepare(token,db);
+        PreparePreview(db,token);
         var unavailable=new HashSet<string>();
         var include=Compile(db,cmd,ConditionTree.Parse(rule.Condition),unavailable,token,preview:true);
         var exclude=string.IsNullOrWhiteSpace(rule.Exception) ? "0" : Compile(db,cmd,ConditionTree.Parse(rule.Exception),unavailable,token,preview:true,seed:10000);

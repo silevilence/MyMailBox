@@ -32,6 +32,7 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
                   Outbox = protocols.Outbox is { } outbox ? new ScopedOutbox(this, Target(outbox)) : null,
                   ImapSync = protocols.ImapSync is { } sync ? new ScopedImapSync(this, Target(sync)) : null } : null,
             Composer = page.Composer is { } compose ? new(new ScopedAccounts(this, Target(compose.Accounts)),new ScopedDrafts(this,Target(compose.Drafts)),new ScopedOutbox(this,Target(compose.Outbox))) : null,
+            Automation=page.Automation is {} auto ? new ScopedAutomation(this,Target(auto)) : null,
             Rules = page.Rules is { } rules ? new ScopedRules(this,Target(rules)) : null,
             Search = page.Search is { } search ? new ScopedSearch(this,Target(search)) : null,
             Organization = page.Organization is { } org ? new(new ScopedAccounts(this, Target(org.Accounts)), new ScopedOrganizer(this, Target(org.Organizer)))
@@ -262,6 +263,13 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         public IReadOnlyList<MailDraft> List(Guid account)=>scope.Run(_=>Task.FromResult(service.Value.List(account))).GetAwaiter().GetResult();
         public MailDraft Save(MailDraft draft)=>scope.Run(_=>Task.FromResult(service.Value.Save(draft))).GetAwaiter().GetResult();
         public void Submitted(Guid draft,int version)=>scope.Run(_=>{service.Value.Submitted(draft,version);return Task.FromResult(true);}).GetAwaiter().GetResult();
+    }
+    private sealed class ScopedAutomation(PluginScope scope,ServiceTarget<IMailAutomation> service):IMailAutomation
+    {
+        public Task<IReadOnlyList<AutomationPlan>> Plans(CancellationToken token=default)=>scope.Run(t=>service.Value.Plans(t),token);
+        public Task<AutomationPlan> Save(AutomationPlan plan,CancellationToken token=default)=>scope.Run(t=>service.Value.Save(plan,t),token);
+        public Task<ConditionReport> Inspect(AutomationPlan plan,bool observe=false,CancellationToken token=default)=>scope.Run(t=>service.Value.Inspect(plan,observe,t),token);
+        public Task<SearchLibrary> Library(CancellationToken token=default)=>scope.Run(t=>service.Value.Library(t),token);
     }
     private sealed class ScopedRules(PluginScope scope, ServiceTarget<IReceiveRules> service) : IReceiveRules
     {

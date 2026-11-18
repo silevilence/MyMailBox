@@ -79,6 +79,13 @@ public sealed partial class ProtocolMailService
             // A completed empty range can include expunged UIDs. Never advance over a canceled batch.
             await ReconcileFlags(remote,cache,folder,recentCount,cancellation);
             cache.Finish(folder, next is > 0 ? next.Value - 1 : watermark, recentCount);
+            double? quota=null;
+            if(client.Capabilities.HasFlag(ImapCapabilities.Quota))
+            {
+                try {var q=await remote.GetQuotaAsync(cancellation);if(q.StorageLimit is >0 && q.CurrentStorageSize is {} used)quota=100d*used/q.StorageLimit.Value;}
+                catch(ImapCommandException){ }
+            }
+            cache.Measure(folder,count,quota);
             return new ImapSyncResult(added, remote.UidValidity, next, count);
         });
 

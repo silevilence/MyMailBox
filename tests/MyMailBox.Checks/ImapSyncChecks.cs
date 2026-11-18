@@ -42,6 +42,9 @@ internal static partial class ProtocolChecks
         var first = (await service.CachedPage(account.Id, path, 0, 3)).Items;
         MailChecks.Check(initial.Added == 5 && first[0].Subject == "测试 39" && first.All(m => m.LocalId is null), "Recent window downloaded bodies or selected wrong messages");
         var search = new MailSearchService(store,service);
+        var metrics=new MailAutomationService(store,search,service);
+        var measure=await metrics.Inspect(new(Guid.NewGuid(),0,"部分同步",new(account.Id,first[0].FolderId,"","count>=0",0,0),true));
+        MailChecks.Check(measure.Result==ConditionResult.Unknown && measure.Values.Single(v=>v.Id=="pending").Value==35,"Partial IMAP metrics reported complete/zero");
         var results = await search.Search(new([new("subject",SearchMatch.Equals,"测试 39")]));
         MailChecks.Check(results.Summaries==5 && results.Items.Single().LocalId is null,"IMAP-only search coverage missing");
         await Reject(() => service.OpenMessage(account.Id, path, first[0], false), "尚未缓存");

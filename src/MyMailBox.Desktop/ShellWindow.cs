@@ -130,6 +130,7 @@ public sealed class ShellWindow : Window
         {
             var view=new ComposerView(composer,_pages,page.Id.Split('/')[0],_reply);_reply=null;_hostView=view;_body.Content=view;return;
         }
+        if(page.Automation is {} automation){var view=new AutomationView(automation);_hostView=view;_body.Content=view;return;}
         if (page.Rules is { } rules)
         {
             var view = new ReceiveRulesView(rules); _hostView = view; _body.Content = view; return;
