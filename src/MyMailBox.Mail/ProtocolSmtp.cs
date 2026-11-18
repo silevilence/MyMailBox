@@ -38,7 +38,7 @@ public sealed partial class ProtocolMailService
         var recipients = mime.To.Mailboxes.Concat(mime.Cc.Mailboxes).Concat(blind.Mailboxes).DistinctBy(a => a.Address, StringComparer.OrdinalIgnoreCase).ToArray();
         if (recipients.Length == 0) throw new InvalidDataException("请至少填写一位收件人。");
         if (message.Subject.Contains('\r') || message.Subject.Contains('\n')) throw new InvalidDataException("主题不能包含换行。");
-        mime.Subject = message.Subject; mime.Body = new TextPart("plain") { Text = message.Body };
+        mime.Subject = message.Subject; mime.Body = string.IsNullOrEmpty(message.Html) ? new TextPart("plain") { Text = message.Body } : new BodyBuilder { TextBody=message.Body,HtmlBody=MailDraftStore.SafeMarkup(message.Html) }.ToMessageBody();
         mime.Date = DateTimeOffset.Now; mime.MessageId = MimeKit.Utils.MimeUtils.GenerateMessageId();
         using var stream = new MemoryStream();
         await mime.WriteToAsync(stream, cancellation);

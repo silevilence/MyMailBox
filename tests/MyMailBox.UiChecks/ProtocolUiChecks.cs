@@ -95,6 +95,9 @@ internal static class ProtocolUiChecks
             ui.Find("search-results").AsListBox().Select(0); ui.Click("search-open");
             if (!SpinWait.SpinUntil(()=>ui.Find("search-body").AsTextBox().Text.Contains("Fixture"),5000)) throw new Exception("Search result not readable");
             ui.Click("search-locate"); ui.Click("search-back"); ui.Status("search-status","第 1 页");
+            ui.Click("nav-accounts/compose");ui.Text("compose-subject","界面草稿");ui.Text("compose-body","editable body");
+            ui.Click("compose-rich");ui.Status("compose-status","富文本编辑器已就绪");
+            ui.Click("compose-plain");if(ui.Find("compose-body").AsTextBox().Text!="editable body")throw new Exception("Rich/plain draft handoff lost body");
             ui.Click("nav-accounts/rules"); ui.Text("rule-name","界面试运行");ui.Text("rule-condition","subject:Local");
             ui.Click("rule-add-action");ui.Click("rule-preview");ui.Status("rule-status","命中");
             ui.Click("nav-local-mail/inbox");

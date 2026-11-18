@@ -136,3 +136,15 @@ public sealed class ExampleCaseSearch : IPlugin<PluginOptions>
         return Task.FromResult<IReadOnlyList<SearchDecision>>(rows);
     }
 }
+
+[Plugin("plain-editor")]
+[Inject("mailbox.host")]
+public sealed class ExamplePlainEditor : IPlugin<PluginOptions>
+{
+    public void Load(Context context, PluginOptions options)
+    {
+        var host=context.Get<IPluginHost>("mailbox.host")!;
+        context.Effect(()=>host.AddEditor(new("plain","外部纯文本编辑器",false,[new("确认收悉","来信已收到。")],
+            body=>body with{Rich=false},(text,token)=>Task.FromResult(text.Contains("teh",StringComparison.OrdinalIgnoreCase)?"建议将 teh 改为 the。":"示例词表未发现问题。"))));
+    }
+}

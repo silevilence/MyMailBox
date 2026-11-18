@@ -31,6 +31,7 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
                 { OfflineMarks = protocols.OfflineMarks is { } marks ? new ScopedOfflineMarks(this,Target(marks)) : null,
                   Outbox = protocols.Outbox is { } outbox ? new ScopedOutbox(this, Target(outbox)) : null,
                   ImapSync = protocols.ImapSync is { } sync ? new ScopedImapSync(this, Target(sync)) : null } : null,
+            Composer = page.Composer is { } compose ? new(new ScopedAccounts(this, Target(compose.Accounts)),new ScopedDrafts(this,Target(compose.Drafts)),new ScopedOutbox(this,Target(compose.Outbox))) : null,
             Rules = page.Rules is { } rules ? new ScopedRules(this,Target(rules)) : null,
             Search = page.Search is { } search ? new ScopedSearch(this,Target(search)) : null,
             Organization = page.Organization is { } org ? new(new ScopedAccounts(this, Target(org.Accounts)), new ScopedOrganizer(this, Target(org.Organizer)))
@@ -57,6 +58,13 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         var save = Target(preparation.Save);
         return Own(pages.AddUpdatePreparation(new(InstanceId + "/" + preparation.Id,
             async token => await Run(async t => { await save.Value(t); return true; }, token))));
+    }
+    public IDisposable AddEditor(ComposerEditor editor)
+    {
+        var open=Target(editor.Open);var spell=Target(editor.Spell);
+        return Own(pages.AddEditor(editor with {Id=InstanceId+"/"+editor.Id,Templates=editor.Templates.ToArray(),
+            Open=body=>{permissions.Require("mail.compose");return Run(_=>Task.FromResult(open.Value(body))).GetAwaiter().GetResult();},
+            Spell=(text,token)=>{permissions.Require("mail.compose");return Run(t=>spell.Value(text,t),token);}}));
     }
     public IDisposable AddSearchExtension(SearchExtension extension)
     {
@@ -230,6 +238,12 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
             scope.Run(t=>service.Value.Recent(sourceAccount,offset,limit,t),token);
     }
 
+    private sealed class ScopedDrafts(PluginScope scope,ServiceTarget<IMailDrafts> service) : IMailDrafts
+    {
+        public IReadOnlyList<MailDraft> List(Guid account)=>scope.Run(_=>Task.FromResult(service.Value.List(account))).GetAwaiter().GetResult();
+        public MailDraft Save(MailDraft draft)=>scope.Run(_=>Task.FromResult(service.Value.Save(draft))).GetAwaiter().GetResult();
+        public void Submitted(Guid draft,int version)=>scope.Run(_=>{service.Value.Submitted(draft,version);return Task.FromResult(true);}).GetAwaiter().GetResult();
+    }
     private sealed class ScopedRules(PluginScope scope, ServiceTarget<IReceiveRules> service) : IReceiveRules
     {
         public Task<RulePreview> Preview(ReceiveRule rule,CancellationToken token=default) => scope.Run(t=>service.Value.Preview(rule,t),token);

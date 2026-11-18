@@ -69,7 +69,7 @@ public sealed class ShellWindow : Window
             var id = page.Id;
             var button = new Button { Content = page.Title, HorizontalAlignment = HorizontalAlignment.Stretch };
             AutomationProperties.SetAutomationId(button, "nav-" + id);
-            button.Click += (_, _) => Show(id);
+            button.Click += async (_, _) => await Navigate(id);
             _navigation.Children.Add(button);
         }
         foreach (var page in _pages.NativePages)
@@ -77,7 +77,7 @@ public sealed class ShellWindow : Window
             var id = page.Id;
             var button = new Button { Content = page.Title, HorizontalAlignment = HorizontalAlignment.Stretch };
             AutomationProperties.SetAutomationId(button, "nav-" + id);
-            button.Click += (_, _) => Show(id); _navigation.Children.Add(button);
+            button.Click += async (_, _) => await Navigate(id); _navigation.Children.Add(button);
         }
         var selectedPage = pages.FirstOrDefault(p => p.Id == _selected);
         var selectedNative = _pages.NativePages.FirstOrDefault(p => p.Id == _selected);
@@ -99,6 +99,12 @@ public sealed class ShellWindow : Window
         _renderedPage = null;
     }
 
+    private async Task Navigate(string id)
+    {
+        if (_hostView is ComposerView draft && !await draft.SaveBeforeLeaving()) return;
+        Show(id);
+    }
+
     private void Show(string? id)
     {
         _selected = id;
@@ -113,6 +119,10 @@ public sealed class ShellWindow : Window
         var page = _pages.Pages.FirstOrDefault(p => p.Id == id);
         if (page is null) return;
         _renderedPage = page; _selectorRevision = _pages.SelectorRevision; _exporterRevision = _pages.ExporterRevision;
+        if (page.Composer is { } composer)
+        {
+            var view=new ComposerView(composer,_pages,page.Id.Split('/')[0]);_hostView=view;_body.Content=view;return;
+        }
         if (page.Rules is { } rules)
         {
             var view = new ReceiveRulesView(rules); _hostView = view; _body.Content = view; return;

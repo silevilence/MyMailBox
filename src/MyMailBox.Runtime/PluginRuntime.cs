@@ -68,7 +68,7 @@ public sealed class PluginRuntime(Contributions pages, HostOperations? operation
         if (!_running.TryGetValue(instance, out var running)) return;
         if (_states[instance].StartsWith("资源/程序集释放失败")) throw new InvalidOperationException(_states[instance]);
         _states[instance] = "正在排空在途操作";
-        try { await running.Scope.Drain(cancel, timeout ?? TimeSpan.FromSeconds(5)); }
+        try { await pages.PrepareStop(instance); await running.Scope.Drain(cancel, timeout ?? TimeSpan.FromSeconds(5)); }
         catch (Exception e) { _states[instance] = e.Message; diagnostics?.Record(instance, "drain", "failed", "drain-timeout"); throw; }
         try
         {
@@ -91,6 +91,7 @@ public sealed class PluginRuntime(Contributions pages, HostOperations? operation
         foreach (var id in _running.Values.OrderByDescending(p => p.Sequence).Select(p => p.Scope.InstanceId).ToArray())
         {
             var running = _running[id];
+            await pages.PrepareStop(id);
             await running.Scope.Drain(false, TimeSpan.FromSeconds(5));
             running.Scope.Dispose();
             if (running.Assembly is not null) await running.Assembly.DisposeAsync();

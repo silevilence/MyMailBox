@@ -3,6 +3,7 @@ using MyMailBox.Builtins;
 using MyMailBox.Contracts;
 using MyMailBox.Runtime;
 
+if (args.Length == 3 && args[0] == "draft-crash-worker") { ComposerChecks.Crash(args[1],Guid.Parse(args[2]));return; }
 if (args.Length == 2 && args[0] == "rule-crash-worker") { await ReceiveRuleChecks.Crash(args[1]); return; }
 if (args.Length == 4 && args[0] == "transfer-crash-worker") { await TransferChecks.CrashWorker(args[1], Guid.Parse(args[2]), args[3]); return; }
 if (args.Length > 0 && args[0] == "crash-writer") { StorageChecks.CrashWriter(args[1], int.Parse(args[2]), args[3]); return; }
@@ -44,6 +45,7 @@ if (args.Length == 0 || args.Contains("search-builder")) await SearchChecks.Buil
 if (args.Length == 0 || args.Contains("search-extension")) await SearchChecks.Extension();
 if (args.Length == 0 || args.Contains("rule-stages")) await ReceiveRuleChecks.Stages();
 if (args.Length == 0 || args.Contains("rule-preview")) await ReceiveRuleChecks.Preview();
+if (args.Length == 0 || args.Contains("drafts")) await ComposerChecks.Drafts();
 if (args.Length == 0 || args.Contains("receive-rules")) await ReceiveRuleChecks.MainRules();
 if (args.Length == 0 || args.Contains("search-fields")) await SearchChecks.Fields();
 if (args.Contains("imap-conflicts")) await ConflictChecks.Run();

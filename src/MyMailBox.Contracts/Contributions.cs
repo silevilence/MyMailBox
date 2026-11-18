@@ -11,6 +11,7 @@ public sealed record Page(string Id, string Title, string Description, IReadOnly
     public IUpdateInstaller? UpdateInstaller { get; init; }
     public ProtocolPage? Protocols { get; init; }
     public IReceiveRules? Rules { get; init; }
+    public ComposerPage? Composer { get; init; }
     public IMailSearch? Search { get; init; }
     public OrganizationPage? Organization { get; init; }
     public IUnifiedInbox? UnifiedInbox { get; init; }
@@ -33,6 +34,7 @@ public interface IContributions
     IDisposable Add(Page page);
     IDisposable AddSelector(Selector selector);
     IDisposable AddNative(NativePage page);
+    IDisposable AddEditor(ComposerEditor editor) => throw new NotSupportedException("宿主尚不支持编辑器贡献。");
     IDisposable AddSearchExtension(SearchExtension extension) => throw new NotSupportedException("宿主尚不支持搜索扩展。");
     IDisposable AddExporter(IMessageExporter exporter);
     IDisposable AddUpdatePreparation(UpdatePreparation preparation) => throw new NotSupportedException("宿主尚不支持更新保存参与者。");

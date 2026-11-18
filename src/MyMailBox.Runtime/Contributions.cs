@@ -9,6 +9,18 @@ public sealed class Contributions(Action<Action>? dispatch = null) : IContributi
     private readonly Dictionary<string, Selector> _selectors = [];
     private readonly Dictionary<string, NativePage> _native = [];
     private readonly Dictionary<string, IMessageExporter> _exporters = [];
+    private readonly Dictionary<string,ComposerEditor> _editors=[];
+    public IReadOnlyList<ComposerEditor> Editors { get { lock(_gate) return _editors.Values.ToArray(); } }
+    public event Func<string,Task>? BeforePluginStop;
+    internal async Task PrepareStop(string instance)
+    {
+        foreach(var handler in BeforePluginStop?.GetInvocationList().Cast<Func<string,Task>>() ?? []) await handler(instance);
+    }
+    public IDisposable AddEditor(ComposerEditor editor)
+    {
+        lock(_gate) _editors.Add(editor.Id,editor); Notify();
+        return new Cleanup(()=>{lock(_gate) _editors.Remove(editor.Id);Notify();});
+    }
     private readonly Dictionary<string, SearchExtension> _searchExtensions = [];
     public IReadOnlyList<SearchExtension> SearchExtensions { get { lock (_gate) return _searchExtensions.Values.ToArray(); } }
     public IDisposable AddSearchExtension(SearchExtension extension)

@@ -41,6 +41,7 @@ public static class DefaultProfile
             var protocols = new Mail.ProtocolMailService(store);
             var search = new Mail.MailSearchService(store, protocols, searchExtensions);
             ctx.Effect(() => host.Add(new Page("search", "搜索邮件", "", [], [], (_, _) => Task.FromResult("")) { Search = search }));
+            ctx.Effect(() => host.Add(new Page("compose", "写邮件与草稿", "", [], [], (_, _) => Task.FromResult("")) { Composer = new(accounts,new Mail.MailDraftStore(store),protocols) }));
             var rules = new Mail.ReceiveRuleService(store,search,protocols);
             ctx.Effect(() => host.Add(new Page("rules", "收件规则", "", [], [], (_, _) => Task.FromResult("")) { Rules=rules }));
             ctx.Effect(() => new Mail.ReceiveRuleRunner(rules,notification));
