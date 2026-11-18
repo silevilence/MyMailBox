@@ -59,6 +59,13 @@ internal static class ProtocolUiChecks
             var folder = store.Folders().GetAwaiter().GetResult().Single(f => f.AccountId == bob.Id);
             var messages = store.List(folder.Id, 0, 100).GetAwaiter().GetResult().Items;
             if (!messages.Any(m => m.Subject == "UI-真实测试-中文")) throw new Exception("UI POP did not persist SMTP message");
+            ui.Click("nav-accounts/organize");
+            var orgAccounts = ui.Find("org-account").AsComboBox();
+            orgAccounts.Expand(); orgAccounts.Items.Single(item => item.Text == "Alice IMAP SMTP").Select(); orgAccounts.Collapse();
+            ui.Click("org-refresh"); ui.Status("org-status", "第 1 页");
+            var marked = ui.Find("org-messages").AsListBox(); marked.Select(0);
+            ui.Text("org-label", "验收"); ui.Click("org-add-label"); ui.Status("org-status", "成功 1");
+            if (marked.SelectedItems.Length != 1) throw new Exception("Marking discarded selection");
             ui.Click("nav-accounts/inbox"); ui.Select("unified-filter", 1);
             ui.Click("unified-auto"); ui.Status("unified-status", "接收完成");
             ui.Find("unified-list").AsListBox().Select(0); ui.Click("unified-open");

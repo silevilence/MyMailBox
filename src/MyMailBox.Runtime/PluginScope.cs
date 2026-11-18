@@ -30,6 +30,7 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
             Protocols = page.Protocols is { } protocols ? new(new ScopedAccounts(this, Target(protocols.Accounts)), new ScopedProtocols(this, Target(protocols.Service)))
                 { Outbox = protocols.Outbox is { } outbox ? new ScopedOutbox(this, Target(outbox)) : null,
                   ImapSync = protocols.ImapSync is { } sync ? new ScopedImapSync(this, Target(sync)) : null } : null,
+            Organization = page.Organization is { } org ? new(new ScopedAccounts(this, Target(org.Accounts)), new ScopedOrganizer(this, Target(org.Organizer))) : null,
             UnifiedInbox = page.UnifiedInbox is { } inbox ? new ScopedUnifiedInbox(this, Target(inbox)) : null,
             Graph = page.Graph is { } graph ? new(new ScopedAccounts(this, Target(graph.Accounts)), new ScopedGraph(this, Target(graph.Service))) : null,
             Selections = page.Selections is { } selections ? new ScopedSelections(this, Target(selections)) : null,
@@ -192,6 +193,22 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         public Task<GraphMessages> Messages(Guid account, string folder, string? next = null, CancellationToken cancellation = default) => scope.Run(t => service.Value.Messages(account, folder, next, t), cancellation);
         public Task<Guid> Download(Guid account, string message, CancellationToken cancellation = default) => scope.Run(t => service.Value.Download(account, message, t), cancellation);
     }
+    private sealed class ScopedOrganizer(PluginScope scope, ServiceTarget<IMailOrganizer> service) : IMailOrganizer
+    {
+        public Task<IReadOnlyList<ManagedFolder>> Folders(Guid account, CancellationToken token = default) =>
+            scope.Run(t => service.Value.Folders(account,t),token);
+        public Task<Guid> Create(Guid account, Guid? parent, string name, CancellationToken token = default) =>
+            scope.Run(t => service.Value.Create(account,parent,name,t),token);
+        public async Task Rename(Guid account, Guid folder, string name, CancellationToken token = default) =>
+            await scope.Run(async t => { await service.Value.Rename(account,folder,name,t); return true; },token);
+        public async Task DeleteEmpty(Guid account, Guid folder, CancellationToken token = default) =>
+            await scope.Run(async t => { await service.Value.DeleteEmpty(account,folder,t); return true; },token);
+        public Task<ManagedPage> Messages(Guid account, Guid folder, int offset, int limit, CancellationToken token = default) =>
+            scope.Run(t => service.Value.Messages(account,folder,offset,limit,t),token);
+        public Task<IReadOnlyList<MarkResult>> Mark(Guid account, Guid folder, string[] keys, MailMark mark, string label, CancellationToken token = default) =>
+            scope.Run(t => service.Value.Mark(account,folder,keys,mark,label,t),token);
+    }
+
     private sealed class ScopedUnifiedInbox(PluginScope scope, ServiceTarget<IUnifiedInbox> service) : IUnifiedInbox
     {
         public Task<IReadOnlyList<ReceiveStatus>> Status(CancellationToken token = default) => scope.Run(t => service.Value.Status(t), token);

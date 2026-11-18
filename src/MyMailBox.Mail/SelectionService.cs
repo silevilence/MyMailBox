@@ -31,7 +31,7 @@ public sealed class SelectionService : ISelectionService
             var reason = !account.Enabled ? "账户已停用" : !available ? "不具备所需能力：" + CapabilityName(required) : "";
             if (query.Kind == SelectionKind.Folder)
             {
-                foreach (var folder in folders.Where(f => f.AccountId == account.Id))
+                foreach (var folder in folders.Where(f => f.AccountId == account.Id && f.Role != "imap-detached"))
                 {
                     var path = account.Name + " / " + string.Join(" / ", folder.Path.Split(" / ").Skip(1));
                     Add(new(SelectionKind.Folder, account.Id, folder.Id), folder.Name, path, folder.Role, folder.ParentId);

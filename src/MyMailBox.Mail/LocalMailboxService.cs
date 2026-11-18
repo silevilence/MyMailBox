@@ -37,7 +37,7 @@ public sealed class LocalMailboxService(SqliteMailStore store, AccountService ac
     public async Task<IReadOnlyList<MailFolder>> Folders(Guid id, CancellationToken cancellation = default) => (await store.Folders(cancellation)).Where(f => f.AccountId == id).ToArray();
     public Task<MailFolder> CreateFolder(Guid account, Guid? parent, string name, CancellationToken cancellation = default) => Task.Run(() =>
     {
-        name = name.Trim(); if (name.Length is 0 or > 120 || name.Any(c => c is '/' or '\\' || char.IsControl(c))) throw new InvalidDataException("目录名称需为 1–120 字，不能包含斜线或控制字符。");
+        name = OrganizationStore.FolderName(name);
         using var db = store.Open(); using var transaction = db.BeginTransaction(); using var command = db.CreateCommand(); command.Transaction = transaction;
         command.CommandText = "SELECT name FROM accounts WHERE id=$id AND provider='local' AND enabled=1 AND removed=0"; command.Parameters.AddWithValue("$id", account.ToString());
         var accountName = command.ExecuteScalar() as string ?? throw new InvalidDataException("请先打开本地邮箱。");

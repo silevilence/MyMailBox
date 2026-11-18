@@ -10,6 +10,7 @@ public sealed record Page(string Id, string Title, string Description, IReadOnly
     public IUpdateService? Updates { get; init; }
     public IUpdateInstaller? UpdateInstaller { get; init; }
     public ProtocolPage? Protocols { get; init; }
+    public OrganizationPage? Organization { get; init; }
     public IUnifiedInbox? UnifiedInbox { get; init; }
     public GraphPage? Graph { get; init; }
     // Preserve the original SDK constructor for already compiled page plugins.

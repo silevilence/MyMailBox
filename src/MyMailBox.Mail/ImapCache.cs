@@ -60,6 +60,47 @@ internal sealed class ImapCache(SqliteMailStore store, Guid account, MailEndpoin
         return paths;
     }
 
+    internal (string Path, uint Validity) Remote(Guid folder)
+    {
+        using var db = store.Open();
+        using var c = Lookup(db, "");
+        c.CommandText = "SELECT path,validity FROM imap_folders WHERE account=$account AND source=$source AND id=$id";
+        c.Parameters.AddWithValue("$id",folder.ToString());
+        using var r = c.ExecuteReader();
+        if (!r.Read()) throw new InvalidDataException("目录引用已失效，请重新选择目录。");
+        return (r.GetString(0),(uint)r.GetInt64(1));
+    }
+
+    internal void Detach(string path)
+    {
+        using var db = store.Open();
+        using var tx = db.BeginTransaction();
+        using var c = Lookup(db, path, tx);
+        c.CommandText = """
+            UPDATE folders SET role='imap-detached' WHERE id IN
+                (SELECT id FROM imap_folders WHERE account=$account AND source=$source AND path=$path);
+            DELETE FROM imap_folders WHERE account=$account AND source=$source AND path=$path;
+            """;
+        c.ExecuteNonQuery(); tx.Commit();
+    }
+
+    internal void Renamed(string old, string renamed, char separator, string accountName)
+    {
+        using var db = store.Open();
+        using var tx = db.BeginTransaction();
+        using var c = Lookup(db, old, tx);
+        c.Parameters.AddWithValue("$new",renamed); c.Parameters.AddWithValue("$prefix",old + separator);
+        c.Parameters.AddWithValue("$name",accountName);
+        c.CommandText = """
+            UPDATE imap_folders SET path=$new || substr(path,length($path)+1)
+            WHERE account=$account AND source=$source AND (path=$path OR substr(path,1,length($prefix))=$prefix);
+            UPDATE folders SET name=(SELECT path FROM imap_folders WHERE id=folders.id),
+                path=$name || ' / ' || (SELECT path FROM imap_folders WHERE id=folders.id) || ' (IMAP)'
+            WHERE id IN (SELECT id FROM imap_folders WHERE account=$account AND source=$source);
+            """;
+        c.ExecuteNonQuery(); tx.Commit();
+    }
+
     internal Folder Start(string path, uint validity, string accountName)
     {
         using var db = store.Open();
@@ -73,6 +114,8 @@ internal sealed class ImapCache(SqliteMailStore store, Guid account, MailEndpoin
         // Expire remote references only. Downloaded MIME in the previous local folder remains readable.
         var id = Guid.NewGuid();
         command.CommandText = """
+            UPDATE folders SET role='imap-detached' WHERE id IN
+                (SELECT id FROM imap_folders WHERE account=$account AND source=$source AND path=$path);
             DELETE FROM imap_folders WHERE account=$account AND source=$source AND path=$path;
             INSERT INTO folders VALUES($id,$account,$path,$display,'imap-cache',NULL);
             INSERT INTO imap_folders VALUES($id,$account,$source,$path,$validity,0,0);
