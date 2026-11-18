@@ -52,7 +52,7 @@ internal sealed partial class ComposerView : UserControl,IDisposable
         Field("正文",_plain,"compose-body");_form.Children.Add(_richHost);
         var quotePanel=new StackPanel();quotePanel.Children.Add(_include);quotePanel.Children.Add(_quoteText);_quote.Content=quotePanel;_quote.IsVisible=false;_form.Children.Add(_quote);
         _include.IsCheckedChanged+=(_,_)=>{if(!_binding && _draft is {Quote:{} q} d)Persist(d with{Quote=q with{Included=_include.IsChecked==true}});};
-        AddFiles();
+        AddFiles();AddSendPlan();
         Field("模板",_templates,"compose-template");
         var tools=new WrapPanel();Button(tools,"插入模板","compose-insert",InsertTemplate);
         Button(tools,"拼写检查","compose-spell",async()=>{await Flush();if(_draft is {} d && _editor is {} e)_status.Text=await e.Spell(d.Body.Plain,_stop.Token);});
@@ -143,7 +143,7 @@ internal sealed partial class ComposerView : UserControl,IDisposable
     {
         _binding=true;try{
             CloseRich();_draft=d;_to.Text=d.To;_cc.Text=d.Cc;_bcc.Text=d.Bcc;_subject.Text=d.Subject;_plain.Text=d.Body.Plain;_identity.Text="发件身份："+d.Identity;_from.SelectedItem=d.Identity;_files.ItemsSource=d.Parts;_quote.IsVisible=d.Quote is not null;_quoteText.Text=d.Quote is {} q ? q.Heading+"\n"+q.Text : "";_include.IsChecked=d.Quote?.Included==true;
-            _plain.IsVisible=!d.Body.Rich; if(d.Body.Rich)OpenRich(d);_status.Text=d.Version>0?"已恢复草稿。":"新草稿。";
+            _plain.IsVisible=!d.Body.Rich; if(d.Body.Rich)OpenRich(d);_status.Text=d.Version>0?"已恢复草稿。":"新草稿。";if(_planId!=d.Id)_=ReadPlan(d.Id);
         }finally{_binding=false;}
     }
     private void CloseRich(){_rich?.Dispose();_rich=null;_richHost.Content=null;}

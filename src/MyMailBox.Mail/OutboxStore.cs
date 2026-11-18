@@ -4,7 +4,7 @@ using System.Text.Json;
 
 namespace MyMailBox.Mail;
 
-internal sealed class OutboxStore(SqliteMailStore store)
+internal sealed partial class OutboxStore(SqliteMailStore store)
 {
     private const string Columns = "id,account,subject,state,detail,accepted,remaining,created,copy_pending";
     internal static void Initialize(SqliteMailStore store)
@@ -17,6 +17,7 @@ internal sealed class OutboxStore(SqliteMailStore store)
                 raw BLOB NOT NULL, request_hash TEXT NOT NULL, accepted TEXT NOT NULL DEFAULT '[]', remaining TEXT NOT NULL,
                 state TEXT NOT NULL, detail TEXT NOT NULL, created INTEGER NOT NULL, due INTEGER NOT NULL,
                 copy_pending INTEGER NOT NULL DEFAULT 0, local_copy TEXT);
+            CREATE TABLE IF NOT EXISTS send_plan(id TEXT PRIMARY KEY REFERENCES outbox(id),zone TEXT NOT NULL,missed INTEGER NOT NULL,revision INTEGER NOT NULL,draft_version INTEGER NOT NULL);
             CREATE INDEX IF NOT EXISTS outbox_due ON outbox(state,due);
             CREATE TABLE IF NOT EXISTS outbox_events(
                 sequence INTEGER PRIMARY KEY, item TEXT NOT NULL REFERENCES outbox(id), time INTEGER NOT NULL, detail TEXT NOT NULL);
@@ -52,15 +53,18 @@ internal sealed class OutboxStore(SqliteMailStore store)
         var inserted = Change("""
             INSERT INTO outbox(id,account,subject,raw,request_hash,remaining,state,detail,created,due)
             VALUES($id,$account,$subject,$raw,$hash,$remaining,'pending','已加入发件箱。',unixepoch(),unixepoch())
-            ON CONFLICT(id) DO NOTHING
+            ON CONFLICT(id) DO UPDATE SET raw=excluded.raw,request_hash=excluded.request_hash,remaining=excluded.remaining,state='pending',detail=excluded.detail,due=excluded.due,subject=excluded.subject
+            WHERE outbox.state='canceled' AND outbox.account=excluded.account AND outbox.accepted='[]' AND EXISTS(SELECT 1 FROM send_plan WHERE id=outbox.id)
             """, ("id", id.ToString()), ("account", account.ToString()), ("subject", subject),
             ("raw", raw), ("hash", requestHash), ("remaining", JsonSerializer.Serialize(recipients)));
         if (inserted == 0)
         {
             using var db = store.Open();
-            using var verify = Command(db, "SELECT request_hash FROM outbox WHERE id=$id AND account=$account",
+            using var verify = Command(db, "SELECT request_hash,state FROM outbox WHERE id=$id AND account=$account",
                 ("id", id.ToString()), ("account", account.ToString()));
-            if (verify.ExecuteScalar() as string != requestHash) throw new InvalidDataException("该发件记录已用于另一封邮件，请新建邮件。");
+            using var row=verify.ExecuteReader();bool exists=row.Read();
+            if(exists && row.GetString(1) is "scheduled" or "held")throw new InvalidDataException("此邮件已预约，请先取消计划再立即发送。");
+            if (!exists || row.GetString(0) != requestHash) throw new InvalidDataException("该发件记录已用于另一封邮件，请新建邮件。");
         }
     }
 
@@ -108,7 +112,7 @@ internal sealed class OutboxStore(SqliteMailStore store)
     {
         using var db = store.Open();
         using var command = Command(db, """
-            SELECT id FROM outbox WHERE state='sending' OR (state='pending' AND due<=unixepoch())
+            SELECT id FROM outbox WHERE state='sending' OR (state IN ('pending','scheduled') AND due<=unixepoch())
             ORDER BY due,rowid LIMIT 1
             """);
         return command.ExecuteScalar() is string id ? Guid.Parse(id) : null;
@@ -140,9 +144,12 @@ internal sealed class OutboxStore(SqliteMailStore store)
 
     internal void Cancel(Guid id)
     {
-        if (Change("""
-            UPDATE outbox SET state='canceled',detail='已取消尚未发送的收件人。' WHERE id=$id AND state='pending'
-            """, ("id", id.ToString())) != 1) throw new InvalidDataException("仅能取消尚未提交的邮件。请刷新状态。");
+        using var db=store.Open();using var tx=db.BeginTransaction();using var c=db.CreateCommand();c.Transaction=tx;
+        c.Parameters.AddWithValue("$id",id.ToString());
+        c.CommandText="UPDATE outbox SET state='canceled',detail='已取消尚未发送的收件人。' WHERE id=$id AND state IN ('pending','scheduled','held')";
+        if(c.ExecuteNonQuery()!=1)throw new InvalidDataException("只能取消尚未发送的邮件，请刷新确认状态。");
+        c.CommandText="UPDATE compose_draft SET submitted=0 WHERE id=$id AND EXISTS(SELECT 1 FROM send_plan WHERE id=$id)";
+        c.ExecuteNonQuery();tx.Commit();
     }
 
     internal void Retry(Guid id)

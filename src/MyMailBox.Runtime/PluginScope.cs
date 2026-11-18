@@ -329,6 +329,8 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
     {
         private async Task Use(Func<IOutboxService, CancellationToken, Task> work, CancellationToken cancellation) =>
             await scope.Run(async t => { await work(service.Value, t); return true; }, cancellation);
+        public Task<SendPlan?> GetSendPlan(Guid id,CancellationToken token=default)=>scope.Run(t=>service.Value.GetSendPlan(id,t),token);
+        public async Task Schedule(Guid id,Guid account,TextMail message,SendPlan plan,CancellationToken token=default)=>await scope.Run(async t=>{await service.Value.Schedule(id,account,message,plan,t);return true;},token);
         public Task Enqueue(Guid id, Guid account, TextMail message, CancellationToken cancellation = default) =>
             Use((s,t) => s.Enqueue(id, account, message, t), cancellation);
         public Task<SendOutcome> Deliver(Guid id, CancellationToken cancellation = default) =>

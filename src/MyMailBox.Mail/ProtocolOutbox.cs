@@ -49,6 +49,7 @@ public sealed partial class ProtocolMailService
         using var dispatch = LockDispatch();
         if (dispatch is null) return Outcome(_outbox.Get(id));
         _outbox.RecoverInterrupted();
+        _outbox.ActivateDue(id);
         var item = _outbox.Get(id);
         if (item.State != "pending") return Outcome(item);
         using var mime = await MimeMessage.LoadAsync(new MemoryStream(_outbox.Raw(id), false), cancellation);

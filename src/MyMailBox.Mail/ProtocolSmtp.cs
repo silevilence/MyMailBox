@@ -20,7 +20,10 @@ public sealed partial class ProtocolMailService
         return await Deliver(id, cancellation);
     }
 
-    public async Task Enqueue(Guid id, Guid account, TextMail message, CancellationToken cancellation = default)
+    public Task Enqueue(Guid id, Guid account, TextMail message, CancellationToken cancellation = default) => Queue(id,account,message,null,cancellation);
+    public Task Schedule(Guid id,Guid account,TextMail message,SendPlan plan,CancellationToken token=default) => Queue(id,account,message,plan,token);
+    public Task<SendPlan?> GetSendPlan(Guid id,CancellationToken token=default) => Task.Run(()=>_outbox.Plan(id),token);
+    private async Task Queue(Guid id,Guid account,TextMail message,SendPlan? plan,CancellationToken cancellation)
     {
         var identity = await Account(account, AccountCapabilities.Send, cancellation);
         using var mime = new MimeMessage();
@@ -44,7 +47,9 @@ public sealed partial class ProtocolMailService
         if (stream.Length > profile.MaxBytes) throw new InvalidDataException($"编码后的整封邮件超过当前账户上限 {profile.MaxBytes:N0} 字节。");
         var requestHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
             System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new { identity.Address, message })));
-        _outbox.Enqueue(id, account, mime.Subject, stream.ToArray(), recipients.Select(r => r.Address).ToArray(), requestHash);
+        var addresses=recipients.Select(r=>r.Address).ToArray();
+        if(plan is null)_outbox.Enqueue(id,account,mime.Subject,stream.ToArray(),addresses,requestHash);
+        else _outbox.Schedule(id,account,mime.Subject,stream.ToArray(),addresses,requestHash,plan);
     }
 
     private static async Task<SendOutcome> Submit(SendingClient client, MimeMessage mime, string[] remaining, CancellationToken cancellation)

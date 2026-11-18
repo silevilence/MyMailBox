@@ -57,7 +57,7 @@ public sealed partial class ProtocolView
 
     private static string StateName(string state) => state switch
     {
-        "pending" => "待发送", "sending" => "正在发送", "sent" => "发送成功", "partial" => "部分成功",
+        "scheduled" => "已预约", "held" => "错过或已编辑，待确认", "pending" => "待发送", "sending" => "正在发送", "sent" => "发送成功", "partial" => "部分成功",
         "unknown" => "结果待确认", "rejected" => "未能发送", "canceled" => "已取消", _ => state
     };
 
@@ -65,7 +65,7 @@ public sealed partial class ProtocolView
     {
         if (_retryMail is null) return;
         var selected = _outboxList.SelectedItem as OutboxItem;
-        _cancelMail!.IsEnabled = !_busy && selected?.State == "pending";
+        _cancelMail!.IsEnabled = !_busy && selected?.State is "pending" or "scheduled" or "held";
         _retryMail.IsEnabled = !_busy && selected?.State is "partial" or "pending" or "rejected";
         _copyMail!.IsEnabled = !_busy && selected?.CopyPending == true;
         _newerMail!.IsEnabled = !_busy && _outboxOffset > 0;
