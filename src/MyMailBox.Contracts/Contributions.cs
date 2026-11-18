@@ -10,6 +10,7 @@ public sealed record Page(string Id, string Title, string Description, IReadOnly
     public IUpdateService? Updates { get; init; }
     public IUpdateInstaller? UpdateInstaller { get; init; }
     public ProtocolPage? Protocols { get; init; }
+    public IReceiveRules? Rules { get; init; }
     public IMailSearch? Search { get; init; }
     public OrganizationPage? Organization { get; init; }
     public IUnifiedInbox? UnifiedInbox { get; init; }

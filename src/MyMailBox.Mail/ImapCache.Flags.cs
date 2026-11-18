@@ -63,11 +63,11 @@ internal sealed partial class ImapCache
         return result.ToArray();
     }
 
-    internal void Snapshot(Folder folder, UniqueId[] requested, IList<IMessageSummary> observed)
+    internal void Snapshot(Guid folder, UniqueId[] requested, IList<IMessageSummary> observed)
     {
         var byUid = observed.Where(s => s.Flags.HasValue).ToDictionary(s => s.UniqueId, s => s.Flags!.Value);
         using var db = store.Open(); using var tx = db.BeginTransaction(); using var c = db.CreateCommand(); c.Transaction = tx;
-        c.Parameters.AddWithValue("$folder", folder.Id.ToString());
+        c.Parameters.AddWithValue("$folder", folder.ToString());
         var uid = c.Parameters.Add("$uid", Microsoft.Data.Sqlite.SqliteType.Integer);
         var flags = c.Parameters.Add("$flags", Microsoft.Data.Sqlite.SqliteType.Integer);
         var read = c.Parameters.Add("$read", Microsoft.Data.Sqlite.SqliteType.Integer);

@@ -23,7 +23,7 @@ public sealed partial class ProtocolMailService
         foreach (var batch in cache.Observed(folder, range).Chunk(128))
         {
             var observed = await remote.FetchAsync(batch, fields, token);
-            cache.Snapshot(folder, batch, observed);
+            cache.Snapshot(folder.Id, batch, observed);
         }
         var pending = cache.Edits(folder.Id);
         if (pending.Count == 0) return;
@@ -43,7 +43,7 @@ public sealed partial class ProtocolMailService
             if (desired) await remote.AddFlagsAsync(uid, flag, true, token);
             else await remote.RemoveFlagsAsync(uid, flag, true, token);
             var result = await remote.FetchAsync(new[] { uid }, fields, token);
-            cache.Snapshot(folder, [uid], result);
+            cache.Snapshot(folder.Id, [uid], result);
             var s = result.FirstOrDefault(m => m.UniqueId == uid);
             if (s?.Flags is { } flags)
                 cache.Result(edit, flags.HasFlag(flag) == desired ? "done" : "conflict",

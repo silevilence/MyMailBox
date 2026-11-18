@@ -18,6 +18,7 @@ public sealed partial class ProtocolMailService
         if (uids is not null && (uids.Any(string.IsNullOrEmpty) || uids.Distinct(StringComparer.Ordinal).Count() != uids.Count)) throw new InvalidDataException("服务器返回重复或空 UIDL，已停止收取并保留来源。");
         if (uids is null && deleteAfterDownload) throw new InvalidDataException("服务器不支持 UIDL；仅允许按原文摘要去重并保留服务器副本，不执行删除。");
         var folder = EnsurePopFolder(account);
+        bool historical = !RuleInbox.PopBaseline(_store,account,source,false);
         var imported = 0; var existing = 0; var deleted = 0; var pending = false;
         for (var index = 0; index < client.Count; index++)
         {
@@ -39,11 +40,12 @@ public sealed partial class ProtocolMailService
             }
             var raw = bytes.ToArray(); var uid = uids?[index] ?? "sha256:" + Convert.ToHexString(SHA256.HashData(raw));
             var metadata = await new MimeReader().Parse(raw, cancellation);
-            if (SavePopMessage(account, source, uid, folder, raw, metadata, cancellation)) imported++; else existing++;
+            if (SavePopMessage(account, source, uid, folder, raw, metadata, historical, cancellation)) imported++; else existing++;
             if (deleteAfterDownload) { await client.DeleteMessageAsync(index, cancellation); deleted++; }
         }
         // POP deletions commit only on successful QUIT, after local transactions have committed.
         await client.DisconnectAsync(true, cancellation);
+        if (!pending && historical) RuleInbox.PopBaseline(_store,account,source,true);
         return new PopOutcome(imported, existing, deleted, pending, uids is null ? "已按原文摘要去重，服务器副本全部保留；无 UIDL 时无法区分内容完全相同的独立邮件。" : $"本批新增 {imported} 封，已保存 {existing} 封，服务器删除 {deleted} 封。" + (pending ? "还有邮件，可继续收取。" : ""));
     });
     private Guid EnsurePopFolder(Guid account)
@@ -64,7 +66,7 @@ public sealed partial class ProtocolMailService
         if (Convert.ToHexString(SHA256.HashData((byte[])reader[0])) != reader.GetString(1)) throw new InvalidDataException("本地副本校验失败，已停止收取并保留服务器来源，请先修复本地存储。");
         return true;
     }
-    private bool SavePopMessage(Guid account, string source, string uid, Guid folder, byte[] raw, ParsedMail mail, CancellationToken token)
+    private bool SavePopMessage(Guid account, string source, string uid, Guid folder, byte[] raw, ParsedMail mail, bool historical, CancellationToken token)
     {
         using var db = _store.Open(); using var tx = db.BeginTransaction(); using var command = db.CreateCommand(); command.Transaction = tx;
         command.CommandText = "SELECT message_id FROM pop_receipts WHERE account_id=$account AND source=$source AND uid=$uid";
@@ -83,6 +85,7 @@ public sealed partial class ProtocolMailService
         command.Parameters.AddWithValue("$id", id.ToString()); command.Parameters.AddWithValue("$folder", folder.ToString()); command.Parameters.AddWithValue("$subject", mail.Subject);
         command.Parameters.AddWithValue("$from", mail.From); command.Parameters.AddWithValue("$to", mail.To); command.Parameters.AddWithValue("$date", mail.Date.ToUniversalTime().ToString("O")); command.Parameters.AddWithValue("$size", raw.Length);
         command.Parameters.AddWithValue("$raw", raw); command.Parameters.AddWithValue("$hash", Convert.ToHexString(SHA256.HashData(raw)));
-        token.ThrowIfCancellationRequested(); command.ExecuteNonQuery(); token.ThrowIfCancellationRequested(); tx.Commit(); return true;
+        token.ThrowIfCancellationRequested(); command.ExecuteNonQuery(); RuleInbox.Arrived(tx,folder,id.ToString(),account + "/" + source + "/" + uid,historical);
+        token.ThrowIfCancellationRequested(); tx.Commit(); return true;
     }
 }

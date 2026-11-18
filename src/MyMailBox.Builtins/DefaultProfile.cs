@@ -41,6 +41,9 @@ public static class DefaultProfile
             var protocols = new Mail.ProtocolMailService(store);
             var search = new Mail.MailSearchService(store, protocols, searchExtensions);
             ctx.Effect(() => host.Add(new Page("search", "搜索邮件", "", [], [], (_, _) => Task.FromResult("")) { Search = search }));
+            var rules = new Mail.ReceiveRuleService(store,search,protocols);
+            ctx.Effect(() => host.Add(new Page("rules", "收件规则", "", [], [], (_, _) => Task.FromResult("")) { Rules=rules }));
+            ctx.Effect(() => new Mail.ReceiveRuleRunner(rules,notification));
             var inbox = new Mail.UnifiedInboxService(store, accounts, new Mail.ProtocolReceiveProvider(store, protocols));
             ctx.Effect(() => host.Add(new Page("inbox", "统一收件箱", "", [], [], (_, _) => Task.FromResult("")) { UnifiedInbox = inbox }));
             ctx.Effect(() => host.Add(new Page("organize", "目录与标记", "", [], [], (_, _) => Task.FromResult("")) { Organization = new(accounts, protocols) { Actions = protocols, Transfers = protocols } }));

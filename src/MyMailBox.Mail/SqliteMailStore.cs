@@ -45,6 +45,7 @@ public sealed class SqliteMailStore : IMailStore
         command.CommandText = "INSERT OR IGNORE INTO folders VALUES($id,$account,'收件箱','本地邮箱 / 收件箱','inbox',NULL)";
         command.Parameters.AddWithValue("$id", Inbox.ToString()); command.Parameters.AddWithValue("$account", LocalAccount.ToString());
         command.ExecuteNonQuery();
+        RuleInbox.Initialize(command);
         transaction.Commit();
     }
 
@@ -79,6 +80,7 @@ public sealed class SqliteMailStore : IMailStore
         if (raw.Length is 0 or > MimeReader.MaxMessageBytes) throw new InvalidDataException("邮件为空或超过 25 MiB 存储限制。");
         using var db = Open(); using var transaction = db.BeginTransaction(); using var command = db.CreateCommand(); command.Transaction = transaction;
         var id = InsertMessage(command, folderId, raw, metadata);
+        RuleInbox.Arrived(transaction,folderId,id.ToString(),id.ToString(),true);
         cancellation.ThrowIfCancellationRequested(); transaction.Commit(); return id;
     }, cancellation);
 

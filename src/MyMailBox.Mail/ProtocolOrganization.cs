@@ -189,6 +189,7 @@ public sealed partial class ProtocolMailService
                     }
                     var row = (await remote.FetchAsync(new[] { uid },MarkFields,token)).FirstOrDefault(s => s.UniqueId == uid)
                         ?? throw new InvalidDataException("服务器邮件已移出或删除。");
+                    cache.Snapshot(folder,[uid],[row]);
                     var changed = Row(folder,row);
                     if (!localLabel && (flag == MessageFlags.Seen ? changed.Read : changed.Starred) != (mark is MailMark.Read or MailMark.Star))
                         throw new InvalidDataException("服务器未保存请求的标记。");

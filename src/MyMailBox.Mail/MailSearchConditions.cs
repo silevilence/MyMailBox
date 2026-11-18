@@ -6,6 +6,12 @@ namespace MyMailBox.Mail;
 
 public sealed partial class MailSearchService
 {
+    internal void ValidateCondition(ConditionTree tree)
+    {
+        using var db = _store.Open(); using var cmd = db.CreateCommand();
+        Compile(db,cmd,tree,[],default,validateOnly:true);
+    }
+
     public Task<ConditionResult> Evaluate(string messageId, ConditionTree condition, CancellationToken token = default) => Task.Run(() =>
     {
         _metadata.Prepare(token); _bodyIndex.Prepare(false, null, token);

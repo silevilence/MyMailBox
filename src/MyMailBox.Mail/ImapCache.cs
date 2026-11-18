@@ -203,6 +203,17 @@ internal sealed partial class ImapCache(SqliteMailStore store, Guid account, Mai
         return added;
     }
 
+    internal void Received(Folder folder, IEnumerable<UniqueId> items)
+    {
+        using var db = store.Open(); using var tx = db.BeginTransaction();
+        foreach (var uid in items)
+        {
+            string key = uid.Id.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            RuleInbox.Arrived(tx,folder.Id,key,folder.Id + "/" + key,folder.Coverage==0 || uid.Id<=folder.Watermark);
+        }
+        tx.Commit();
+    }
+
     internal void Finish(Folder folder, uint watermark, int coverage)
     {
         using var db = store.Open();

@@ -65,10 +65,15 @@ internal static partial class ProtocolChecks
         var expanded = await service.Sync(account.Id, path, 100);
         MailChecks.Check(expanded.Added == 8, "Expanded window skipped or repeated a chunk");
         using var timer = new CancellationTokenSource(TimeSpan.FromSeconds(80));
+        var rules = new ReceiveRuleService(store,search,service);
+        await rules.Save(new(Guid.NewGuid(),0,"实时收件规则",account.Id,first[0].FolderId,"subject:新到邮件","",[new(RuleActionKind.Star)],10,true,true,false));
         var wait = service.WaitForChange(account.Id, path, expanded, timer.Token);
         sample.Subject = "新到邮件"; await remote.AppendAsync(sample);
         await wait;
         MailChecks.Check((await service.Sync(account.Id, path, 100)).Added == 1, "Incremental sync missed new arrival");
+        await rules.Process();
+        MailChecks.Check((await rules.Dashboard()).Runs.Any(r=>r.State=="applied") && (await service.CachedPage(account.Id,path,0,1)).Items.Single().IsStarred,
+            "Real new arrival did not execute the configured rule");
         await remote.OpenAsync(FolderAccess.ReadWrite);
         await remote.AddFlagsAsync(new UniqueId(first[1].Uid), MessageFlags.Deleted, true);
         await remote.ExpungeAsync();

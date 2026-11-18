@@ -31,6 +31,7 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
                 { OfflineMarks = protocols.OfflineMarks is { } marks ? new ScopedOfflineMarks(this,Target(marks)) : null,
                   Outbox = protocols.Outbox is { } outbox ? new ScopedOutbox(this, Target(outbox)) : null,
                   ImapSync = protocols.ImapSync is { } sync ? new ScopedImapSync(this, Target(sync)) : null } : null,
+            Rules = page.Rules is { } rules ? new ScopedRules(this,Target(rules)) : null,
             Search = page.Search is { } search ? new ScopedSearch(this,Target(search)) : null,
             Organization = page.Organization is { } org ? new(new ScopedAccounts(this, Target(org.Accounts)), new ScopedOrganizer(this, Target(org.Organizer)))
                 { Transfers = org.Transfers is { } transfers ? new ScopedTransfers(this,Target(transfers)) : null,
@@ -229,6 +230,12 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
             scope.Run(t=>service.Value.Recent(sourceAccount,offset,limit,t),token);
     }
 
+    private sealed class ScopedRules(PluginScope scope, ServiceTarget<IReceiveRules> service) : IReceiveRules
+    {
+        public Task<RuleDashboard> Dashboard(CancellationToken token=default) => scope.Run(t=>service.Value.Dashboard(t),token);
+        public Task<ReceiveRule> Save(ReceiveRule rule,CancellationToken token=default) => scope.Run(t=>service.Value.Save(rule,t),token);
+        public Task<int> Process(int limit=32,CancellationToken token=default) => scope.Run(t=>service.Value.Process(limit,t),token);
+    }
     private sealed class ScopedSearch(PluginScope scope, ServiceTarget<IMailSearch> service) : IMailSearch
     {
         public IReadOnlyList<SearchField> Fields => service.Value.Fields.ToArray();
