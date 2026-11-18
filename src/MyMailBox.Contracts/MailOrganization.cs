@@ -7,6 +7,7 @@ public sealed record ManagedPage(IReadOnlyList<ManagedMessage> Items, bool HasMo
 public sealed record MarkResult(string Key, bool Success, string Detail, ManagedMessage? Updated = null);
 public sealed record OrganizationPage(IAccountService Accounts, IMailOrganizer Organizer)
 {
+    public IMailTransferService? Transfers { get; init; }
     public IMailActionService? Actions { get; init; }
 }
 

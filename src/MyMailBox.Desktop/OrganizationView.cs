@@ -69,11 +69,14 @@ internal sealed partial class OrganizationView : UserControl, IDisposable
         Action(tagging,"添加标签","org-add-label",() => Mark(MailMark.AddLabel));
         Action(tagging,"移除标签","org-remove-label",() => Mark(MailMark.RemoveLabel)); _panel.Children.Add(tagging);
         if (_page.Actions is not null) AddMessageActions();
+        if (_page.Transfers is not null) AddTransfers();
         AutomationProperties.SetAutomationId(_status,"org-status");
         _panel.Children.Add(_status);
-        Content = new ScrollViewer { Content = _panel };
+        var layout = new DockPanel(); DockPanel.SetDock(_stopTransfer,Dock.Bottom);
+        layout.Children.Add(_stopTransfer); layout.Children.Add(new ScrollViewer { Content = _panel }); Content = layout;
         _accounts.SelectionChanged += (_,_) =>
         {
+            _archiveTarget.ItemsSource = null; _history.ItemsSource = null;
             ResetActions(); _destination.ItemsSource = null; _folders.ItemsSource = null; _list.Items.Clear(); _confirm = null; _more = false; _offset = 0;
             _scope.Text = _accounts.SelectedItem is not MailAccount a ? "" : a.Provider switch
             {
@@ -134,6 +137,7 @@ internal sealed partial class OrganizationView : UserControl, IDisposable
         _folders.ItemsSource = items;
         _folders.SelectedItem = items.FirstOrDefault(f => f.Id == selected) ?? items.FirstOrDefault(f => f.Role == "inbox") ?? items.FirstOrDefault();
         await LoadMessages(0);
+        if (_page.Transfers is not null) await LoadTransferOptions();
     }
 
     private static string Caption(ManagedMessage m) =>

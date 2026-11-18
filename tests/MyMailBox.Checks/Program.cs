@@ -32,6 +32,7 @@ if (args.Length == 0 || args.Contains("outbox")) await ProtocolChecks.Outbox();
 if (args.Length == 0 || args.Contains("multi-sync")) await MultiSyncChecks.Run();
 if (args.Length == 0 || args.Contains("organization")) await OrganizationChecks.Run(false);
 if (args.Length == 0 || args.Contains("mail-actions")) await MailActionChecks.Run(false);
+if (args.Contains("transfer-live")) await TransferChecks.Live();
 if (args.Contains("mail-actions-live")) await MailActionChecks.Run(true);
 if (args.Contains("organization-live")) await OrganizationChecks.Run(true);
 if (args.Contains("imap-sync")) await ProtocolChecks.ImapSync();

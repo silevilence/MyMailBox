@@ -31,7 +31,8 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
                 { Outbox = protocols.Outbox is { } outbox ? new ScopedOutbox(this, Target(outbox)) : null,
                   ImapSync = protocols.ImapSync is { } sync ? new ScopedImapSync(this, Target(sync)) : null } : null,
             Organization = page.Organization is { } org ? new(new ScopedAccounts(this, Target(org.Accounts)), new ScopedOrganizer(this, Target(org.Organizer)))
-                { Actions = org.Actions is { } actions ? new ScopedActions(this,Target(actions)) : null } : null,
+                { Transfers = org.Transfers is { } transfers ? new ScopedTransfers(this,Target(transfers)) : null,
+                  Actions = org.Actions is { } actions ? new ScopedActions(this,Target(actions)) : null } : null,
             UnifiedInbox = page.UnifiedInbox is { } inbox ? new ScopedUnifiedInbox(this, Target(inbox)) : null,
             Graph = page.Graph is { } graph ? new(new ScopedAccounts(this, Target(graph.Accounts)), new ScopedGraph(this, Target(graph.Service))) : null,
             Selections = page.Selections is { } selections ? new ScopedSelections(this, Target(selections)) : null,
@@ -194,6 +195,18 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         public Task<GraphMessages> Messages(Guid account, string folder, string? next = null, CancellationToken cancellation = default) => scope.Run(t => service.Value.Messages(account, folder, next, t), cancellation);
         public Task<Guid> Download(Guid account, string message, CancellationToken cancellation = default) => scope.Run(t => service.Value.Download(account, message, t), cancellation);
     }
+    private sealed class ScopedTransfers(PluginScope scope, ServiceTarget<IMailTransferService> service) : IMailTransferService
+    {
+        public Task<IReadOnlyList<MailFolder>> Destinations(Guid sourceAccount,CancellationToken token=default) =>
+            scope.Run(t=>service.Value.Destinations(sourceAccount,t),token);
+        public Task<MailTransfer> Plan(TransferRequest request,CancellationToken token=default) =>
+            scope.Run(t=>service.Value.Plan(request,t),token);
+        public Task<MailTransfer> Continue(Guid operation,IProgress<MailTransfer>? progress=null,CancellationToken token=default) =>
+            scope.Run(t=>service.Value.Continue(operation,progress,t),token);
+        public Task<IReadOnlyList<MailTransfer>> Recent(Guid sourceAccount,int offset,int limit,CancellationToken token=default) =>
+            scope.Run(t=>service.Value.Recent(sourceAccount,offset,limit,t),token);
+    }
+
     private sealed class ScopedActions(PluginScope scope, ServiceTarget<IMailActionService> service) : IMailActionService
     {
         public Task<IReadOnlyList<MailActionResult>> Apply(MailActionRequest request, CancellationToken token = default) =>
