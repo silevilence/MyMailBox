@@ -4,7 +4,7 @@ CI 修复验证：普通 push/PR 不再触发构建；修正 `runner.temp` 的�
 
 推送前复核：Exchange 验收地址及应用 ID 已从待推送历史移除。真实 ID 仅在本地忽略配置保留，Actions 从 `MYMAILBOX_GRAPH_CLIENT_ID` Secret 注入；普通用户仍直接登录，不填写 ID。真实服务地址由用户逐账户提供。
 
-日期：2026 年 11 月 18 日。**完成 65；进行中 3；阻塞 1；未开始 39。** 50 的 ANSI 中文及正文修复通过，研究选型完成；32 已内置发布者应用注册，普通用户直接登录，无需输入 Client ID，待个人账户真实登录/读取验收；35 的 EWS 认证仍失败，但 ActiveSync 带凭据 OPTIONS 已返回 200，声明最高协议 16.1，待部署、设备策略及测试目录读写验收。Exchange 产品须由用户逐账户填写服务器及身份，不绑定验收公司域名。证据见 [PST 修复](../../docs/validation/2026-11-17-pst-ansi-fix.md)、[Outlook.com 配置](../../docs/validation/outlook-com-setup.md)、[公司端点调查](../../docs/validation/2026-11-17-exchange-discovery.md)。
+日期：2026 年 11 月 18 日。**完成 66；进行中 3；阻塞 1；未开始 38。** 50 的 ANSI 中文及正文修复通过，研究选型完成；32 已内置发布者应用注册，普通用户直接登录，无需输入 Client ID，待个人账户真实登录/读取验收；35 的 EWS 认证仍失败，但 ActiveSync 带凭据 OPTIONS 已返回 200，声明最高协议 16.1，待部署、设备策略及测试目录读写验收。Exchange 产品须由用户逐账户填写服务器及身份，不绑定验收公司域名。证据见 [PST 修复](../../docs/validation/2026-11-17-pst-ansi-fix.md)、[Outlook.com 配置](../../docs/validation/outlook-com-setup.md)、[公司端点调查](../../docs/validation/2026-11-17-exchange-discovery.md)。
 
 - [000-mymailbox 开发规格与完成标准](spec.md)
 - [全部规格索引](../index.md)
@@ -174,7 +174,7 @@ flowchart TD
 | 编号与任务 | 范围 | 直接依赖 | 初始分诊 | 当前进度 |
 | --- | --- | --- | --- | --- |
 | [81 完成键盘与无障碍的核心使用路径](issues/81-ux-acceptance.md) | 必做 | [26](issues/26-reply-forward.md)、[63](issues/63-search-cancel.md)、[78](issues/78-task-history.md)、[80](issues/80-notifications.md) | ready-for-agent | 未开始 |
-| [82 建立可复用的大邮箱验收数据集](issues/82-performance-fixtures.md) | 必做 | [63](issues/63-search-cancel.md)、[75](issues/75-archive-task.md) | ready-for-agent | 未开始 |
+| [82 建立可复用的大邮箱验收数据集](issues/82-performance-fixtures.md) | 必做 | [63](issues/63-search-cancel.md)、[75](issues/75-archive-task.md) | ready-for-agent | 完成 |
 | [83 达到长列表搜索阅读和后台任务性能目标](issues/83-performance.md) | 必做 | [82](issues/82-performance-fixtures.md) | ready-for-agent | 未开始 |
 | [84 联调各提供者的故障与恢复矩阵](issues/84-reliability.md) | 必做 | [47](issues/47-provider-sdk.md)、[78](issues/78-task-history.md)、[46](issues/46-sync-conflicts.md)、[35](issues/35-exchange-discovery.md)、[29](issues/29-qq.md)、[30](issues/30-netease.md)、[34](issues/34-graph-sync.md)、[33](issues/33-graph-send.md) | needs-info | 未开始 |
 | [85 受控地自动回复转发与调用外部动作](issues/85-automatic-replies.md) | 必要补充：默认关闭的高影响动作 | [67](issues/67-rule-preview.md)、[76](issues/76-task-actions.md)、[25](issues/25-outbox.md)、[09](issues/09-plugin-diagnostics.md) | needs-info | 未开始 |

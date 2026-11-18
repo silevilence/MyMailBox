@@ -3,6 +3,12 @@ using MyMailBox.Builtins;
 using MyMailBox.Contracts;
 using MyMailBox.Runtime;
 
+if (args.Length==2 && args[0]=="perf-index" && int.TryParse(args[1],out var indexSize) && indexSize is 10000 or 100000)
+{await PerformanceFixture.Index(indexSize);return;}
+if (args.Length==4 && args[0]=="perf-measure" && int.TryParse(args[1],out var measureSize) && measureSize is 10000 or 100000 && args[2] is "indexed" or "source" && args[3] is "sync" or "idle")
+{await PerformanceFixture.Measure(measureSize,args[2],args[3]=="sync");return;}
+if (args.Length==2 && args[0]=="perf-prepare" && int.TryParse(args[1],out var size) && size is 10000 or 100000)
+{await PerformanceFixture.Prepare(size);return;}
 if (args.Length == 3 && args[0] == "draft-crash-worker") { ComposerChecks.Crash(args[1],Guid.Parse(args[2]));return; }
 if (args.Length == 2 && args[0] == "rule-crash-worker") { await ReceiveRuleChecks.Crash(args[1]); return; }
 if (args.Length == 4 && args[0] == "transfer-crash-worker") { await TransferChecks.CrashWorker(args[1], Guid.Parse(args[2]), args[3]); return; }
@@ -43,16 +49,15 @@ if (args.Length == 0 || args.Contains("search-conditions")) await SearchChecks.C
 if (args.Length == 0 || args.Contains("search-index")) await SearchChecks.Index();
 if (args.Length == 0 || args.Contains("search-builder")) await SearchChecks.Builder();
 if (args.Length == 0 || args.Contains("search-extension")) await SearchChecks.Extension();
+if (args.Contains("task-events-live")) await AutomationChecks.Events(true);
+if (args.Length == 0 || args.Contains("task-events")) await AutomationChecks.Events(false);
+if (args.Length == 0 || args.Contains("task-actions")) await AutomationChecks.Actions();
 if (args.Contains("task-archive-live")) await AutomationChecks.ArchiveLive();
 if (args.Length == 0 || args.Contains("task-archive")) await AutomationChecks.Archive();
 if (args.Length == 0 || args.Contains("task-targets")) await AutomationChecks.Targets();
 if (args.Length == 0 || args.Contains("task-conditions")) await AutomationChecks.Conditions();
 if (args.Length == 0 || args.Contains("rule-stages")) await ReceiveRuleChecks.Stages();
 if (args.Length == 0 || args.Contains("rule-preview")) await ReceiveRuleChecks.Preview();
-if (args.Contains("task-events-live")) await AutomationChecks.Events(true);
-if (args.Length == 0 || args.Contains("task-events")) await AutomationChecks.Events(false);
-if (args.Length == 0 || args.Contains("task-actions")) await AutomationChecks.Actions();
-if (args.Length == 0 || args.Contains("task-actions")) await AutomationChecks.Actions();
 if (args.Length == 0 || args.Contains("send-plan")) await ComposerChecks.SendPlans();
 if (args.Contains("send-plan-live")) await ComposerChecks.SendPlanLive();
 if (args.Length == 0 || args.Contains("address-book")) await ComposerChecks.Addresses();
