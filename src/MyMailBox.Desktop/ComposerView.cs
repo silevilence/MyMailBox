@@ -22,19 +22,25 @@ internal sealed partial class ComposerView : UserControl,IDisposable
     private readonly ContentControl _richHost=new();
     private RichComposeView? _rich;
     private MailDraft? _draft;
+    private ReplyIntent? _intent;
+    private readonly StackPanel _alternate=new();
+    private readonly CheckBox _include=new(){Content="发送时包含引用",IsChecked=true};
+    private readonly TextBlock _quoteText=new(){TextWrapping=TextWrapping.Wrap};
+    private readonly Expander _quote=new(){Header="引用原邮件"};
     private ComposerEditor? _editor;
     private bool _binding,_busy,_disposed;
     private IDisposable? _preparation;
 
-    internal ComposerView(ComposerPage page,Contributions contributions,string owner)
+    internal ComposerView(ComposerPage page,Contributions contributions,string owner,ReplyIntent? intent=null)
     {
-        _page=page;_contributions=contributions;_owner=owner;
+        _page=page;_contributions=contributions;_owner=owner;_intent=intent;
         _form.Children.Add(new TextBlock{Text="写邮件与草稿",FontSize=28,FontWeight=FontWeight.SemiBold});
         _accounts.ItemTemplate=new FuncDataTemplate<MailAccount>((a,_)=>new TextBlock{Text=a?.Name+" · "+a?.Address});
         _drafts.ItemTemplate=new FuncDataTemplate<MailDraft>((d,_)=>new TextBlock{Text=string.IsNullOrWhiteSpace(d?.Subject)?"（无主题草稿）":d.Subject});
         _editors.ItemTemplate=new FuncDataTemplate<ComposerEditor>((e,_)=>new TextBlock{Text=e?.Name});
         _templates.ItemTemplate=new FuncDataTemplate<EditorTemplate>((t,_)=>new TextBlock{Text=t?.Name});
-        Field("发件账户",_accounts,"compose-account");_form.Children.Add(_identity);AddProfile();
+        Field("发件账户",_accounts,"compose-account");
+        Button(_alternate,"用所选账户继续回复或转发","compose-alternate",CreateResponse);_alternate.IsVisible=false;_form.Children.Add(_alternate);_form.Children.Add(_identity);AddProfile();
         Field("该账户的草稿",_drafts,"compose-drafts");
         var draftTools=new WrapPanel();Button(draftTools,"打开所选草稿","compose-open",async()=>{await Flush();if(_drafts.SelectedItem is MailDraft d)Load(_page.Drafts.List(d.Account).Single(x=>x.Id==d.Id));});
         Button(draftTools,"新建草稿","compose-new",async()=>{await Flush();var a=Account();Load(MailDraft.New(a.Id,a.Address));});_form.Children.Add(draftTools);
@@ -44,6 +50,8 @@ internal sealed partial class ComposerView : UserControl,IDisposable
         Button(formats,"打开富文本副本","compose-rich",()=>Format(true));
         Button(formats,"从当前纯文本重建富文本","compose-convert",()=>Format(true,true));_form.Children.Add(formats);
         Field("正文",_plain,"compose-body");_form.Children.Add(_richHost);
+        var quotePanel=new StackPanel();quotePanel.Children.Add(_include);quotePanel.Children.Add(_quoteText);_quote.Content=quotePanel;_quote.IsVisible=false;_form.Children.Add(_quote);
+        _include.IsCheckedChanged+=(_,_)=>{if(!_binding && _draft is {Quote:{} q} d)Persist(d with{Quote=q with{Included=_include.IsChecked==true}});};
         AddFiles();
         Field("模板",_templates,"compose-template");
         var tools=new WrapPanel();Button(tools,"插入模板","compose-insert",InsertTemplate);
@@ -58,7 +66,14 @@ internal sealed partial class ComposerView : UserControl,IDisposable
         AttachedToVisualTree+=async(_,_)=>await Guard(async()=>{
             _binding=true;try{_accounts.ItemsSource=(await page.Accounts.List(_stop.Token)).Where(a=>a.Enabled && a.Capabilities.HasFlag(AccountCapabilities.Send)).ToArray();
                 _accounts.SelectedIndex=_accounts.ItemCount>0?0:-1;SetEditors();}finally{_binding=false;}
-            await SwitchAccount();
+            if(_intent is {} reply)
+            {
+                var source=page.Drafts.SourceAccount(reply.Key);
+                var preferred=_accounts.Items.OfType<MailAccount>().FirstOrDefault(a=>a.Id==source);
+                if(preferred is not null){_binding=true;_accounts.SelectedItem=preferred;_binding=false;await CreateResponse();}
+                else{_alternate.IsVisible=true;_status.Text="原接收账户无法发送，请明确选择替代账户再继续。";}
+            }
+            else await SwitchAccount();
         });
     }
 
@@ -103,9 +118,15 @@ internal sealed partial class ComposerView : UserControl,IDisposable
     {
         var rows=_page.Drafts.List(account);_drafts.ItemsSource=rows;_drafts.SelectedItem=rows.FirstOrDefault(d=>d.Id==_draft?.Id) ?? rows.FirstOrDefault();
     }
+    private async Task CreateResponse()
+    {
+        if(_intent is not {} intent)return;var a=Account();
+        var draft=await _page.Drafts.Respond(intent,a.Id,_stop.Token);_intent=null;_alternate.IsVisible=false;LoadProfile(a);ListDrafts(a.Id);Load(draft);
+    }
     private async Task SwitchAccount()
     {
         await Flush();if(_accounts.SelectedItem is not MailAccount a){_status.Text="请先配置可发送邮件的账户。";return;}
+        if(_intent is not null){_status.Text="请确认替代发件账户。";return;}
         LoadProfile(a);ListDrafts(a.Id);Load((_drafts.SelectedItem as MailDraft) ?? MailDraft.New(a.Id,a.Address));
     }
     private async Task SwitchEditor()
@@ -120,7 +141,7 @@ internal sealed partial class ComposerView : UserControl,IDisposable
     private void Load(MailDraft d)
     {
         _binding=true;try{
-            CloseRich();_draft=d;_to.Text=d.To;_cc.Text=d.Cc;_bcc.Text=d.Bcc;_subject.Text=d.Subject;_plain.Text=d.Body.Plain;_identity.Text="发件身份："+d.Identity;_from.SelectedItem=d.Identity;_files.ItemsSource=d.Parts;
+            CloseRich();_draft=d;_to.Text=d.To;_cc.Text=d.Cc;_bcc.Text=d.Bcc;_subject.Text=d.Subject;_plain.Text=d.Body.Plain;_identity.Text="发件身份："+d.Identity;_from.SelectedItem=d.Identity;_files.ItemsSource=d.Parts;_quote.IsVisible=d.Quote is not null;_quoteText.Text=d.Quote is {} q ? q.Heading+"\n"+q.Text : "";_include.IsChecked=d.Quote?.Included==true;
             _plain.IsVisible=!d.Body.Rich; if(d.Body.Rich)OpenRich(d);_status.Text=d.Version>0?"已恢复草稿。":"新草稿。";
         }finally{_binding=false;}
     }

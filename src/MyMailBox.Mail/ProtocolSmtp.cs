@@ -41,6 +41,8 @@ public sealed partial class ProtocolMailService
         if (recipients.Length == 0) throw new InvalidDataException("请至少填写一位收件人。");
         if (message.Subject.Contains('\r') || message.Subject.Contains('\n')) throw new InvalidDataException("主题不能包含换行。");
         mime.Subject = message.Subject; mime.Body = _draftStore.Body(account,message,cancellation);
+        if(message.InReplyTo is {Length:>0} parent)mime.InReplyTo=parent;
+        foreach(var reference in message.References.Distinct(StringComparer.Ordinal))mime.References.Add(reference);
         mime.Date = DateTimeOffset.Now; mime.MessageId = MimeKit.Utils.MimeUtils.GenerateMessageId();
         using var stream = new MemoryStream();
         await mime.WriteToAsync(stream, cancellation);

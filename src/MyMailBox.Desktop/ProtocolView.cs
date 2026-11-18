@@ -27,9 +27,10 @@ public sealed partial class ProtocolView : UserControl, IDisposable
     private MailAccount? _selected;
     private IReadOnlyList<TabItem> _tabs = [];
     private Button _next = null!, _previous = null!;
-    public ProtocolView(ProtocolPage page)
+    private readonly Action<ReplyIntent>? _respond;
+    public ProtocolView(ProtocolPage page,Action<ReplyIntent>? respond=null)
     {
-        _page = page;
+        _page = page; _respond=respond;
         var panel = new StackPanel { Spacing = 14, MaxWidth = 880 };
         panel.Children.Add(new TextBlock { Text = "邮箱连接与收发", FontSize = 28, FontWeight = FontWeight.SemiBold });
         panel.Children.Add(new TextBlock { Text = "先在账户管理添加在线账户，再配置服务器。保存配置不会连接或发送邮件。", TextWrapping = TextWrapping.Wrap });
@@ -118,7 +119,7 @@ public sealed partial class ProtocolView : UserControl, IDisposable
         {
             var paths = await sync.CachedFolders(id, Token);
             if (_disposed) return;
-            _syncView = new(sync, id, _page.OfflineMarks); _syncTab.Content = _syncView; _syncTab.IsEnabled = true;
+            _syncView = new(sync, id, _page.OfflineMarks,_respond); _syncTab.Content = _syncView; _syncTab.IsEnabled = true;
             _syncView.SetFolders(paths);
         }
         await LoadOutbox(0);

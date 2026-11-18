@@ -20,6 +20,8 @@ public sealed record TextMail(string To, string Cc, string Bcc, string Subject, 
 {
     public string? Html { get; init; }
     public string? FromIdentity {get;init;}
+    public string? InReplyTo {get;init;}
+    public string[] References {get;init;} = [];
     public Guid[] PartIds {get;init;} = [];
 }
 public sealed record SendOutcome(string State, string Message, IReadOnlyList<string> Accepted, IReadOnlyList<string> Rejected);

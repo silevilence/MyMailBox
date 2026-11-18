@@ -27,7 +27,7 @@ internal sealed class ImapSyncView : StackPanel, IDisposable
     private readonly IOfflineMarks? _marks;
     private readonly TextBlock _markStatus = new() { TextWrapping = TextWrapping.Wrap };
     private readonly ListBox _edits = new() { MaxHeight = 140 };
-    public ImapSyncView(IImapSyncService service, Guid account, IOfflineMarks? marks)
+    public ImapSyncView(IImapSyncService service, Guid account, IOfflineMarks? marks,Action<ReplyIntent>? respond=null)
     {
         _service = service; _marks = marks;
         _account = account;
@@ -67,6 +67,7 @@ internal sealed class ImapSyncView : StackPanel, IDisposable
         _previous = Action(reading, "上一页", "sync-prev", () => LoadPage(_offset - 20));
         _next = Action(reading, "下一页", "sync-next", () => LoadPage(_offset + 20));
         _open = Action(reading, "打开邮件", "sync-open", Open);
+        ReplyButtons.Add(reading,"sync",()=>_list.SelectedItem is ImapCachedMail m ? m.FolderId+"/"+m.Uid : null,respond,s=>_readStatus.Text=s);
         Children.Add(reading);
         Children.Add(_readStatus);
         AutomationProperties.SetAutomationId(_body, "sync-body");

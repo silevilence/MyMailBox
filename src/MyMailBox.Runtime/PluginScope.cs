@@ -241,6 +241,8 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
 
     private sealed class ScopedDrafts(PluginScope scope,ServiceTarget<IMailDrafts> service) : IMailDrafts
     {
+        public Guid SourceAccount(string message)=>scope.Run(_=>Task.FromResult(service.Value.SourceAccount(message))).GetAwaiter().GetResult();
+        public Task<MailDraft> Respond(ReplyIntent intent,Guid account,CancellationToken token=default)=>scope.Run(t=>service.Value.Respond(intent,account,t),token);
         public SendingProfile Profile(Guid account)=>scope.Run(_=>Task.FromResult(service.Value.Profile(account))).GetAwaiter().GetResult();
         public void Configure(Guid account,SendingProfile profile)=>scope.Run(_=>{service.Value.Configure(account,profile);return Task.FromResult(true);}).GetAwaiter().GetResult();
         public Task<ComposerPart> AddPart(Guid draft,Guid account,string name,Stream data,bool inline,CancellationToken token=default)=>scope.Run(t=>service.Value.AddPart(draft,account,name,data,inline,t),token);

@@ -29,7 +29,7 @@ internal sealed class UnifiedInboxView : UserControl, IDisposable
     private int _revision, _reading;
     private Guid? Account => (_filter.SelectedItem as Filter)?.Id;
 
-    public UnifiedInboxView(IUnifiedInbox service)
+    public UnifiedInboxView(IUnifiedInbox service,Action<ReplyIntent>? respond=null)
     {
         _service = service;
         var panel = new StackPanel { Spacing = 8, MaxWidth = 900 };
@@ -65,7 +65,7 @@ internal sealed class UnifiedInboxView : UserControl, IDisposable
             if (!_page.HasMore) return;
             _back.Push(_before); _before = _page.Messages[^1].Position; await Page();
         });
-        _open = Action(nav, "阅读", "unified-open", Open); panel.Children.Add(nav);
+        _open = Action(nav, "阅读", "unified-open", Open); ReplyButtons.Add(nav,"unified",()=> (_list.SelectedItem as InboxMessage)?.Position.Key,respond,s=>_feedback.Text=s);panel.Children.Add(nav);
         AutomationProperties.SetAutomationId(_feedback, "unified-feedback"); panel.Children.Add(_feedback);
         AutomationProperties.SetAutomationId(_body, "unified-body"); panel.Children.Add(_body);
         Content = new ScrollViewer { Content = panel };

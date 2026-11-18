@@ -105,6 +105,13 @@ public sealed class ShellWindow : Window
         Show(id);
     }
 
+    private ReplyIntent? _reply;
+    private void Respond(ReplyIntent intent)
+    {
+        var composer=_pages.Pages.FirstOrDefault(p=>p.Composer is not null);
+        if(composer is null){_pages.Notice="写信插件未启用。";return;}
+        _reply=intent;Show(composer.Id);
+    }
     private void Show(string? id)
     {
         _selected = id;
@@ -121,7 +128,7 @@ public sealed class ShellWindow : Window
         _renderedPage = page; _selectorRevision = _pages.SelectorRevision; _exporterRevision = _pages.ExporterRevision;
         if (page.Composer is { } composer)
         {
-            var view=new ComposerView(composer,_pages,page.Id.Split('/')[0]);_hostView=view;_body.Content=view;return;
+            var view=new ComposerView(composer,_pages,page.Id.Split('/')[0],_reply);_reply=null;_hostView=view;_body.Content=view;return;
         }
         if (page.Rules is { } rules)
         {
@@ -129,7 +136,7 @@ public sealed class ShellWindow : Window
         }
         if (page.Search is { } search)
         {
-            var view = new MailSearchView(search); _hostView = view; _body.Content = view; return;
+            var view = new MailSearchView(search,Respond); _hostView = view; _body.Content = view; return;
         }
         if (page.Organization is { } organization)
         {
@@ -137,11 +144,11 @@ public sealed class ShellWindow : Window
         }
         if (page.UnifiedInbox is { } inbox)
         {
-            var view = new UnifiedInboxView(inbox); _hostView = view; _body.Content = view; return;
+            var view = new UnifiedInboxView(inbox,Respond); _hostView = view; _body.Content = view; return;
         }
         if (page.Protocols is { } protocols)
         {
-            var view = new ProtocolView(protocols); _hostView = view; _body.Content = view; return;
+            var view = new ProtocolView(protocols,Respond); _hostView = view; _body.Content = view; return;
         }
         if (page.Graph is { } graph)
         {
@@ -177,7 +184,7 @@ public sealed class ShellWindow : Window
         }
         if (page.Reader is { } reader)
         {
-            var view = new MailboxView(reader, _pages.Exporters); _hostView = view; _body.Content = view; return;
+            var view = new MailboxView(reader, _pages.Exporters,Respond); _hostView = view; _body.Content = view; return;
         }
         var panel = new StackPanel { Spacing = 16, MaxWidth = 800, HorizontalAlignment = HorizontalAlignment.Stretch };
         panel.Children.Add(new TextBlock { Text = page.Title, FontSize = 28, FontWeight = FontWeight.SemiBold });

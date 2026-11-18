@@ -52,7 +52,7 @@ public sealed class MailboxView : UserControl, IDisposable
     private SavedAttachment? _savedAttachment;
     private CancellationTokenSource? _savingAttachment;
 
-    public MailboxView(MailReader reader, IReadOnlyList<IMessageExporter> exporters)
+    public MailboxView(MailReader reader, IReadOnlyList<IMessageExporter> exporters,Action<ReplyIntent>? respond=null)
     {
         _reader = reader;
         _exporters = exporters; _exportFormat.ItemsSource = exporters.Select(e => e.Name).ToArray(); _exportFormat.SelectedIndex = exporters.Count > 0 ? 0 : -1;
@@ -95,6 +95,7 @@ public sealed class MailboxView : UserControl, IDisposable
         buttons.Children.Add(Button("缩小", "mail-zoom-out", () => { _htmlView?.Zoom(-0.1); return Task.CompletedTask; }));
         buttons.Children.Add(Button("放大", "mail-zoom-in", () => { _htmlView?.Zoom(0.1); return Task.CompletedTask; }));
         var toolButtons = new WrapPanel { Orientation = Orientation.Horizontal };
+        ReplyButtons.Add(toolButtons,"reader",()=>_messageId?.ToString(),respond,s=>_status.Text=s);
         var toolContent = new ScrollViewer { IsVisible = false, MaxHeight = 200 };
         var toolToggles = new List<ToggleButton>();
         void AddTool(string title, Control panel)

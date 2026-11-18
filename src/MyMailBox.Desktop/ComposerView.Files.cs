@@ -59,7 +59,7 @@ internal sealed partial class ComposerView
         Button(tools,"移除所选附件","compose-remove",RemoveSelected);
         var cancel=new Button{Content="取消添加"};cancel.Click+=(_,_)=>_adding?.Cancel();tools.Children.Add(cancel);_form.Children.Add(tools);
         Button(_form,"预览发送内容","compose-preview",async()=>{
-            await Flush();if(_draft is {} d)_status.Text=$"发件：{d.Identity}\nTo：{d.To}\nCc：{d.Cc}\nBcc（仅信封）：{d.Bcc}\n主题：{d.Subject}\n{d.Body.Plain}\n"+
+            await Flush();if(_draft is {} d)_status.Text=$"发件：{d.Identity}\nTo：{d.To}\nCc：{d.Cc}\nBcc（仅信封）：{d.Bcc}\n主题：{d.Subject}\n{d.Message().Body}\n"+
                 string.Join("、",d.Parts.Select(f=>f.Name))+$"\n账户上限 {_page.Drafts.Profile(d.Account).MaxBytes:N0} 字节。";
         });
     }

@@ -26,7 +26,7 @@ internal sealed partial class MailSearchView : UserControl, IDisposable
     private int _version;
     private CancellationTokenSource? _operation;
 
-    public MailSearchView(IMailSearch service)
+    public MailSearchView(IMailSearch service,Action<ReplyIntent>? respond=null)
     {
         _service = service;
         _panel.Children.Add(new TextBlock { Text = "搜索邮件", FontSize = 28, FontWeight = FontWeight.SemiBold });
@@ -86,6 +86,7 @@ internal sealed partial class MailSearchView : UserControl, IDisposable
             _previousRequest = _request; _backId = hit.Id;
             await Locate(hit);
         });
+        ReplyButtons.Add(nav,"search",()=> (_results.SelectedItem as SearchHit)?.Id,respond,s=>_status.Text=s);
         _panel.Children.Add(nav);
         AutomationProperties.SetAutomationId(_status, "search-status"); _panel.Children.Add(_status);
         AutomationProperties.SetAutomationId(_body, "search-body"); _panel.Children.Add(_body);
