@@ -30,7 +30,7 @@ internal sealed partial class AutomationView : UserControl,IDisposable
         Field(_panel,"迟滞（按各阈值的单位）",_hysteresis,"auto-hysteresis");Field(_panel,"冷却分钟",_cooldown,"auto-cooldown");
         AddTarget();AddExtensions();AddTriggers();AddSteps();AddArchive();_panel.Children.Add(_enabled);var actions=new WrapPanel();Button(actions,"预览统计","auto-preview",()=>Inspect(false));Button(actions,"记录采样","auto-observe",()=>Inspect(true));
         Button(actions,"保存任务","auto-save",Save);_panel.Children.Add(actions);
-        AutomationProperties.SetAutomationId(_status,"auto-status");_panel.Children.Add(_status);Content=new ScrollViewer{Content=_panel};
+        AutomationProperties.SetAutomationId(_status,"auto-status");_panel.Children.Add(_status);Content=PageFeedback.Layout(_panel,_status);
         AttachedToVisualTree+=async(_,_)=>await Guard(async()=>{_library=await service.Library(_stop.Token);_scope.ItemsSource=_library.Scopes;_destinations=await service.ArchiveFolders(_stop.Token);await Refresh();Load(null);
             if(linked is {} run){var audit=await service.Audit(run,0,1,_stop.Token);Load(_plans.Items.OfType<AutomationPlan>().FirstOrDefault(x=>x.Id==audit.Run.Plan));await History(run);await ShowAudit(0);}});
     }

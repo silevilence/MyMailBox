@@ -28,7 +28,7 @@ internal sealed class ActivityView:UserControl,IDisposable
         _account.ItemTemplate=new FuncDataTemplate<Choice>((s,_)=>new TextBlock{Text=s?.Label});Field(settings,"账户",_account,"activity-account");
         _kind.ItemsSource=_categories.Values.ToArray();_kind.SelectedIndex=0;Field(settings,"事件类型",_kind,"activity-kind");settings.Children.Add(_enabled);
         Button(settings,"保存类型设置","activity-filter-save",async()=>{var (k,a)=Filter();await page.Center.SetEnabled(k,a,_enabled.IsChecked==true,_stop.Token);_status.Text="已保存此范围的通知设置。";});
-        p.Children.Add(new Expander{Header="通知设置",Content=settings});AutomationProperties.SetAutomationId(_status,"activity-status");p.Children.Add(_status);Content=new ScrollViewer{Content=p};
+        p.Children.Add(new Expander{Header="通知设置",Content=settings});AutomationProperties.SetAutomationId(_status,"activity-status");p.Children.Add(_status);Content=PageFeedback.Layout(p,_status);
         _kind.SelectionChanged+=async(_,_)=>await Guard(ReadFilter);_account.SelectionChanged+=async(_,_)=>await Guard(ReadFilter);
         AttachedToVisualTree+=async(_,_)=>await Guard(async()=>
         {

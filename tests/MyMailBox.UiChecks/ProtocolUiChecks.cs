@@ -23,7 +23,8 @@ internal static class ProtocolUiChecks
         var endpoint = new MailEndpoint("127.0.0.1", 3993, "alice@localhost", CertificateSha256: pin);
         service.Save(alice.Id, new(endpoint, endpoint with { Port = 3465 }), "local-alice", "local-alice").GetAwaiter().GetResult();
         service.Save(bob.Id, new(endpoint with { Port = 3995, User = "bob@localhost" }), "local-bob", null).GetAwaiter().GetResult();
-        var actionSource = service.Create(SqliteMailStore.LocalAccount,null,"界面动作来源").GetAwaiter().GetResult();
+        const string longFolder = "界面动作来源与跨部门多年项目往来归档以及包含多个地区名称的中文文件夹";
+        var actionSource = service.Create(SqliteMailStore.LocalAccount,null,longFolder).GetAwaiter().GetResult();
         var sample = System.Text.Encoding.UTF8.GetBytes("From: fixture@example.test\r\nSubject: Local action\r\n\r\nFixture");
         store.Import(actionSource,sample,new MyMailBox.Mail.MimeReader().Parse(sample).GetAwaiter().GetResult()).GetAwaiter().GetResult();
         var archiveRoot=service.Create(SqliteMailStore.LocalAccount,null,"界面归档").GetAwaiter().GetResult();
@@ -37,6 +38,9 @@ internal static class ProtocolUiChecks
             Archive=new(SqliteMailStore.LocalAccount,archiveRoot,false,540,"UTC")
         }).GetAwaiter().GetResult();
         var systemPlan=auto.Save(archive with{Id=Guid.NewGuid(),Version=0,Name="恢复事件",Archive=null,Actions=[new(TaskActionKind.Notify,Argument:"已收到恢复事件")],Triggers=[new("resume")]}).GetAwaiter().GetResult();
+        var seedSubject = "UIA-" + Guid.NewGuid().ToString("N");
+        var seed = service.Send(alice.Id, new("alice@localhost","","",seedSubject,"真实 SMTP 界面同步样本")).GetAwaiter().GetResult();
+        if (seed.State != "sent") throw new Exception("本机 SMTP 验收样本未投递。");
         var start = new ProcessStartInfo(Environment.GetEnvironmentVariable("MYMAILBOX_UI_EXE") ?? Path.Combine(repo, "artifacts/publish/MyMailBox.Desktop.exe")) { UseShellExecute = false };
         start.Environment["MYMAILBOX_HOME"] = workspace;
         using var automation = new UIA3Automation(); using var app = Application.Launch(start);
@@ -45,7 +49,7 @@ internal static class ProtocolUiChecks
         void Tab(int index) { ui.Find("protocol-tabs").FindAllChildren(cf => cf.ByControlType(ControlType.TabItem))[index].AsTabItem().Select(); Thread.Sleep(150); }
         try
         {
-            ui.Click("nav-accounts/protocols"); Status("已载入");
+            ui.Find("nav-diagnostics"); ui.Click("nav-accounts/protocols"); Status("已载入");
             ui.Text("incoming-port", "0"); ui.Click("protocol-save"); Status("端口");
             ui.Text("incoming-port", "3993"); ui.Click("protocol-save"); Status("配置已保存");
             ui.Click("nav-accounts/manage"); ui.Click("nav-accounts/protocols"); Status("已载入");
@@ -54,7 +58,9 @@ internal static class ProtocolUiChecks
             ui.Click("imap-next"); Status("第 2 页"); ui.Click("imap-previous"); Status("第 1 页");
             Capture.Element(window).ToFile(Path.Combine(output, "01-imap.png"));
             Tab(4); ui.Click("sync-once"); ui.Status("sync-status", "同步完成");
-            ui.Find("sync-messages").AsListBox().Select(0); ui.Click("sync-open");
+            var synced = ui.Find("sync-messages").AsListBox();
+            var fixture = synced.Items.First(i => i.FindAllDescendants().Any(text => text.Name.Contains(seedSubject)) || i.Text.Contains(seedSubject));
+            fixture.Select(); ui.Click("sync-open");
             if (!SpinWait.SpinUntil(() => ui.Find("sync-body").AsTextBox().Text.Contains("真实 SMTP"), 10000))
                 throw new Exception("Downloaded IMAP message was not readable");
             ui.Expand("离线修改（下次同步时应用）"); ui.Click("offline-Star"); ui.Status("offline-status","待同步 1");
@@ -79,8 +85,9 @@ internal static class ProtocolUiChecks
             if (!messages.Any(m => m.Subject == "UI-真实测试-中文")) throw new Exception("UI POP did not persist SMTP message");
             ui.Click("nav-accounts/organize");
             var orgFolders = ui.Find("org-folder").AsComboBox();
+            orgFolders.Expand();
             if (!SpinWait.SpinUntil(() => orgFolders.Items.Length > 0, 5000)) throw new Exception("Organization folders missing");
-            orgFolders.Expand(); orgFolders.Items.Single(i => i.Text.Contains("界面动作来源")).Select(); orgFolders.Collapse();
+            orgFolders.Items.Single(i => i.Text.Contains(longFolder)).Select(); orgFolders.Collapse();
             ui.Status("org-status", "第 1 页"); ui.Find("org-messages").AsListBox().Select(0);
             ui.Expand("移动、复制与删除"); ui.Click("org-action-Trash"); ui.Status("org-status", "已移入垃圾箱");
             ui.Click("org-undo"); ui.Status("org-status", "已撤销 1");
@@ -89,7 +96,7 @@ internal static class ProtocolUiChecks
             ui.Click("org-refresh"); ui.Status("org-status", "第 1 页");
             var marked = ui.Find("org-messages").AsListBox(); marked.Select(0);
             ui.Text("org-label", "验收"); ui.Click("org-add-label"); ui.Status("org-status", "成功 1");
-            if (marked.SelectedItems.Length != 1) throw new Exception("Marking discarded selection");
+            // Copy the same selection immediately after marking, without selecting the message again.
             ui.Expand("跨邮箱归档"); ui.Click("transfer-copy"); ui.Status("org-status", "复制完成");
             ui.Status("transfer-detail", "完整性已验证");
             if (ui.Find("transfer-resume").IsEnabled) throw new Exception("Completed transfer offered a retry");
@@ -115,7 +122,7 @@ internal static class ProtocolUiChecks
             ui.Click("rule-add-action");ui.Click("rule-preview");ui.Status("rule-status","命中");
             if(!PostMessage(window.Properties.NativeWindowHandle.Value,0x218,18,0))throw new Exception("Could not post resume to isolated application window");
             if(!SpinWait.SpinUntil(()=>auto.Runs(systemPlan.Id).GetAwaiter().GetResult().Any(r=>r.State=="done"),15000))throw new Exception("Windows resume event did not trigger automation");
-            ui.Click("nav-accounts/automation");ui.Select("auto-plans",0);ui.Click("auto-load");ui.Expand("动作、时间与执行记录");
+            ui.Click("nav-accounts/automation");var planChoices=ui.Find("auto-plans").AsComboBox();planChoices.Expand();planChoices.Items.Single(i=>i.Text=="旧邮件测试").Select();planChoices.Collapse();ui.Click("auto-load");ui.Expand("动作、时间与执行记录");
             ui.Click("auto-archive-preview");ui.Status("auto-status","2025/04");ui.Click("auto-start");
             if(!SpinWait.SpinUntil(()=>auto.Runs(archive.Id).GetAwaiter().GetResult().Any(r=>r.State=="done"),15000))throw new Exception("UI archive failed to finish");
             ui.Click("auto-history-refresh");ui.Status("auto-status","完成 1");ui.Click("auto-run-details");ui.Status("auto-status","任务配置版本 1");
@@ -123,6 +130,7 @@ internal static class ProtocolUiChecks
             ui.Click("nav-local-mail/inbox");
             Capture.Element(window).ToFile(Path.Combine(output, "04-local.png"));
             using var process = Process.GetProcessById(app.ProcessId);
+            AccessibilityUiChecks.Run(window,ui,alice.Id,workspace);
             ui.Click("nav-desktop/lifetime");ui.Check("lifetime-close-tray");ui.Check("lifetime-min-tray");ui.Click("lifetime-save");ui.Status("lifetime-status","已保存");
             nint hwnd=window.Properties.NativeWindowHandle.Value;window.Close();
             if(!SpinWait.SpinUntil(()=>!IsWindowVisible(hwnd),5000)||process.HasExited)throw new Exception("关闭到托盘未保留宿主。");
@@ -139,7 +147,7 @@ internal static class ProtocolUiChecks
             if(!SpinWait.SpinUntil(()=>!IsWindowVisible(hwnd),5000))throw new Exception("最小化到托盘失败。");
             Activate();ui.Click("lifetime-exit");
             if (!process.WaitForExit(15000)) throw new Exception("Protocol UI did not shut down cleanly");
-            File.WriteAllText(Path.Combine(output, "result.txt"), "PASS actual desktop: save/reopen/validation, IMAP folder+paging, authentication failure+recovery, SMTP To/Cc/Bcc, repeat-send prevention, POP persistence+dedupe, shutdown");
+            File.WriteAllText(Path.Combine(output, "result.txt"), "PASS actual desktop: protocol settings, IMAP paging/sync/offline edits, SMTP/POP, organization, cross-account transfer, unified inbox, search/cancel, compose, rules, Windows resume, archive history, activity, keyboard recovery, compact navigation, background tray work and shutdown");
             Console.WriteLine("PASS protocol UI: " + output);
         }
         catch

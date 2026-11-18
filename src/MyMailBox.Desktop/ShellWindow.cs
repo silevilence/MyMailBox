@@ -2,6 +2,9 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Layout;
+using Avalonia.Input;
+using Avalonia.VisualTree;
+using Avalonia.Controls.Templates;
 using Avalonia.Media;
 using Avalonia.Threading;
 using MyMailBox.Contracts;
@@ -13,6 +16,9 @@ namespace MyMailBox.Desktop;
 public sealed class ShellWindow : Window
 {
     private readonly Contributions _pages;
+    private readonly ComboBox _compactNavigation=new(){HorizontalAlignment=HorizontalAlignment.Stretch,Margin=new Thickness(8,4)};
+    private bool _choosingPage;
+
     private readonly StackPanel _navigation = new() { Spacing = 8, Margin = new Thickness(16) };
     private readonly ContentControl _body = new() { Margin = new Thickness(32) };
     private string? _selected;
@@ -32,7 +38,7 @@ public sealed class ShellWindow : Window
     {
         _pages = pages;
         Title = "MyMailBox";
-        Width = 1120; Height = 780; MinWidth = 760; MinHeight = 480;
+        Width = 1120; Height = 780; MinWidth = 500; MinHeight = 360;
         Opened += (_, _) =>
         {
             if (Screens.ScreenFromWindow(this) is { } screen)
@@ -55,7 +61,46 @@ public sealed class ShellWindow : Window
         _noticeClose.Click += (_, _) => _pages.Notice = ""; AutomationProperties.SetAutomationId(_noticeClose, "global-notice-close");
         var layout = new DockPanel(); DockPanel.SetDock(banner, Dock.Bottom); layout.Children.Add(banner); layout.Children.Add(grid);
         AutomationProperties.SetAutomationId(_notice, "global-notice");
-        Content = layout;
+        AutomationProperties.SetName(_navigation,"主导航");AutomationProperties.SetName(_compactNavigation,"切换功能");AutomationProperties.SetAutomationId(_compactNavigation,"compact-navigation");
+        AutomationProperties.SetLiveSetting(_notice,AutomationLiveSetting.Polite);
+        _compactNavigation.ItemTemplate=new FuncDataTemplate<Choice>((item,_)=>new TextBlock{Text=item?.Label,TextTrimming=TextTrimming.CharacterEllipsis});
+        _compactNavigation.SelectionChanged+=async(_,_)=>{if(!_choosingPage&&_compactNavigation.SelectedItem is Choice choice&&choice.Id!=_selected)await Navigate(choice.Id);};
+        var responsive=new DockPanel();DockPanel.SetDock(_compactNavigation,Dock.Top);responsive.Children.Add(_compactNavigation);responsive.Children.Add(layout);Content=responsive;
+        void Resize(double width)
+        {
+            bool small=width<720;sidebar.IsVisible=!small;_compactNavigation.IsVisible=small;
+            grid.ColumnDefinitions[0].Width=new GridLength(small?0:width<950?164:220);_body.Margin=new Thickness(width<950?12:28);
+        }
+        Resize(Width);SizeChanged+=(_,e)=>Resize(e.NewSize.Width);
+        KeyDown+=async(_,e)=>
+        {
+            if(e.Key==Key.F6)
+            {
+                if(_navigation.IsKeyboardFocusWithin||_compactNavigation.IsKeyboardFocusWithin)
+                    _body.GetVisualDescendants().OfType<Control>().FirstOrDefault(c=>c is Button or TextBox or ComboBox or ListBox or CheckBox && c.Focusable&&c.IsEffectivelyVisible&&c.IsEffectivelyEnabled)?.Focus(NavigationMethod.Tab);
+                else if(_compactNavigation.IsVisible)_compactNavigation.Focus(NavigationMethod.Tab);
+                else (_navigation.Children.OfType<Button>().FirstOrDefault(b=>AutomationProperties.GetAutomationId(b)=="nav-"+_selected)??_navigation.Children.OfType<Button>().FirstOrDefault())?.Focus(NavigationMethod.Tab);
+                e.Handled=true;
+            }
+            else if(e.KeyModifiers==KeyModifiers.Control && e.Key is Key.F or Key.N)
+            {
+                string page=e.Key==Key.F?"accounts/search":"accounts/compose";
+                if(_pages.Pages.Any(p=>p.Id==page))
+                {
+                    e.Handled = true;
+                    if (_selected != page) await Navigate(page);
+                    string field = page == "accounts/search" ? "search-value" : "compose-to";
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        if (_selected != page) return;
+                        _body.UpdateLayout();
+                        _body.GetVisualDescendants().OfType<Control>()
+                            .FirstOrDefault(c => AutomationProperties.GetAutomationId(c) == field)?.Focus(NavigationMethod.Tab);
+                    }, DispatcherPriority.Loaded);
+                }
+            }
+        };
+
         pages.Changed += Refresh;
         pages.NoticeChanged += NoticeChanged;
         var signals=new AutomationSystemEvents(this,()=>pages.Pages.FirstOrDefault(p=>p.Automation is not null)?.Automation,message=>pages.Notice=message);
@@ -86,6 +131,9 @@ public sealed class ShellWindow : Window
             AutomationProperties.SetAutomationId(button, "nav-" + id);
             button.Click += async (_, _) => await Navigate(id); _navigation.Children.Add(button);
         }
+        _choosingPage=true;
+        try{var choices=pages.Select(p=>new Choice(p.Id,p.Title)).Concat(_pages.NativePages.Select(p=>new Choice(p.Id,p.Title))).ToArray();_compactNavigation.ItemsSource=choices;_compactNavigation.SelectedItem=choices.FirstOrDefault(p=>p.Id==_selected);}
+        finally{_choosingPage=false;}
         var selectedPage = pages.FirstOrDefault(p => p.Id == _selected);
         var selectedNative = _pages.NativePages.FirstOrDefault(p => p.Id == _selected);
         if (selectedPage is not null && ReferenceEquals(selectedPage, _renderedPage) &&
@@ -128,6 +176,7 @@ public sealed class ShellWindow : Window
     private void Show(string? id)
     {
         _selected = id;
+        _choosingPage=true;try{_compactNavigation.SelectedItem=_compactNavigation.Items.OfType<Choice>().FirstOrDefault(p=>p.Id==id);}finally{_choosingPage=false;}
         ReleaseView();
         var native = _pages.NativePages.FirstOrDefault(p => p.Id == id);
         if (native is not null)

@@ -61,7 +61,7 @@ internal sealed partial class ReceiveRulesView : UserControl, IDisposable
         _trace.SelectionChanged+=(_,_)=>undo.IsEnabled=_trace.SelectedItem is RuleActionLog {Undo:not null,State:"done"};
         undo.Click+=async(_,_)=>await Guard(async()=>{if(_trace.SelectedItem is not RuleActionLog a)return;await _service.Undo(a.Operation,_stop.Token);await Refresh(_editing?.Id);_status.Text="已撤销本地移动。";});
         _panel.Children.Add(recovery);
-        Content = new ScrollViewer { Content = _panel }; AttachedToVisualTree += async (_, _) => await Guard(async () => { await Refresh(null); Edit(null); });
+        Content=PageFeedback.Layout(_panel,_status); AttachedToVisualTree += async (_, _) => await Guard(async () => { await Refresh(null); Edit(null); });
     }
     private void Field(string label, Control control, string id)
     {

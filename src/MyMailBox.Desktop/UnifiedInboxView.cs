@@ -68,7 +68,7 @@ internal sealed class UnifiedInboxView : UserControl, IDisposable
         _open = Action(nav, "阅读", "unified-open", Open); ReplyButtons.Add(nav,"unified",()=> (_list.SelectedItem as InboxMessage)?.Position.Key,respond,s=>_feedback.Text=s);panel.Children.Add(nav);
         AutomationProperties.SetAutomationId(_feedback, "unified-feedback"); panel.Children.Add(_feedback);
         AutomationProperties.SetAutomationId(_body, "unified-body"); panel.Children.Add(_body);
-        Content = new ScrollViewer { Content = panel };
+        Content=PageFeedback.Layout(panel,_feedback);
         _filter.SelectionChanged += async (_, _) =>
         {
             if (_settingFilter) return;

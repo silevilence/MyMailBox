@@ -90,11 +90,12 @@ internal sealed partial class MailSearchView : UserControl, IDisposable
         _panel.Children.Add(nav);
         AutomationProperties.SetAutomationId(_status, "search-status"); _panel.Children.Add(_status);
         AutomationProperties.SetAutomationId(_body, "search-body"); _panel.Children.Add(_body);
-        Content = new ScrollViewer { Content = _panel };
+        Content=PageFeedback.Layout(_panel,_status);
         _field.SelectionChanged += (_, _) => SelectField();
         _field.ItemsSource = service.Fields; _field.SelectedIndex = 0;
         _results.SelectionChanged += (_, _) => { _body.Text = ""; SetSelection(); };
         _value.KeyDown += async (_, e) => { if (e.Key == Key.Enter) { e.Handled = true; await Guard(RunInput); } };
+        KeyDown+=(_,e)=>{if(e.Key==Key.Escape){InvalidateSearch("已取消搜索，可继续阅读当前结果。");e.Handled=true;}};
         _prev.IsEnabled = _next.IsEnabled = false; SetSelection();
         _value.TextChanged += (_, _) => Changed(); _expression.TextChanged += (_, _) => Changed();
         _field.SelectionChanged += (_, _) => Changed(); _match.SelectionChanged += (_, _) => Changed(); _order.SelectionChanged += (_, _) => Changed();

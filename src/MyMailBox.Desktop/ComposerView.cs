@@ -57,7 +57,7 @@ internal sealed partial class ComposerView : UserControl,IDisposable
         var tools=new WrapPanel();Button(tools,"插入模板","compose-insert",InsertTemplate);
         Button(tools,"拼写检查","compose-spell",async()=>{await Flush();if(_draft is {} d && _editor is {} e)_status.Text=await e.Spell(d.Body.Plain,_stop.Token);});
         Button(tools,"保存草稿","compose-save",Flush);Button(tools,"发送","compose-send",Send);_form.Children.Add(tools);
-        AutomationProperties.SetAutomationId(_status,"compose-status");_form.Children.Add(_status);Content=new ScrollViewer{Content=_form};
+        AutomationProperties.SetAutomationId(_status,"compose-status");_form.Children.Add(_status);Content=PageFeedback.Layout(_form,_status);
         foreach(var box in new[]{_to,_cc,_bcc,_subject,_plain})box.TextChanged+=(_,_)=>{if(!_binding && !_busy)TrySave();};
         _accounts.SelectionChanged+=async(_,_)=>{if(!_binding)await Guard(SwitchAccount);};
         _editors.SelectionChanged+=async(_,_)=>{if(!_binding)await Guard(SwitchEditor);};

@@ -72,8 +72,7 @@ internal sealed partial class OrganizationView : UserControl, IDisposable
         if (_page.Transfers is not null) AddTransfers();
         AutomationProperties.SetAutomationId(_status,"org-status");
         _panel.Children.Add(_status);
-        var layout = new DockPanel(); DockPanel.SetDock(_stopTransfer,Dock.Bottom);
-        layout.Children.Add(_stopTransfer); layout.Children.Add(new ScrollViewer { Content = _panel }); Content = layout;
+        Content=PageFeedback.Layout(_panel,_status,_stopTransfer);
         _accounts.SelectionChanged += (_,_) =>
         {
             _historyOffset = 0; _archiveTarget.ItemsSource = null; _history.ItemsSource = null;
