@@ -22,6 +22,10 @@ internal sealed partial class OutboxStore(SqliteMailStore store)
             CREATE TABLE IF NOT EXISTS outbox_events(
                 sequence INTEGER PRIMARY KEY, item TEXT NOT NULL REFERENCES outbox(id), time INTEGER NOT NULL, detail TEXT NOT NULL);
             CREATE INDEX IF NOT EXISTS outbox_events_item ON outbox_events(item,sequence);
+            CREATE TRIGGER IF NOT EXISTS automation_sent AFTER UPDATE OF state ON outbox WHEN NEW.state='sent' AND OLD.state<>'sent' BEGIN
+                INSERT OR IGNORE INTO automation_signal(plan,kind,origin,event,at,chain)
+                    SELECT DISTINCT plan,kind,NEW.account,NEW.id,unixepoch(),'[]' FROM automation_sub WHERE kind='sent' AND (source='' OR source=NEW.account);
+            END;
             CREATE TRIGGER IF NOT EXISTS outbox_added AFTER INSERT ON outbox BEGIN
                 INSERT INTO outbox_events(item,time,detail) VALUES(NEW.id,unixepoch(),NEW.detail);
             END;

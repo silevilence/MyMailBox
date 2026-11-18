@@ -48,7 +48,7 @@ public sealed partial class MailAutomationService : IMailAutomation
         c.CommandText="SELECT version FROM automation_plan WHERE id=$id";c.Parameters.AddWithValue("$id",plan.Id.ToString());
         if(Convert.ToInt32(c.ExecuteScalar())!=plan.Version)throw new InvalidDataException("任务已修改，请重新载入。");
         plan=plan with{Version=plan.Version+1};c.CommandText="INSERT OR REPLACE INTO automation_plan VALUES($id,$v,$json)";
-        c.Parameters.AddWithValue("$v",plan.Version);c.Parameters.AddWithValue("$json",JsonSerializer.Serialize(plan));c.ExecuteNonQuery();tx.Commit();return plan;
+        c.Parameters.AddWithValue("$v",plan.Version);c.Parameters.AddWithValue("$json",JsonSerializer.Serialize(plan));c.ExecuteNonQuery();SaveTriggers(plan,tx);tx.Commit();return plan;
     }
     public async Task<ConditionReport> Inspect(AutomationPlan plan,bool observe=false,CancellationToken token=default)
     {

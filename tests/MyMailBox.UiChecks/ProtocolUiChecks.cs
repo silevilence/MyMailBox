@@ -9,6 +9,7 @@ using Application = FlaUI.Core.Application;
 
 internal static class ProtocolUiChecks
 {
+    [System.Runtime.InteropServices.DllImport("user32.dll")]private static extern bool PostMessage(nint hwnd,uint msg,nint wParam,nint lParam);
     public static void Run()
     {
         var repo = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../"));
@@ -34,6 +35,7 @@ internal static class ProtocolUiChecks
             Target=new(SqliteMailStore.LocalAccount,archiveInput,false,"",null,null,30,0,true,"保留",SearchOrder.Oldest,10,0,null),
             Archive=new(SqliteMailStore.LocalAccount,archiveRoot,false,540,"UTC")
         }).GetAwaiter().GetResult();
+        var systemPlan=auto.Save(archive with{Id=Guid.NewGuid(),Version=0,Name="恢复事件",Archive=null,Actions=[new(TaskActionKind.Notify,Argument:"已收到恢复事件")],Triggers=[new("resume")]}).GetAwaiter().GetResult();
         var start = new ProcessStartInfo(Environment.GetEnvironmentVariable("MYMAILBOX_UI_EXE") ?? Path.Combine(repo, "artifacts/publish/MyMailBox.Desktop.exe")) { UseShellExecute = false };
         start.Environment["MYMAILBOX_HOME"] = workspace;
         using var automation = new UIA3Automation(); using var app = Application.Launch(start);
@@ -110,6 +112,8 @@ internal static class ProtocolUiChecks
             ui.Click("compose-plain");if(ui.Find("compose-body").AsTextBox().Text!="editable body")throw new Exception("Rich/plain draft handoff lost body");
             ui.Click("nav-accounts/rules"); ui.Text("rule-name","界面试运行");ui.Text("rule-condition","subject:Local");
             ui.Click("rule-add-action");ui.Click("rule-preview");ui.Status("rule-status","命中");
+            if(!PostMessage(window.Properties.NativeWindowHandle.Value,0x218,18,0))throw new Exception("Could not post resume to isolated application window");
+            if(!SpinWait.SpinUntil(()=>auto.Runs(systemPlan.Id).GetAwaiter().GetResult().Any(r=>r.State=="done"),15000))throw new Exception("Windows resume event did not trigger automation");
             ui.Click("nav-accounts/automation");ui.Select("auto-plans",0);ui.Click("auto-load");ui.Expand("动作、时间与执行记录");
             ui.Click("auto-archive-preview");ui.Status("auto-status","2025/04");ui.Click("auto-start");
             if(!SpinWait.SpinUntil(()=>auto.Runs(archive.Id).GetAwaiter().GetResult().Any(r=>r.State=="done"),15000))throw new Exception("UI archive failed to finish");

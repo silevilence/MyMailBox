@@ -33,6 +33,11 @@ internal static class RuleInbox
             """;
         cmd.Parameters.AddWithValue("$event", eventId); cmd.Parameters.AddWithValue("$item", key); cmd.Parameters.AddWithValue("$folder", folder.ToString());
         cmd.Parameters.AddWithValue("$history", historical); cmd.ExecuteNonQuery();
+        if(!historical)
+        {
+            cmd.CommandText="SELECT account_id FROM folders WHERE id=$folder";
+            if(cmd.ExecuteScalar() is string owner)AutomationSignals.Post(tx,"received",owner,eventId);
+        }
     }
 
     internal static bool PopBaseline(SqliteMailStore store, Guid account, string source, bool complete)

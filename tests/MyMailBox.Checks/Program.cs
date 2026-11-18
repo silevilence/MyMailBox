@@ -49,6 +49,9 @@ if (args.Length == 0 || args.Contains("task-targets")) await AutomationChecks.Ta
 if (args.Length == 0 || args.Contains("task-conditions")) await AutomationChecks.Conditions();
 if (args.Length == 0 || args.Contains("rule-stages")) await ReceiveRuleChecks.Stages();
 if (args.Length == 0 || args.Contains("rule-preview")) await ReceiveRuleChecks.Preview();
+if (args.Contains("task-events-live")) await AutomationChecks.Events(true);
+if (args.Length == 0 || args.Contains("task-events")) await AutomationChecks.Events(false);
+if (args.Length == 0 || args.Contains("task-actions")) await AutomationChecks.Actions();
 if (args.Length == 0 || args.Contains("task-actions")) await AutomationChecks.Actions();
 if (args.Length == 0 || args.Contains("send-plan")) await ComposerChecks.SendPlans();
 if (args.Contains("send-plan-live")) await ComposerChecks.SendPlanLive();

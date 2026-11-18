@@ -46,6 +46,7 @@ public sealed partial class ProtocolMailService
         // POP deletions commit only on successful QUIT, after local transactions have committed.
         await client.DisconnectAsync(true, cancellation);
         if (!pending && historical) RuleInbox.PopBaseline(_store,account,source,true);
+        AutomationSignals.Post(_store,"synced",account.ToString(),Guid.NewGuid().ToString());
         return new PopOutcome(imported, existing, deleted, pending, uids is null ? "已按原文摘要去重，服务器副本全部保留；无 UIDL 时无法区分内容完全相同的独立邮件。" : $"本批新增 {imported} 封，已保存 {existing} 封，服务器删除 {deleted} 封。" + (pending ? "还有邮件，可继续收取。" : ""));
     });
     private Guid EnsurePopFolder(Guid account)

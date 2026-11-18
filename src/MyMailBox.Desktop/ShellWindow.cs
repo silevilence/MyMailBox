@@ -52,7 +52,8 @@ public sealed class ShellWindow : Window
         Content = layout;
         pages.Changed += Refresh;
         pages.NoticeChanged += NoticeChanged;
-        Closed += (_, _) => { pages.Changed -= Refresh; pages.NoticeChanged -= NoticeChanged; ReleaseView(); _navigation.Children.Clear(); };
+        var signals=new AutomationSystemEvents(this,()=>pages.Pages.FirstOrDefault(p=>p.Automation is not null)?.Automation,message=>pages.Notice=message);
+        Closed += (_, _) => { signals.Dispose(); pages.Changed -= Refresh; pages.NoticeChanged -= NoticeChanged; ReleaseView(); _navigation.Children.Clear(); };
         Refresh();
     }
 

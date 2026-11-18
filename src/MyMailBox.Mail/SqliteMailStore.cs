@@ -46,6 +46,7 @@ public sealed class SqliteMailStore : IMailStore
         command.Parameters.AddWithValue("$id", Inbox.ToString()); command.Parameters.AddWithValue("$account", LocalAccount.ToString());
         command.ExecuteNonQuery();
         RuleInbox.Initialize(command);
+        AutomationSignals.Initialize(command);
         transaction.Commit();
     }
 

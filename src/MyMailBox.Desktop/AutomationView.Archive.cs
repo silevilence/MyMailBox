@@ -43,7 +43,7 @@ internal sealed partial class AutomationView
     private static string RunLabel(AutomationRun run)
     {
         var state=run.State switch{"ready"=>"等待执行","running"=>"运行中","paused"=>"已暂停","done"=>"已完成","skipped"=>"已跳过","failed"=>"失败",_=>run.State};
-        return $"{run.At.LocalDateTime:g} · {state} · 完成 {run.Done} / 跳过 {run.Skipped} / 失败 {run.Failed} · {run.Detail}";
+        return $"{run.At.LocalDateTime:g} · {state} · {run.Cause} · 完成 {run.Done} / 跳过 {run.Skipped} / 失败 {run.Failed} · {run.Detail}";
     }
     private async Task History(Guid? selected)
     {

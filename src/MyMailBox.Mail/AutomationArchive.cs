@@ -30,7 +30,8 @@ public sealed partial class MailAutomationService
         c.CommandText="SELECT id FROM automation_run WHERE plan=$p AND (cause=$cause OR state IN ('ready','running','paused','failed')) ORDER BY (cause=$cause) DESC LIMIT 1";
         return c.ExecuteScalar() is string id?Guid.Parse(id):null;
     }
-    public async Task<AutomationRun> Start(Guid plan,string cause,CancellationToken token=default)
+    public Task<AutomationRun> Start(Guid plan,string cause,CancellationToken token=default)=>Start(plan,cause,null,token);
+    private async Task<AutomationRun> Start(Guid plan,string cause,Signal? signal,CancellationToken token)
     {
         var definition=(await Plans(token)).FirstOrDefault(p=>p.Id==plan)??throw new InvalidDataException("请先保存任务。");
         if(!definition.Enabled||(definition.Archive is null && definition.Actions.Length==0))throw new InvalidDataException("任务尚未启用或未配置动作。");
@@ -48,6 +49,12 @@ public sealed partial class MailAutomationService
         c.Parameters.AddWithValue("$id",id.ToString());c.Parameters.AddWithValue("$state",run?"ready":"skipped");
         c.Parameters.AddWithValue("$detail",detail);c.Parameters.AddWithValue("$at",at.ToUnixTimeSeconds());
         c.Parameters.AddWithValue("$def",JsonSerializer.Serialize(definition));c.Parameters.AddWithValue("$snap",JsonSerializer.Serialize(snapshot));c.ExecuteNonQuery();
+        if(signal is not null)
+        {
+            c.CommandText="INSERT INTO automation_lineage VALUES($id,$kind,$origin,$eventAt,$chain)";
+            c.Parameters.AddWithValue("$kind",signal.Kind);c.Parameters.AddWithValue("$origin",signal.Origin);c.Parameters.AddWithValue("$eventAt",signal.At);
+            c.Parameters.AddWithValue("$chain",JsonSerializer.Serialize(signal.Chain.Append(plan)));c.ExecuteNonQuery();
+        }
         if(run)
         {
             c.CommandText="INSERT INTO automation_item VALUES($id,$n,$op,NULL,'pending','等待处理')";
@@ -103,17 +110,15 @@ public sealed partial class MailAutomationService
             {
                 using var tx=db.BeginTransaction();c.Transaction=tx;
                 c.CommandText="UPDATE automation_item SET state='failed',detail=$err WHERE run=$id AND ordinal=$n; UPDATE automation_run SET state='failed',detail=$err WHERE id=$id";
-                c.Parameters.AddWithValue("$err",e.Message);c.ExecuteNonQuery();tx.Commit();Outcome(plan.Id,false);return Run(run);
+                c.Parameters.AddWithValue("$err",e.Message);c.ExecuteNonQuery();PublishOutcome(tx,plan.Id,run,false);tx.Commit();return Run(run);
             }
         }
+        using var finish=db.BeginTransaction();c.Transaction=finish;
         c.CommandText="UPDATE automation_run SET state='done',detail='执行完成。' WHERE id=$id AND state='running' AND NOT EXISTS(SELECT 1 FROM automation_item WHERE run=$id AND state='pending')";
-        if(c.ExecuteNonQuery()==1){Outcome(plan.Id,Run(run).Failed==0);_notify?.Invoke("邮件自动化已完成："+plan.Name);}
+        bool finished=c.ExecuteNonQuery()==1;
+        if(finished)PublishOutcome(finish,plan.Id,run,Run(run).Failed==0);finish.Commit();
+        if(finished)_notify?.Invoke("邮件自动化已完成："+plan.Name);
         return Run(run);
-    }
-    private void Outcome(Guid plan,bool success)
-    {
-        using var db=_store.Open();using var c=db.CreateCommand();c.CommandText="INSERT OR REPLACE INTO automation_outcome VALUES($id,$s,unixepoch())";
-        c.Parameters.AddWithValue("$id",plan.ToString());c.Parameters.AddWithValue("$s",success);c.ExecuteNonQuery();
     }
     private async Task<(string,string)> ArchiveItem(AutomationPlan plan,TargetSnapshot snap,TargetMail mail,Guid op,Guid? dest,SqliteCommand c,CancellationToken token)
     {
@@ -152,6 +157,7 @@ public sealed partial class MailAutomationService
     }
     internal async Task Tick(CancellationToken token)
     {
+        await DispatchSignals(token);
         foreach(var plan in await Plans(token))
         {
             if(!plan.Enabled)continue;

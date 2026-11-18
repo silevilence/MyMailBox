@@ -86,6 +86,7 @@ public sealed partial class ProtocolMailService
                 catch(ImapCommandException){ }
             }
             cache.Measure(folder,count,quota,remote.DirectorySeparator);
+            AutomationSignals.Post(_store,"synced",account.ToString(),Guid.NewGuid().ToString());
             return new ImapSyncResult(added, remote.UidValidity, next, count);
         });
 
