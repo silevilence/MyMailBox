@@ -2,7 +2,7 @@
 
 Spec: 000-mymailbox
 Status: ready-for-agent
-Progress: in-progress
+Progress: done
 Type: task
 Scope: 必做
 Estimate: 2–3 人日
@@ -21,9 +21,9 @@ Blocked by: 86, 90
 
 ## Acceptance criteria
 
-- [ ] CI 从指定提交构建，固定 SDK/依赖及 Actions 版本，所需检查失败则停止产出。
-- [ ] 产物可启动且确认非自包含/无 AOT/无裁剪，记录文件与校验清单。
-- [ ] 复用可用缓存，不重复下载测试资源；日志不泄露 Secrets，CI 构建与真实发布分开。
+- [x] CI 从指定提交构建，固定 SDK/依赖及 Actions 版本，所需检查失败则停止产出。
+- [x] 产物可启动且确认非自包含/无 AOT/无裁剪，记录文件与校验清单。
+- [x] 复用可用缓存，不重复下载测试资源；日志不泄露 Secrets，CI 构建与真实发布分开。
 
 ## Blocked by
 
@@ -49,3 +49,5 @@ PowerShell 语法解析通过，Actions tag/SHA 与官方仓库逐一核对；�
 - 2026-11-17 真实 CI 补充：修复 job 级 env 错用 runner 上下文造成的调度前失败；移除普通 push/PR 自动构建。实现提交 `2b9188f` 推送未触发构建，显式手动运行 44037700219 完整构建、检查、NSIS 及 artifact 上传成功。详见 [修复与真实验证](../../../docs/validation/2026-11-17-ci-workflow-fix.md)。本条替代“真实 Actions 尚未执行”的历史限制；本次针对用户报告的工作流问题验收，不提前宣告正式签名发布通过。
 
 - 2026-11-16：用户确认任务拆分后创建，尚未开始开发。
+
+- 2026-11-18：对照 run 44037700219 的既有上传日志、工作流与构建脚本复核三项验收条件，关闭本工单。正式 Tag 与签名发布另由 92 验收。
