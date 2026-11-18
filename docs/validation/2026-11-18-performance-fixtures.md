@@ -37,3 +37,5 @@ Windows 11 专业版 26200，Intel Core Ultra 7 165U，物理内存 31.6 GiB，S
 搜索维护改为按变更增量处理，最新排序的首批查询可以先检查最近日期范围，结果不足仍执行完整查询。只读规则和归档预览按邮件 ID 合并已有索引与临时解析值。10 万封同步开启时，服务层热缓存主题和正文搜索 p95 分别为 11 和 30 毫秒。桌面测试单独计入应用启动后的首轮查询。
 
 复验先运行 `dotnet run --project tests/MyMailBox.Checks --no-build -- perf-prepare-ui 100000`，再运行 `dotnet run --project tests/MyMailBox.UiChecks --no-build -- performance 100000`。1 万封组将参数改为 `10000`。原始读数在 `artifacts/performance-v1/<规模>/ui/ui-measure.json` 和同目录 `frame-ticks.json`。命令复用已建立索引的库，后台归档只处理单独准备的副本。
+
+同日最终回归再次使用原库，准备阶段仅取消上一轮基准自身未处理完的归档批次，再补足来源中的 12 个测试项目。首轮桌面记录保留于 `artifacts/task000-performance-baseline`。复测时 1 万/10 万封的翻页 p95 为 88.83/91.54 毫秒，阅读为 47.35/51.58 毫秒，搜索为 45.80/1,114.85 毫秒，取消为 24.38/10.49 毫秒。后台分别归档 1/2 封。10 万封滚动帧 p95 为 33.16 毫秒，158 个帧间隔中有 6 个超过 33.33 毫秒，最长 40.83 毫秒。

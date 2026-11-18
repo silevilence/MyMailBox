@@ -39,8 +39,7 @@ internal static class PerformanceUiChecks
         try
         {
             ui.Find("nav-diagnostics");ui.Click("nav-local-mail/inbox");var box=ui.Find("mail-folders").AsComboBox();box.Expand();var choice=box.Items.FirstOrDefault(i=>i.Text==folder.Path)??throw new Exception($"找不到目录 {folder.Path}，界面可见：{string.Join(" | ",box.Items.Select(i=>i.Text))}");choice.Select();box.Collapse();
-            ui.Status("mail-status","第 1–50");var run = auto.Runs(plan.Id).Result.FirstOrDefault(r => r.State is "ready" or "running") ??
-                auto.Start(plan.Id,"manual/performance/"+Guid.NewGuid()).Result;
+            ui.Status("mail-status","第 1–50");var run = auto.Start(plan.Id,"manual/performance/"+Guid.NewGuid()).Result;
             int baseline = run.Done;
             if (!SpinWait.SpinUntil(() => auto.Runs(plan.Id).Result.Single(r => r.Id == run.Id).Done > baseline, 25000))
                 throw new Exception("后台归档没有开始处理样本。");

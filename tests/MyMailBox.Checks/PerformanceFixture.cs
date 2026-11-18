@@ -107,6 +107,11 @@ internal static partial class PerformanceFixture
         var folders=await store.Folders();var owner=SqliteMailStore.LocalAccount;
         async Task<Guid> Folder(string name)=>folders.FirstOrDefault(f=>f.AccountId==owner&&f.Name==name)?.Id??await protocols.Create(owner,null,name);
         var input=await Folder("后台归档来源");var output=await Folder("后台归档结果");
+        // Each measurement needs a full frozen batch, even if the previous window closed
+        // with just one archive item left. Keep the large index and its cached messages.
+        foreach (var run in await auto.Runs(Id(-83)))
+            if (run.Cause.StartsWith("manual/performance/",StringComparison.Ordinal) && run.State is "ready" or "running")
+                await auto.Cancel(run.Id);
         var page=await store.List(input,0,20);
         for(int i=page.Items.Count;i<12;i++){var sample=Sample(i+1);await store.Import(input,sample.Raw,await new MyMailBox.Mail.MimeReader().Parse(sample.Raw));}
         var plan=new AutomationPlan(Id(-83),0,"测量期间归档",new(owner,input,"","count>=1",0,0),true)
