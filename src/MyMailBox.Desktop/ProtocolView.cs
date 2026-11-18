@@ -20,6 +20,8 @@ public sealed partial class ProtocolView : UserControl, IDisposable
     private readonly StackPanel _imap = new() { Spacing = 8 };
     private readonly List<Button> _actions = [];
     private readonly List<Control> _editors = [];
+    private readonly TabItem _syncTab = new() { Header = "离线同步" };
+    private ImapSyncView? _syncView;
     private int _offset;
     private bool _hasMore, _busy, _disposed;
     private MailAccount? _selected;
@@ -48,7 +50,7 @@ public sealed partial class ProtocolView : UserControl, IDisposable
         navigation.Children.Add(_previous); navigation.Children.Add(_next); _imap.Children.Add(navigation);
         AutomationProperties.SetAutomationId(_messages, "imap-messages"); _imap.Children.Add(_messages);
         var items = new List<TabItem> { new() { Header = "连接设置", Content = connection }, new() { Header = "IMAP 目录", Content = _imap } };
-        AddCompose(items); AddPop(items); _tabs = items; tabs.ItemsSource = items; AutomationProperties.SetAutomationId(tabs, "protocol-tabs"); panel.Children.Add(tabs);
+        AddCompose(items); AddPop(items); if (_page.ImapSync is not null) items.Add(_syncTab); _tabs = items; tabs.ItemsSource = items; AutomationProperties.SetAutomationId(tabs, "protocol-tabs"); panel.Children.Add(tabs);
         var cancel = new Button { Content = "取消当前操作" }; AutomationProperties.SetAutomationId(cancel, "protocol-cancel"); cancel.Click += (_, _) => _operation?.Cancel();
         AutomationProperties.SetAutomationId(_status, "protocol-status");
         var feedback = new StackPanel { Spacing = 6, Margin = new Avalonia.Thickness(0, 10, 0, 0) }; feedback.Children.Add(_status); feedback.Children.Add(cancel);
@@ -102,6 +104,7 @@ public sealed partial class ProtocolView : UserControl, IDisposable
     }
     private async Task SelectAccount()
     {
+        _syncView?.Dispose(); _syncView = null; _syncTab.Content = null; _syncTab.IsEnabled = false;
         _selected = _accounts.SelectedItem as MailAccount; _messages.ItemsSource = null; _folders.ItemsSource = null; _offset = 0; _hasMore = false;
         if (_selected is null) { _status.Text = "请先在账户管理创建并启用在线账户。"; _incoming.Panel.IsVisible = _outgoing.Panel.IsVisible = _imap.IsVisible = false; return; }
         var id = _selected.Id; var settings = await _page.Service.Settings(id, Token); if (_disposed) return;
@@ -110,6 +113,13 @@ public sealed partial class ProtocolView : UserControl, IDisposable
         _incoming.Panel.IsVisible = _selected.Capabilities.HasFlag(AccountCapabilities.Receive);
         _outgoing.Panel.IsVisible = _selected.Capabilities.HasFlag(AccountCapabilities.Send);
         _imap.IsVisible = _selected.Capabilities.HasFlag(AccountCapabilities.Folders);
+        if (_imap.IsVisible && _page.ImapSync is { } sync)
+        {
+            var paths = await sync.CachedFolders(id, Token);
+            if (_disposed) return;
+            _syncView = new(sync, id); _syncTab.Content = _syncView; _syncTab.IsEnabled = true;
+            _syncView.SetFolders(paths);
+        }
         _status.Text = "已载入连接配置。密码留空保留已有凭据；选择操作后才会联网。";
     }
     private MailAccount Selected() => _selected ?? throw new InvalidDataException("请先选择在线账户。");
@@ -117,12 +127,13 @@ public sealed partial class ProtocolView : UserControl, IDisposable
     {
         var account = Selected();
         await _page.Service.Save(account.Id, new(_incoming.Panel.IsVisible ? _incoming.Value() : null, _outgoing.Panel.IsVisible ? _outgoing.Value() : null), _incoming.Secret.Text, _outgoing.Secret.Text, Token);
-        _incoming.Secret.Text = _outgoing.Secret.Text = ""; if (!_disposed) _status.Text = "连接配置已保存，凭据已加密。尚未连接服务器。";
+        await SelectAccount(); if (!_disposed) _status.Text = "连接配置已保存，凭据已加密。尚未连接服务器。";
     }
     private async Task ConnectImap()
     {
         var folders = await _page.Service.Folders(Selected().Id, Token); if (_disposed) return;
         _folders.ItemsSource = folders.Where(f => f.Selectable).ToArray(); _folders.SelectedItem = folders.FirstOrDefault(f => f.Selectable && f.Role == "inbox") ?? folders.FirstOrDefault(f => f.Selectable);
+        _syncView?.SetFolders(folders.Where(f => f.Selectable).Select(f => f.Path));
         _status.Text = $"连接成功，发现 {folders.Count} 个目录。特殊用途由服务器属性映射。";
     }
     private async Task ReadSummaries(int offset)
@@ -134,7 +145,7 @@ public sealed partial class ProtocolView : UserControl, IDisposable
     }
     public void Dispose()
     {
-        if (_disposed) return; _disposed = true; _lifetime.Cancel(); _lifetime.Dispose();
+        if (_disposed) return; _disposed = true; _syncView?.Dispose(); _lifetime.Cancel(); _lifetime.Dispose();
         _incoming.Secret.Text = _outgoing.Secret.Text = ""; _accounts.ItemsSource = null; _messages.ItemsSource = null;
     }
     private sealed class EndpointEditor

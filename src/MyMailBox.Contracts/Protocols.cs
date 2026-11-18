@@ -10,7 +10,10 @@ public sealed record ProtocolSettings(MailEndpoint? Incoming = null, MailEndpoin
 public sealed record RemoteFolder(string Path, string Name, string Role, bool Selectable);
 public sealed record RemoteSummary(uint Uid, string Subject, string From, DateTimeOffset? Date, long Size, bool IsRead);
 public sealed record RemoteMailPage(IReadOnlyList<RemoteSummary> Items, int Offset, bool HasMore, uint UidValidity);
-public sealed record ProtocolPage(IAccountService Accounts, IProtocolMailService Service);
+public sealed record ProtocolPage(IAccountService Accounts, IProtocolMailService Service)
+{
+    public IImapSyncService? ImapSync { get; init; }
+}
 public sealed record TextMail(string To, string Cc, string Bcc, string Subject, string Body);
 public sealed record SendOutcome(string State, string Message, IReadOnlyList<string> Accepted, IReadOnlyList<string> Rejected);
 public sealed record PopOutcome(int Imported, int Existing, int DeleteRequested, bool HasMore, string Message);

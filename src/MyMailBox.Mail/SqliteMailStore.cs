@@ -78,14 +78,20 @@ public sealed class SqliteMailStore : IMailStore
     {
         if (raw.Length is 0 or > MimeReader.MaxMessageBytes) throw new InvalidDataException("邮件为空或超过 25 MiB 存储限制。");
         using var db = Open(); using var transaction = db.BeginTransaction(); using var command = db.CreateCommand(); command.Transaction = transaction;
+        var id = InsertMessage(command, folderId, raw, metadata);
+        cancellation.ThrowIfCancellationRequested(); transaction.Commit(); return id;
+    }, cancellation);
+
+    internal static Guid InsertMessage(SqliteCommand command, Guid folderId, byte[] raw, ParsedMail metadata)
+    {
         var id = Guid.NewGuid();
         command.CommandText = "INSERT INTO messages(id,folder_id,subject,sender,recipient,date,size,raw,sha256) VALUES($id,$folder,$subject,$from,$to,$date,$size,$raw,$hash)";
         command.Parameters.AddWithValue("$id", id.ToString()); command.Parameters.AddWithValue("$folder", folderId.ToString());
         command.Parameters.AddWithValue("$subject", metadata.Subject); command.Parameters.AddWithValue("$from", metadata.From); command.Parameters.AddWithValue("$to", metadata.To);
         command.Parameters.AddWithValue("$date", metadata.Date.ToUniversalTime().ToString("O")); command.Parameters.AddWithValue("$size", raw.Length); command.Parameters.AddWithValue("$raw", raw);
         command.Parameters.AddWithValue("$hash", Convert.ToHexString(SHA256.HashData(raw)));
-        cancellation.ThrowIfCancellationRequested(); command.ExecuteNonQuery(); cancellation.ThrowIfCancellationRequested(); transaction.Commit(); return id;
-    }, cancellation);
+        command.ExecuteNonQuery(); return id;
+    }
 
     public Task<byte[]> Read(Guid messageId, CancellationToken cancellation = default) => Task.Run(() =>
     {

@@ -37,6 +37,11 @@ internal static class ProtocolUiChecks
             Tab(1); ui.Click("imap-connect"); Status("连接成功"); ui.Click("imap-read"); Status("第 1 页");
             ui.Click("imap-next"); Status("第 2 页"); ui.Click("imap-previous"); Status("第 1 页");
             Capture.Element(window).ToFile(Path.Combine(output, "01-imap.png"));
+            Tab(4); ui.Click("sync-once"); ui.Status("sync-status", "同步完成");
+            ui.Find("sync-messages").AsListBox().Select(0); ui.Click("sync-open");
+            if (!SpinWait.SpinUntil(() => ui.Find("sync-body").AsTextBox().Text.Contains("真实 SMTP"), 10000))
+                throw new Exception("Downloaded IMAP message was not readable");
+            ui.Click("sync-watch"); ui.Status("sync-status", "等待新邮件"); ui.Click("sync-stop"); ui.Status("sync-status", "同步已停止");
             Tab(0); ui.Text("incoming-secret", "wrong-ui-password"); ui.Click("protocol-save"); Status("配置已保存");
             Tab(1); ui.Click("imap-connect"); Status("认证失败");
             Tab(0); ui.Text("incoming-secret", "local-alice"); ui.Click("protocol-save"); Status("配置已保存");

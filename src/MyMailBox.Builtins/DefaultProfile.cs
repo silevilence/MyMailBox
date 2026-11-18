@@ -36,13 +36,15 @@ public static class DefaultProfile
         catalog.Add(new(new("accounts", "1.0.0", 1, 1, PluginKind.Ordinary, "accounts"), PluginOrigin.Builtin, "", (ctx, _) =>
         {
             var host = ctx.Get<IPluginHost>("mailbox.host")!;
-            var accounts = new Mail.AccountService(new Mail.SqliteMailStore(Path.Combine(location, "mail")));
+            var store = new Mail.SqliteMailStore(Path.Combine(location, "mail"));
+            var accounts = new Mail.AccountService(store);
+            var protocols = new Mail.ProtocolMailService(store);
             var graph = new Mail.GraphMailService(new Mail.SqliteMailStore(Path.Combine(location, "mail")));
             ctx.Effect(() => graph);
             ctx.Effect(() => host.Add(new Page("graph", "Outlook.com 邮件", "", [], [], (_, _) => Task.FromResult("")) { Graph = new(accounts, graph) }));
             ctx.Effect(() => host.Add(new Page("manage", "账户管理", "", [], [], (_, _) => Task.FromResult(""), Accounts: accounts)));
             ctx.Effect(() => host.Add(new Page("protocols", "邮箱连接与收发", "", [], [], (_, _) => Task.FromResult(""))
-                { Protocols = new(accounts, new Mail.ProtocolMailService(new Mail.SqliteMailStore(Path.Combine(location, "mail")))) }));
+                { Protocols = new(accounts, protocols) { ImapSync = protocols } }));
         }));
         catalog.Add(new(new("local-mail", "1.0.0", 1, 1, PluginKind.Ordinary, "local-mail"), PluginOrigin.Builtin, "", (ctx, _) =>
         {

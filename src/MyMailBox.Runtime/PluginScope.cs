@@ -27,7 +27,8 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
             Actions = page.Actions.ToArray(),
             Reader = page.Reader is { } reader ? new(new ScopedMailStore(this, Target(reader.Store)), new ScopedMimeReader(this, Target(reader.Parser)), reader.Html is { } html ? new ScopedHtml(this, Target(html)) : null, reader.Remote is { } remote ? new ScopedRemote(this, Target(remote)) : null, reader.Attachments is { } attachments ? new ScopedAttachments(this, Target(attachments)) : null) : null,
             Accounts = page.Accounts is { } accounts ? new ScopedAccounts(this, Target(accounts)) : null,
-            Protocols = page.Protocols is { } protocols ? new(new ScopedAccounts(this, Target(protocols.Accounts)), new ScopedProtocols(this, Target(protocols.Service))) : null,
+            Protocols = page.Protocols is { } protocols ? new(new ScopedAccounts(this, Target(protocols.Accounts)), new ScopedProtocols(this, Target(protocols.Service)))
+                { ImapSync = protocols.ImapSync is { } sync ? new ScopedImapSync(this, Target(sync)) : null } : null,
             Graph = page.Graph is { } graph ? new(new ScopedAccounts(this, Target(graph.Accounts)), new ScopedGraph(this, Target(graph.Service))) : null,
             Selections = page.Selections is { } selections ? new ScopedSelections(this, Target(selections)) : null,
             Export = page.Export is { } export ? new(new ScopedMailStore(this, Target(export.Store)), new ScopedSelections(this, Target(export.Selections))) : null,
@@ -189,6 +190,20 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         public Task<GraphMessages> Messages(Guid account, string folder, string? next = null, CancellationToken cancellation = default) => scope.Run(t => service.Value.Messages(account, folder, next, t), cancellation);
         public Task<Guid> Download(Guid account, string message, CancellationToken cancellation = default) => scope.Run(t => service.Value.Download(account, message, t), cancellation);
     }
+    private sealed class ScopedImapSync(PluginScope scope, ServiceTarget<IImapSyncService> service) : IImapSyncService
+    {
+        public Task<IReadOnlyList<string>> CachedFolders(Guid account, CancellationToken cancellation = default) =>
+            scope.Run(t => service.Value.CachedFolders(account, t), cancellation);
+        public Task<ImapCachePage> CachedPage(Guid account, string path, int offset, int limit, CancellationToken cancellation = default) =>
+            scope.Run(t => service.Value.CachedPage(account, path, offset, limit, t), cancellation);
+        public Task<ImapSyncResult> Sync(Guid account, string path, int recentCount, IProgress<int>? progress = null, CancellationToken cancellation = default) =>
+            scope.Run(t => service.Value.Sync(account, path, recentCount, progress, t), cancellation);
+        public async Task WaitForChange(Guid account, string path, ImapSyncResult previous, CancellationToken cancellation = default) =>
+            await scope.Run(async t => { await service.Value.WaitForChange(account, path, previous, t); return true; }, cancellation);
+        public Task<ImapReading> OpenMessage(Guid account, string path, ImapCachedMail message, bool allowDownload, CancellationToken cancellation = default) =>
+            scope.Run(t => service.Value.OpenMessage(account, path, message, allowDownload, t), cancellation);
+    }
+
     private sealed partial class ScopedProtocols(PluginScope scope, ServiceTarget<IProtocolMailService> service) : IProtocolMailService
     {
         public Task<ProtocolSettings> Settings(Guid account, CancellationToken cancellation = default) => scope.Run(t => service.Value.Settings(account, t), cancellation);

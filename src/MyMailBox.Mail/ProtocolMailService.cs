@@ -12,7 +12,7 @@ using MyMailBox.Contracts;
 namespace MyMailBox.Mail;
 
 /// <summary>Short-lived protocol sessions: no timers, implicit sends, or automatic retries.</summary>
-public sealed partial class ProtocolMailService : IProtocolMailService
+public sealed partial class ProtocolMailService : IProtocolMailService, IImapSyncService
 {
     private readonly SqliteMailStore _store;
     private readonly AccountService _accounts;
@@ -28,6 +28,7 @@ public sealed partial class ProtocolMailService : IProtocolMailService
             END;
             """;
         command.ExecuteNonQuery();
+        ImapCache.Initialize(store);
     }
     private async Task<MailAccount> Account(Guid id, AccountCapabilities required, CancellationToken token)
     {
@@ -77,7 +78,7 @@ public sealed partial class ProtocolMailService : IProtocolMailService
         if (endpoint.Proxy != MailProxy.None && (Uri.CheckHostName(endpoint.ProxyHost) == UriHostNameType.Unknown || endpoint.ProxyPort is < 1 or > 65535)) throw new InvalidDataException("代理主机或端口无效。");
         if (endpoint.CertificateSha256.Length > 0 && (endpoint.CertificateSha256.Length != 64 || !endpoint.CertificateSha256.All(Uri.IsHexDigit))) throw new InvalidDataException("证书指纹须为 64 位 SHA-256 十六进制值。");
     }
-    private async Task Connect(MailService client, Guid id, bool outgoing, CancellationToken token)
+    private async Task<MailEndpoint> Connect(MailService client, Guid id, bool outgoing, CancellationToken token)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
         timeout.CancelAfter(TimeSpan.FromSeconds(15));
@@ -109,6 +110,7 @@ public sealed partial class ProtocolMailService : IProtocolMailService
         }
         catch (OperationCanceledException) when (!token.IsCancellationRequested) { throw new TimeoutException("连接或认证超时。"); }
         finally { CryptographicOperations.ZeroMemory(plain); }
+        return endpoint;
     }
     // Do not return remote exception text: servers can echo authentication data or message contents.
     private async Task<T> ReadOperation<T>(Guid id, Func<Task<T>> operation)
