@@ -12,7 +12,7 @@ using MyMailBox.Contracts;
 namespace MyMailBox.Mail;
 
 /// <summary>Short-lived protocol sessions: no timers, implicit sends, or automatic retries.</summary>
-public sealed partial class ProtocolMailService : IProtocolMailService, IImapSyncService, IOutboxService, IMailOrganizer, IMailActionService, IMailTransferService
+public sealed partial class ProtocolMailService : IProtocolMailService, IImapSyncService, IOutboxService, IMailOrganizer, IMailActionService, IMailTransferService, IOfflineMarks
 {
     private readonly SqliteMailStore _store;
     private readonly LocalMailActions _localActions;

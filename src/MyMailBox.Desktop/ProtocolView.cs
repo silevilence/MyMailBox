@@ -118,7 +118,7 @@ public sealed partial class ProtocolView : UserControl, IDisposable
         {
             var paths = await sync.CachedFolders(id, Token);
             if (_disposed) return;
-            _syncView = new(sync, id); _syncTab.Content = _syncView; _syncTab.IsEnabled = true;
+            _syncView = new(sync, id, _page.OfflineMarks); _syncTab.Content = _syncView; _syncTab.IsEnabled = true;
             _syncView.SetFolders(paths);
         }
         await LoadOutbox(0);

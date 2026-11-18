@@ -6,7 +6,7 @@ using System.Text;
 
 namespace MyMailBox.Mail;
 
-internal sealed class ImapCache(SqliteMailStore store, Guid account, MailEndpoint endpoint)
+internal sealed partial class ImapCache(SqliteMailStore store, Guid account, MailEndpoint endpoint)
 {
     private readonly string _source = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(
         $"{endpoint.Host.ToLowerInvariant()}:{endpoint.Port}/{endpoint.User}")));
@@ -22,6 +22,13 @@ internal sealed class ImapCache(SqliteMailStore store, Guid account, MailEndpoin
                 id TEXT PRIMARY KEY REFERENCES folders(id) ON DELETE CASCADE, account TEXT NOT NULL, source TEXT NOT NULL,
                 path TEXT NOT NULL, validity INTEGER NOT NULL, watermark INTEGER NOT NULL, coverage INTEGER NOT NULL,
                 UNIQUE(account,source,path));
+            CREATE TABLE IF NOT EXISTS imap_edits(id TEXT PRIMARY KEY,account TEXT NOT NULL,folder TEXT NOT NULL,uid INTEGER NOT NULL,
+                path TEXT NOT NULL,subject TEXT NOT NULL,mark INTEGER NOT NULL,state TEXT NOT NULL,detail TEXT NOT NULL);
+            CREATE INDEX IF NOT EXISTS imap_edits_folder ON imap_edits(folder,state);
+            CREATE TRIGGER IF NOT EXISTS imap_detached BEFORE DELETE ON imap_folders BEGIN
+                UPDATE imap_edits SET state='conflict',detail='目录已改名、移除或重新编号。旧标识已停用，请重新选择邮件。'
+                WHERE folder=OLD.id AND state='pending';
+            END;
             CREATE TABLE IF NOT EXISTS imap_summaries(
                 folder TEXT NOT NULL REFERENCES imap_folders(id) ON DELETE CASCADE, uid INTEGER NOT NULL,
                 subject TEXT NOT NULL, sender TEXT NOT NULL, size INTEGER NOT NULL,
@@ -33,6 +40,12 @@ internal sealed class ImapCache(SqliteMailStore store, Guid account, MailEndpoin
         if (Convert.ToInt32(command.ExecuteScalar()) == 0)
         {
             command.CommandText = "ALTER TABLE imap_summaries ADD COLUMN date_ms INTEGER NOT NULL DEFAULT 0";
+            command.ExecuteNonQuery();
+        }
+        command.CommandText = "SELECT count(*) FROM pragma_table_info('imap_summaries') WHERE name='flags'";
+        if (Convert.ToInt32(command.ExecuteScalar()) == 0)
+        {
+            command.CommandText = "ALTER TABLE imap_summaries ADD COLUMN flags INTEGER NOT NULL DEFAULT 0";
             command.ExecuteNonQuery();
         }
         tx.Commit();
@@ -92,6 +105,9 @@ internal sealed class ImapCache(SqliteMailStore store, Guid account, MailEndpoin
         c.Parameters.AddWithValue("$new",renamed); c.Parameters.AddWithValue("$prefix",old + separator);
         c.Parameters.AddWithValue("$name",accountName);
         c.CommandText = """
+            UPDATE imap_edits SET path=$new || substr(path,length($path)+1)
+            WHERE folder IN (SELECT id FROM imap_folders WHERE account=$account AND source=$source)
+                AND (path=$path OR substr(path,1,length($prefix))=$prefix);
             UPDATE imap_folders SET path=$new || substr(path,length($path)+1)
             WHERE account=$account AND source=$source AND (path=$path OR substr(path,1,length($prefix))=$prefix);
             UPDATE folders SET name=(SELECT path FROM imap_folders WHERE id=folders.id),
@@ -149,7 +165,7 @@ internal sealed class ImapCache(SqliteMailStore store, Guid account, MailEndpoin
         using var command = db.CreateCommand();
         command.Transaction = tx;
         command.CommandText = """
-            INSERT INTO imap_summaries(folder,uid,subject,sender,size,date_ms) VALUES($folder,$uid,$subject,$sender,$size,$date)
+            INSERT INTO imap_summaries(folder,uid,subject,sender,size,date_ms,flags) VALUES($folder,$uid,$subject,$sender,$size,$date,$flags)
             ON CONFLICT(folder,uid) DO NOTHING
             """;
         command.Parameters.AddWithValue("$folder", folder.Id.ToString());
@@ -158,6 +174,7 @@ internal sealed class ImapCache(SqliteMailStore store, Guid account, MailEndpoin
         var sender = command.Parameters.Add("$sender", SqliteType.Text);
         var size = command.Parameters.Add("$size", SqliteType.Integer);
         var date = command.Parameters.Add("$date", SqliteType.Integer);
+        var flags = command.Parameters.Add("$flags",SqliteType.Integer);
         int added = 0;
         foreach (var item in batch)
         {
@@ -167,6 +184,7 @@ internal sealed class ImapCache(SqliteMailStore store, Guid account, MailEndpoin
             sender.Value = item.Envelope?.From.ToString() ?? "";
             size.Value = (long)(item.Size ?? 0);
             date.Value = item.Envelope?.Date?.ToUnixTimeMilliseconds() ?? 0;
+            flags.Value = (int)(item.Flags ?? MessageFlags.None);
             added += command.ExecuteNonQuery();
         }
         tx.Commit();
@@ -189,7 +207,7 @@ internal sealed class ImapCache(SqliteMailStore store, Guid account, MailEndpoin
         using var db = store.Open();
         using var command = Lookup(db, path);
         command.CommandText = """
-            SELECT f.id,f.validity,s.uid,s.subject,s.sender,s.size,s.message,s.missing
+            SELECT f.id,f.validity,s.uid,s.subject,s.sender,s.size,s.message,s.missing,s.flags
             FROM imap_folders f JOIN imap_summaries s ON s.folder=f.id
             WHERE f.account=$account AND f.source=$source AND f.path=$path ORDER BY s.uid DESC LIMIT $limit OFFSET $offset
             """;
@@ -199,7 +217,8 @@ internal sealed class ImapCache(SqliteMailStore store, Guid account, MailEndpoin
         var items = new List<ImapCachedMail>();
         while (reader.Read())
             items.Add(new(Guid.Parse(reader.GetString(0)), (uint)reader.GetInt64(1), (uint)reader.GetInt64(2),
-                reader.GetString(3), reader.GetString(4), reader.GetInt64(5), reader.IsDBNull(6) ? null : Guid.Parse(reader.GetString(6)), reader.GetBoolean(7)));
+                reader.GetString(3), reader.GetString(4), reader.GetInt64(5), reader.IsDBNull(6) ? null : Guid.Parse(reader.GetString(6)), reader.GetBoolean(7))
+                { IsRead = ((MessageFlags)reader.GetInt32(8)).HasFlag(MessageFlags.Seen), IsStarred = ((MessageFlags)reader.GetInt32(8)).HasFlag(MessageFlags.Flagged) });
         return new(items.Take(limit).ToArray(), items.Count > limit);
     }
 
@@ -210,7 +229,7 @@ internal sealed class ImapCache(SqliteMailStore store, Guid account, MailEndpoin
         command.CommandText = """
             SELECT s.date_ms,s.folder || '/' || printf('%010d',s.uid) AS item_key,s.subject,s.sender,s.message IS NOT NULL
             FROM imap_summaries s JOIN imap_folders f ON f.id=s.folder
-            WHERE f.account=$account AND f.source=$source AND f.path=$path COLLATE NOCASE AND (s.missing=0 OR s.message IS NOT NULL)
+            WHERE f.account=$account AND f.source=$source AND f.path=$path COLLATE NOCASE AND s.missing=0
             AND (s.date_ms,item_key)<($time,$key) ORDER BY s.date_ms DESC,item_key DESC LIMIT $limit
             """;
         return ProtocolReceiveProvider.ReadInbox(command, identity, before, limit);
@@ -221,7 +240,7 @@ internal sealed class ImapCache(SqliteMailStore store, Guid account, MailEndpoin
         using var db = store.Open();
         using var command = Lookup(db, "INBOX");
         command.CommandText = """
-            SELECT f.id,f.validity,s.uid,s.subject,s.sender,s.size,s.message,s.missing
+            SELECT f.id,f.validity,s.uid,s.subject,s.sender,s.size,s.message,s.missing,s.flags
             FROM imap_folders f JOIN imap_summaries s ON s.folder=f.id
             WHERE f.account=$account AND f.source=$source AND f.path=$path COLLATE NOCASE
                 AND s.folder || '/' || printf('%010d',s.uid)=$key
@@ -281,7 +300,11 @@ internal sealed class ImapCache(SqliteMailStore store, Guid account, MailEndpoin
         using var insert = db.CreateCommand();
         insert.Transaction = tx;
         var id = SqliteMailStore.InsertMessage(insert, item.FolderId, raw, parsed);
-        command.CommandText = "UPDATE imap_summaries SET message=$message WHERE folder=$folder AND uid=$uid";
+        command.CommandText = """
+            UPDATE imap_summaries SET message=$message WHERE folder=$folder AND uid=$uid;
+            UPDATE messages SET is_read=(SELECT (flags & $seen)<>0 FROM imap_summaries WHERE folder=$folder AND uid=$uid) WHERE id=$message;
+            """;
+        command.Parameters.AddWithValue("$seen",(int)MessageFlags.Seen);
         command.Parameters.AddWithValue("$message", id.ToString());
         command.ExecuteNonQuery();
         token.ThrowIfCancellationRequested();

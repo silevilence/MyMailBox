@@ -44,6 +44,8 @@ internal static class ProtocolUiChecks
             ui.Find("sync-messages").AsListBox().Select(0); ui.Click("sync-open");
             if (!SpinWait.SpinUntil(() => ui.Find("sync-body").AsTextBox().Text.Contains("真实 SMTP"), 10000))
                 throw new Exception("Downloaded IMAP message was not readable");
+            ui.Expand("离线修改（下次同步时应用）"); ui.Click("offline-Star"); ui.Status("offline-status","待同步 1");
+            ui.Click("sync-once"); ui.Status("offline-status","已确认 1");
             ui.Click("sync-watch"); ui.Status("sync-status", "等待新邮件"); ui.Click("sync-stop"); ui.Status("sync-status", "同步已停止");
             Tab(0); ui.Text("incoming-secret", "wrong-ui-password"); ui.Click("protocol-save"); Status("配置已保存");
             Tab(1); ui.Click("imap-connect"); Status("认证失败");

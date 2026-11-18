@@ -28,7 +28,8 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
             Reader = page.Reader is { } reader ? new(new ScopedMailStore(this, Target(reader.Store)), new ScopedMimeReader(this, Target(reader.Parser)), reader.Html is { } html ? new ScopedHtml(this, Target(html)) : null, reader.Remote is { } remote ? new ScopedRemote(this, Target(remote)) : null, reader.Attachments is { } attachments ? new ScopedAttachments(this, Target(attachments)) : null) : null,
             Accounts = page.Accounts is { } accounts ? new ScopedAccounts(this, Target(accounts)) : null,
             Protocols = page.Protocols is { } protocols ? new(new ScopedAccounts(this, Target(protocols.Accounts)), new ScopedProtocols(this, Target(protocols.Service)))
-                { Outbox = protocols.Outbox is { } outbox ? new ScopedOutbox(this, Target(outbox)) : null,
+                { OfflineMarks = protocols.OfflineMarks is { } marks ? new ScopedOfflineMarks(this,Target(marks)) : null,
+                  Outbox = protocols.Outbox is { } outbox ? new ScopedOutbox(this, Target(outbox)) : null,
                   ImapSync = protocols.ImapSync is { } sync ? new ScopedImapSync(this, Target(sync)) : null } : null,
             Organization = page.Organization is { } org ? new(new ScopedAccounts(this, Target(org.Accounts)), new ScopedOrganizer(this, Target(org.Organizer)))
                 { Transfers = org.Transfers is { } transfers ? new ScopedTransfers(this,Target(transfers)) : null,
@@ -263,6 +264,16 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         public Task Cancel(Guid id, CancellationToken cancellation = default) => Use((s,t) => s.Cancel(id, t), cancellation);
         public Task Retry(Guid id, CancellationToken cancellation = default) => Use((s,t) => s.Retry(id, t), cancellation);
         public Task SaveCopy(Guid id, CancellationToken cancellation = default) => Use((s,t) => s.SaveCopy(id, t), cancellation);
+    }
+
+    private sealed class ScopedOfflineMarks(PluginScope scope, ServiceTarget<IOfflineMarks> service) : IOfflineMarks
+    {
+        public async Task Queue(Guid account,string path,ImapCachedMail message,MailMark mark,CancellationToken token=default) =>
+            await scope.Run(async t=>{ await service.Value.Queue(account,path,message,mark,t); return true; },token);
+        public Task<IReadOnlyList<OfflineMark>> Changes(Guid account,CancellationToken token=default) =>
+            scope.Run(t=>service.Value.Changes(account,t),token);
+        public async Task Dismiss(Guid account,Guid edit,CancellationToken token=default) =>
+            await scope.Run(async t=>{ await service.Value.Dismiss(account,edit,t); return true; },token);
     }
 
     private sealed class ScopedImapSync(PluginScope scope, ServiceTarget<IImapSyncService> service) : IImapSyncService

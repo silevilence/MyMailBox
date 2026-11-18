@@ -37,6 +37,7 @@ if (args.Length == 0 || args.Contains("transfer-recovery")) await TransferChecks
 if (args.Contains("transfer-live")) await TransferChecks.Live();
 if (args.Contains("mail-actions-live")) await MailActionChecks.Run(true);
 if (args.Contains("organization-live")) await OrganizationChecks.Run(true);
+if (args.Contains("imap-conflicts")) await ConflictChecks.Run();
 if (args.Contains("imap-sync")) await ProtocolChecks.ImapSync();
 if (args.Contains("protocol-live")) await ProtocolChecks.Live();
 if (args.Contains("protocol-faults")) await ProtocolChecks.Faults();

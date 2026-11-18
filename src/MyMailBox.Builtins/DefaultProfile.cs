@@ -49,7 +49,7 @@ public static class DefaultProfile
             ctx.Effect(() => host.Add(new Page("graph", "Outlook.com 邮件", "", [], [], (_, _) => Task.FromResult("")) { Graph = new(accounts, graph) }));
             ctx.Effect(() => host.Add(new Page("manage", "账户管理", "", [], [], (_, _) => Task.FromResult(""), Accounts: accounts)));
             ctx.Effect(() => host.Add(new Page("protocols", "邮箱连接与收发", "", [], [], (_, _) => Task.FromResult(""))
-                { Protocols = new(accounts, protocols) { ImapSync = protocols, Outbox = protocols } }));
+                { Protocols = new(accounts, protocols) { ImapSync = protocols, Outbox = protocols, OfflineMarks = protocols } }));
         }));
         catalog.Add(new(new("local-mail", "1.0.0", 1, 1, PluginKind.Ordinary, "local-mail"), PluginOrigin.Builtin, "", (ctx, _) =>
         {

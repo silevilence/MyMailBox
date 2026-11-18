@@ -24,9 +24,12 @@ internal sealed class ImapSyncView : StackPanel, IDisposable
     private bool _hasMore, _refreshing;
     private string Path => _folder.SelectedItem as string ?? "INBOX";
 
-    public ImapSyncView(IImapSyncService service, Guid account)
+    private readonly IOfflineMarks? _marks;
+    private readonly TextBlock _markStatus = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly ListBox _edits = new() { MaxHeight = 140 };
+    public ImapSyncView(IImapSyncService service, Guid account, IOfflineMarks? marks)
     {
-        _service = service;
+        _service = service; _marks = marks;
         _account = account;
         Spacing = 8;
         void Field(string label, Control control, string id)
@@ -55,7 +58,8 @@ internal sealed class ImapSyncView : StackPanel, IDisposable
         Children.Add(_status);
         _list.ItemTemplate = new FuncDataTemplate<ImapCachedMail>((m, _) => new TextBlock
         {
-            Text = m is null ? "" : $"{m.Subject}\n{m.Sender} · {(m.LocalId.HasValue ? "可离线阅读" : m.Missing ? "服务器已移除" : "仅摘要")}",
+            Text = m is null ? "" : $"{(m.IsStarred ? "★ " : "")}{m.Subject}\n{m.Sender} · {(m.IsRead ? "已读" : "未读")} · " +
+                (m.Missing ? "服务器已移除" + (m.LocalId.HasValue ? "，保留离线副本" : "") : m.LocalId.HasValue ? "可离线阅读" : "仅摘要"),
             TextWrapping = TextWrapping.Wrap
         });
         Field("已同步邮件", _list, "sync-messages");
@@ -67,6 +71,30 @@ internal sealed class ImapSyncView : StackPanel, IDisposable
         Children.Add(_readStatus);
         AutomationProperties.SetAutomationId(_body, "sync-body");
         Children.Add(_body);
+        if (marks is not null)
+        {
+            var editPanel = new StackPanel { Spacing = 6 };
+            var markButtons = new WrapPanel();
+            foreach (var (mark,name) in new[]{(MailMark.Read,"设为已读"),(MailMark.Unread,"设为未读"),(MailMark.Star,"加星"),(MailMark.Unstar,"取消星标")})
+                Action(markButtons,name,"offline-"+mark,async () =>
+                {
+                    if (_list.SelectedItem is not ImapCachedMail message) throw new InvalidDataException("请选择要修改的邮件。");
+                    await marks.Queue(_account,Path,message,mark,_lifetime.Token); await RefreshMarks();
+                });
+            editPanel.Children.Add(markButtons);
+            _edits.ItemTemplate = new FuncDataTemplate<OfflineMark>((e,_)=>new TextBlock
+            {
+                Text=e is null?"":$"{e.Subject} · {e.Path} · {MarkName(e.Mark)}\n{e.Detail}",TextWrapping=TextWrapping.Wrap
+            });
+            editPanel.Children.Add(_edits);
+            Action(editPanel,"清除已处理的所选记录","offline-dismiss",async ()=>
+            {
+                if (_edits.SelectedItem is not OfflineMark {State:not "pending"} e) throw new InvalidDataException("请选择已确认或有冲突的记录。");
+                await marks.Dismiss(_account,e.Id,_lifetime.Token); await RefreshMarks();
+            });
+            Children.Add(new Expander { Header="离线修改（下次同步时应用）",Content=editPanel });
+            AutomationProperties.SetAutomationId(_markStatus,"offline-status"); Children.Add(_markStatus);
+        }
         _folder.SelectionChanged += async (_, _) =>
         {
             ClearReading();
@@ -74,6 +102,18 @@ internal sealed class ImapSyncView : StackPanel, IDisposable
         };
         _list.SelectionChanged += (_, _) => { if (!_refreshing) ClearReading(); Buttons(); };
         Buttons();
+    }
+
+    private static string MarkName(MailMark mark) => mark switch
+    { MailMark.Read=>"已读",MailMark.Unread=>"未读",MailMark.Star=>"加星",_=>"取消星标" };
+
+    private async Task RefreshMarks()
+    {
+        if (_marks is null) return;
+        var rows=await _marks.Changes(_account,_lifetime.Token);
+        if (_lifetime.IsCancellationRequested) return;
+        _edits.ItemsSource=rows;
+        _markStatus.Text=rows.Count==0?"":$"离线修改 · 待同步 {rows.Count(r=>r.State=="pending")} · 冲突 {rows.Count(r=>r.State=="conflict")} · 已确认 {rows.Count(r=>r.State=="done")}";
     }
 
     private async Task Guard(Func<Task> action)
@@ -89,6 +129,7 @@ internal sealed class ImapSyncView : StackPanel, IDisposable
         var items = paths.Prepend("INBOX").Distinct(StringComparer.Ordinal).ToArray();
         _folder.ItemsSource = items;
         _folder.SelectedItem = items.Contains(selected) ? selected : items[0];
+        _ = Guard(RefreshMarks);
     }
 
     private void Buttons()
@@ -97,7 +138,7 @@ internal sealed class ImapSyncView : StackPanel, IDisposable
         _stop.IsEnabled = _sync is not null;
         _previous.IsEnabled = _offset > 0;
         _next.IsEnabled = _hasMore;
-        _open.IsEnabled = _list.SelectedItem is ImapCachedMail { Missing: false };
+        _open.IsEnabled = _list.SelectedItem is ImapCachedMail { Missing: false } or ImapCachedMail { LocalId: not null };
         _open.Content = _list.SelectedItem is ImapCachedMail { LocalId: null, Missing: false } ? "下载正文和附件" : "离线打开";
     }
 
@@ -145,7 +186,7 @@ internal sealed class ImapSyncView : StackPanel, IDisposable
                     if (firstBatch) { firstBatch = false; _ = Guard(() => LoadPage(_offset)); }
                 });
                 var result = await _service.Sync(_account, path, limit, progress, operation.Token);
-                await LoadPage(_offset);
+                await LoadPage(_offset); await RefreshMarks();
                 _status.Text = $"同步完成，新增 {result.Added} 封。" + (watch ? " 正在等待新邮件…" : "");
                 if (watch) await _service.WaitForChange(_account, path, result, operation.Token);
             } while (watch && !operation.IsCancellationRequested);

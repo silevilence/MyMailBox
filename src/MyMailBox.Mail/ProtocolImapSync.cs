@@ -30,9 +30,18 @@ public sealed partial class ProtocolMailService
             var identity = await Account(account, AccountCapabilities.Receive | AccountCapabilities.Folders, cancellation);
             using var client = _imapClients();
             var endpoint = await Connect(client, account, false, cancellation);
-            var remote = await client.GetFolderAsync(path, cancellation);
-            await remote.OpenAsync(FolderAccess.ReadOnly, cancellation);
             var cache = new ImapCache(_store, account, endpoint);
+            IMailFolder remote;
+            try
+            {
+                remote = await client.GetFolderAsync(path, cancellation);
+                await remote.OpenAsync(FolderAccess.ReadOnly, cancellation);
+            }
+            catch (FolderNotFoundException)
+            {
+                cache.Detach(path);
+                throw new InvalidDataException("服务器目录已改名或移除，请刷新目录。旧引用不会用于新目录。");
+            }
             var folder = cache.Start(path, remote.UidValidity, identity.Name);
             var count = remote.Count;
             var next = remote.UidNext?.Id;
@@ -57,7 +66,7 @@ public sealed partial class ProtocolMailService
                         var requested = cache.MissingSummaries(folder, batch);
                         if (requested.Count > 0)
                         {
-                            var summaries = await remote.FetchAsync(requested.ToArray(), MessageSummaryItems.UniqueId | MessageSummaryItems.Envelope | MessageSummaryItems.Size, cancellation);
+                            var summaries = await remote.FetchAsync(requested.ToArray(), MessageSummaryItems.UniqueId | MessageSummaryItems.Envelope | MessageSummaryItems.Size | MessageSummaryItems.Flags, cancellation);
                             added += cache.Add(folder, summaries.Where(s => requested.Contains(s.UniqueId)), cancellation);
                         }
                         watermark = Math.Max(watermark, batch[0].Id);
@@ -67,6 +76,7 @@ public sealed partial class ProtocolMailService
             }
             cancellation.ThrowIfCancellationRequested();
             // A completed empty range can include expunged UIDs. Never advance over a canceled batch.
+            await ReconcileFlags(remote,cache,folder,recentCount,cancellation);
             cache.Finish(folder, next is > 0 ? next.Value - 1 : watermark, recentCount);
             return new ImapSyncResult(added, remote.UidValidity, next, count);
         });
@@ -86,8 +96,9 @@ public sealed partial class ProtocolMailService
                 using var done = new CancellationTokenSource(TimeSpan.FromMinutes(4));
                 void Changed(object? sender, EventArgs args) => done.Cancel();
                 remote.CountChanged += Changed;
+                remote.MessageFlagsChanged += Changed;
                 try { await client.IdleAsync(done.Token, cancellation); }
-                finally { remote.CountChanged -= Changed; }
+                finally { remote.CountChanged -= Changed; remote.MessageFlagsChanged -= Changed; }
             }
             else
             {

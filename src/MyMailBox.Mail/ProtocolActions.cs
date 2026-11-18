@@ -123,8 +123,8 @@ public sealed partial class ProtocolMailService
             c.CommandText = """
                 INSERT OR REPLACE INTO mail_marks(folder,item,starred,labels)
                     SELECT $dest,$target,starred,labels FROM mail_marks WHERE folder=$source AND item=$key;
-                INSERT OR IGNORE INTO imap_summaries(folder,uid,subject,sender,size,date_ms)
-                    SELECT $dest,$target,subject,sender,size,date_ms FROM imap_summaries WHERE folder=$source AND uid=$key;
+                INSERT OR IGNORE INTO imap_summaries(folder,uid,subject,sender,size,date_ms,flags)
+                    SELECT $dest,$target,subject,sender,size,date_ms,flags FROM imap_summaries WHERE folder=$source AND uid=$key;
                 """;
             c.ExecuteNonQuery();
             if (action != MailAction.Copy)
