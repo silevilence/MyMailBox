@@ -92,4 +92,26 @@ internal static partial class PerformanceFixture
         }
         Console.WriteLine($"PASS {size} MIME fixture, reused {start} records: {root}");
     }
+    public static async Task PrepareUi(int size)
+    {
+        var template=Open(size,"indexed");
+        var dir=Path.Combine(Root(size),"ui","mail");Directory.CreateDirectory(dir);
+        if(!File.Exists(Path.Combine(dir,"mail.db")))
+        {
+            using var from=template.Open();
+            var temporary=Path.Combine(dir,"prepare-"+Guid.NewGuid()+".db");
+            using(var to=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=temporary,Pooling=false}.ToString())){to.Open();from.BackupDatabase(to);}
+            File.Move(temporary,Path.Combine(dir,"mail.db"));
+        }
+        var store=new SqliteMailStore(dir);var protocols=new ProtocolMailService(store);var auto=new MailAutomationService(store,new(store,protocols),protocols);
+        var folders=await store.Folders();var owner=SqliteMailStore.LocalAccount;
+        async Task<Guid> Folder(string name)=>folders.FirstOrDefault(f=>f.AccountId==owner&&f.Name==name)?.Id??await protocols.Create(owner,null,name);
+        var input=await Folder("后台归档来源");var output=await Folder("后台归档结果");
+        var page=await store.List(input,0,20);
+        for(int i=page.Items.Count;i<12;i++){var sample=Sample(i+1);await store.Import(input,sample.Raw,await new MyMailBox.Mail.MimeReader().Parse(sample.Raw));}
+        var plan=new AutomationPlan(Id(-83),0,"测量期间归档",new(owner,input,"","count>=1",0,0),true)
+        {Target=new(owner,input,false,"",null,null,0,0,true,"保留",SearchOrder.Oldest,12,0,null),Archive=new(owner,output,false,540,"UTC")};
+        if(!(await auto.Plans()).Any(p=>p.Id==plan.Id))await auto.Save(plan);
+        Console.WriteLine($"PASS reusable {size} indexed UI workspace with separate background archive scope");
+    }
 }

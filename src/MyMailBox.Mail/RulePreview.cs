@@ -4,8 +4,6 @@ namespace MyMailBox.Mail;
 
 public sealed partial class MailSearchService
 {
-    private static string PreviewDocuments => Documents.Replace("JOIN search_meta","JOIN preview_meta",StringComparison.Ordinal);
-
     internal Task<RulePreview> Preview(ReceiveRule rule,SearchLibrary library,CancellationToken token) => Task.Run(() =>
     {
         using var db=_store.Open(readOnly:true);using var cmd=db.CreateCommand();

@@ -74,6 +74,12 @@ public sealed partial class MailSearchService
                 (SELECT child.id FROM imap_folders parent JOIN imap_delimiter d ON d.folder=parent.id JOIN imap_folders child
                 ON child.account=parent.account AND child.source=parent.source AND substr(child.path,1,length(parent.path||d.separator))=parent.path||d.separator WHERE parent.id=$f))))
             """;
+        if (!t.Descendants || !t.Folder.HasValue)
+        {
+            string account = t.Account.HasValue ? "accountid=$a" : "1";
+            string folder = t.Folder.HasValue ? "folderid=$f" : "1";
+            scoped = PreviewDocuments + $", scoped AS (SELECT * FROM docs WHERE {account} AND {folder})";
+        }
         c.CommandText=scoped+" SELECT coalesce(sum(size),0) FROM scoped";long scopeBytes=(long)c.ExecuteScalar()!;
         var targets=new List<TargetMail>();long selected=0;
         if(!t.LowWaterBytes.HasValue||scopeBytes>t.LowWaterBytes)

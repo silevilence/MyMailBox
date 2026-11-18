@@ -38,19 +38,33 @@ public sealed partial class MailSearchService : IMailSearch
     ];
 
     // Keep one searchable row per message. A downloaded IMAP body replaces its summary-only hit.
-    private static readonly string Documents = $"""
+    private static readonly string Documents=BuildDocuments(false);
+    private static readonly string RecentDocuments=BuildDocuments(true);
+    private static readonly string PreviewDocuments = BuildDocuments(false, preview: true);
+
+    private static string BuildDocuments(bool recent, bool preview = false)
+    {
+        // Preview-only values live on this connection. Indexed joins avoid materializing
+        // every persisted message body when an automation task inspects one folder.
+        string Meta(string field) => preview
+            ? $"CASE WHEN y.id IS NULL THEN x.{field} ELSE y.{field} END"
+            : $"x.{field}";
+
+        return $"""
         WITH docs AS (
           SELECT coalesce(s.folder || '/' || s.uid,m.id) AS id,a.id AS accountid,f.id AS folderid,a.name AS account,f.path AS folder,m.subject,
-            NULLIF(m.sender,'') AS "from",x.actual_sender AS sender,x.reply_to AS reply,NULLIF(m.recipient,'') AS "to",x.cc,x.bcc,
-            x.files AS attachment,x.headers AS header,x.priority,x.thread,x.sent,
-            coalesce(json_extract(s.envelope,'$.Received'),x.received) AS received,m.size,m.is_read AS read,
+            NULLIF(m.sender,'') AS "from",{Meta("actual_sender")} AS sender,{Meta("reply_to")} AS reply,NULLIF(m.recipient,'') AS "to",{Meta("cc")} AS cc,{Meta("bcc")} AS bcc,
+            {Meta("files")} AS attachment,{Meta("headers")} AS header,{Meta("priority")} AS priority,{Meta("thread")} AS thread,{Meta("sent")} AS sent,
+            coalesce(json_extract(s.envelope,'$.Received'),{Meta("received")}) AS received,m.size,m.is_read AS read,
             coalesce((s.flags & {(int)MailKit.MessageFlags.Flagged})<>0,t.starred,0) AS star,coalesce(rt.labels,t.labels) AS tag,
-            m.id AS localid,s.uid,fm.validity,fm.path AS remote_path,coalesce(x.complete,0) AS complete,x.body
-          FROM messages m JOIN folders f ON f.id=m.folder_id JOIN accounts a ON a.id=f.account_id
-          LEFT JOIN search_meta x ON x.id=m.id AND x.hash=m.sha256
+            m.id AS localid,s.uid,fm.validity,fm.path AS remote_path,coalesce({Meta("complete")},0) AS complete,{Meta("body")} AS body
+          FROM {(recent?"search_meta x INDEXED BY search_meta_dates CROSS JOIN messages m ON m.id=x.id AND x.hash=m.sha256":"messages m")}
+          JOIN folders f ON f.id=m.folder_id JOIN accounts a ON a.id=f.account_id
+          {(recent?"":"LEFT JOIN main.search_meta x ON x.id=m.id AND x.hash=m.sha256")}
+          {(preview ? "LEFT JOIN temp.search_meta y ON y.id=m.id AND y.hash=m.sha256" : "")}
           LEFT JOIN imap_summaries s ON s.message=m.id LEFT JOIN imap_folders fm ON fm.id=s.folder
           LEFT JOIN mail_marks t ON t.folder=f.id AND t.item=m.id LEFT JOIN mail_marks rt ON rt.folder=s.folder AND rt.item=CAST(s.uid AS TEXT)
-          WHERE a.enabled AND NOT a.removed
+          WHERE a.enabled AND NOT a.removed {(recent?"AND x.sent >= $cut":"")}
           UNION ALL
           SELECT s.folder || '/' || s.uid,a.id,f.id,a.name,f.path,s.subject,NULLIF(s.sender,''),
             NULLIF(json_extract(s.envelope,'$.Sender'),''),NULLIF(json_extract(s.envelope,'$.Reply'),''),
@@ -59,9 +73,10 @@ public sealed partial class MailSearchService : IMailSearch
             s.size,(s.flags & {(int)MailKit.MessageFlags.Seen})<>0,(s.flags & {(int)MailKit.MessageFlags.Flagged})<>0,t.labels,NULL,s.uid,fm.validity,fm.path,0,NULL
           FROM imap_summaries s JOIN imap_folders fm ON s.folder=fm.id JOIN folders f ON f.id=s.folder
           JOIN accounts a ON a.id=f.account_id LEFT JOIN mail_marks t ON t.folder=f.id AND t.item=CAST(s.uid AS TEXT)
-          WHERE a.enabled AND NOT a.removed AND s.message IS NULL AND NOT s.missing
+          WHERE a.enabled AND NOT a.removed AND s.message IS NULL AND NOT s.missing {(recent?"AND s.date_ms >= $cut":"")}
         )
         """;
+    }
 
     public async Task<SearchPage> Search(SearchRequest request, CancellationToken token = default)
     {
@@ -90,26 +105,78 @@ public sealed partial class MailSearchService : IMailSearch
         using var interrupt = token.Register(() => SQLitePCL.raw.sqlite3_interrupt(db.Handle));
         token.ThrowIfCancellationRequested();
         using var tx = db.BeginTransaction(deferred: true); cmd.Transaction = tx;
-        cmd.CommandText = Documents + " SELECT count(localid),count(*)-count(localid),sum(localid IS NOT NULL AND NOT complete)," + (condition is null ? "0" : $"count(CASE WHEN ({combined}) IS NULL THEN 1 END)") + ",count(CASE WHEN body IS NOT NULL AND localid IN(SELECT message FROM body_index_state) THEN 1 END) FROM docs";
-        int full, summaries, missing, unknown, indexed;
-        using (var r = cmd.ExecuteReader())
+        var (full,missing,indexed,noBody,emptySubject)=LocalCoverage(cmd);
+        int summaries,unknown=0;
+        cmd.CommandText="""
+            SELECT count(*),count(CASE WHEN s.subject='' THEN 1 END) FROM imap_summaries s JOIN imap_folders i ON i.id=s.folder
+            JOIN folders f ON f.id=i.id JOIN accounts a ON a.id=f.account_id WHERE a.enabled AND NOT a.removed AND s.message IS NULL AND NOT s.missing
+            """;
+        using(var r=cmd.ExecuteReader()){r.Read();summaries=r.GetInt32(0);emptySubject+=r.GetInt32(1);}
+        if(condition is not null)
         {
-            r.Read(); full = r.GetInt32(0); summaries = r.GetInt32(1); missing = r.IsDBNull(2) ? 0 : r.GetInt32(2); unknown = r.GetInt32(3); indexed = r.GetInt32(4);
+            var leaf=request.Criteria.Length==0 && request.RemoteBatch is null?request.Condition?.Root.Criterion:null;
+            if(leaf is {Field:"body",Match:SearchMatch.Contains})unknown=noBody+summaries;
+            else if(leaf is {Field:"subject",Match:SearchMatch.Contains})unknown=emptySubject;
+            else{cmd.CommandText=Documents+" SELECT count(*) FROM docs WHERE ("+combined+") IS NULL";unknown=Convert.ToInt32(cmd.ExecuteScalar());}
         }
         string where = combined.Length == 0 ? "" : " WHERE " + combined;
         var highlights = HighlightTerms(request).ToArray();
-        cmd.CommandText = Documents + " SELECT id,accountid,folderid,folder,subject,\"from\",sent,size,localid,uid,validity," + (highlights.Length > 0 ? "body" : "NULL") + "," + (highlightsSql.Count == 0 ? "NULL" : "coalesce(" + string.Join(",",highlightsSql) + ",NULL)") + " FROM docs" + where +
-            " ORDER BY " + order + ",id LIMIT $limit OFFSET $offset";
+        var projection = " SELECT id,accountid,folderid,folder,subject,\"from\",sent,size,localid,uid,validity," + (highlights.Length > 0 ? "body" : "NULL") + "," + (highlightsSql.Count == 0 ? "NULL" : "coalesce(" + string.Join(",",highlightsSql) + ",NULL)") + " FROM docs";
+        string sort=" ORDER BY "+order+",id LIMIT $limit OFFSET $offset";
         cmd.Parameters.AddWithValue("$limit", request.Limit + 1); cmd.Parameters.AddWithValue("$offset", request.Offset);
         var hits = new List<SearchHit>();
-        using (var r = cmd.ExecuteReader()) while (r.Read())
+        void ReadHits(string docs,string predicate)
+        {
+            cmd.CommandText=docs+projection+predicate+sort;
+            using var r=cmd.ExecuteReader();while(r.Read())
         {
             token.ThrowIfCancellationRequested();
             hits.Add(new(r.GetString(0), Guid.Parse(r.GetString(1)), Guid.Parse(r.GetString(2)), r.GetString(3), r.GetString(4),
                 r.IsDBNull(5) ? "" : r.GetString(5), r.IsDBNull(6) ? null : DateTimeOffset.FromUnixTimeMilliseconds(r.GetInt64(6)), r.GetInt64(7),
                 r.IsDBNull(8) ? null : Guid.Parse(r.GetString(8)), r.IsDBNull(9) ? null : (uint)r.GetInt64(9), r.IsDBNull(10) ? null : (uint)r.GetInt64(10)) { Excerpt = (!r.IsDBNull(11) ? Excerpt(r.GetString(11), highlights) : null) ?? (r.IsDBNull(12) ? null : System.Text.Json.JsonSerializer.Deserialize<SearchExcerpt>(r.GetString(12))) });
         }
+        }
+        // A full page above this date boundary is also the exact globally ordered page.
+        // Include ties and remote summaries in the same ordering, then fall back for sparse matches.
+        if(request.Order==SearchOrder.Newest && request.Offset<=200 && full>1024)
+        {
+            cmd.CommandText="SELECT sent FROM search_meta WHERE sent IS NOT NULL ORDER BY sent DESC LIMIT 1 OFFSET 511";
+            if(cmd.ExecuteScalar() is long cut)
+            {
+                cmd.Parameters.AddWithValue("$cut",cut);string recentWhere=where;
+                var single=request.RemoteBatch is null?(request.Criteria.Length==0?request.Condition?.Root.Criterion:
+                    request.Criteria.Length==1&&request.Condition is null?request.Criteria[0]:null):null;
+                if(single is {Field:"body",Match:SearchMatch.Contains} && single.Value.Length>0)
+                {
+                    cmd.Parameters.AddWithValue("$fastText",request.Condition is null?single.Value.Trim():single.Value);
+                    recentWhere=" WHERE mb_contains(body,$fastText)";
+                }
+                ReadHits(RecentDocuments,recentWhere);
+            }
+        }
+        if(hits.Count<=request.Limit){hits.Clear();ReadHits(Documents,where);}
         return new SearchPage(hits.Take(request.Limit).ToArray(), hits.Count > request.Limit, full, summaries, missing) { IndexedBodies = indexed, Unknown = unknown, UnavailableFields = unavailable.ToArray() };
+    }
+
+    private readonly object _coverageLock=new();
+    private long _coverageVersion=-1;
+    private (int Full,int Missing,int Indexed,int NoBody,int EmptySubjects) _coverage;
+    private (int,int,int,int,int) LocalCoverage(SqliteCommand cmd)
+    {
+        cmd.CommandText="SELECT revision FROM search_coverage_revision";long revision=(long)cmd.ExecuteScalar()!;
+        lock(_coverageLock){if(_coverageVersion==revision)return _coverage;}
+        cmd.CommandText="""
+            SELECT count(*),coalesce(sum(coalesce(x.complete,0)=0),0),count(CASE WHEN x.body IS NOT NULL AND b.message IS NOT NULL THEN 1 END),
+                count(CASE WHEN x.body IS NOT NULL THEN NULL ELSE 1 END),count(CASE WHEN m.subject='' THEN 1 END)
+            FROM messages m INDEXED BY search_message_coverage JOIN folders f ON f.id=m.folder_id JOIN accounts a ON a.id=f.account_id
+            LEFT JOIN search_meta x INDEXED BY search_meta_coverage ON x.id=m.id AND x.hash=m.sha256 LEFT JOIN body_index_state b ON b.message=m.id
+            WHERE a.enabled AND NOT a.removed
+            """;
+        int full,missing,indexed,noBody,emptySubject;
+        using(var r=cmd.ExecuteReader()){r.Read();full=r.GetInt32(0);missing=r.GetInt32(1);indexed=r.GetInt32(2);noBody=r.GetInt32(3);emptySubject=r.GetInt32(4);}
+        var result=(full,missing,indexed,noBody,emptySubject);
+        lock(_coverageLock){_coverage=result;_coverageVersion=revision;}
+        return result;
     }
 
     private static string Ordering(SearchOrder order) => order switch

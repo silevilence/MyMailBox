@@ -4,6 +4,8 @@ using MyMailBox.Contracts;
 using MyMailBox.Runtime;
 
 if(args.Length==2 && args[0]=="owner-probe"){WorkspaceOwnerChecks.TryOpen(args[1]);return;}
+if (args.Length==2 && args[0]=="perf-prepare-ui" && int.TryParse(args[1],out var uiSize) && uiSize is 10000 or 100000)
+{await PerformanceFixture.PrepareUi(uiSize);return;}
 if (args.Length==2 && args[0]=="perf-index" && int.TryParse(args[1],out var indexSize) && indexSize is 10000 or 100000)
 {await PerformanceFixture.Index(indexSize);return;}
 if (args.Length==4 && args[0]=="perf-measure" && int.TryParse(args[1],out var measureSize) && measureSize is 10000 or 100000 && args[2] is "indexed" or "source" && args[3] is "sync" or "idle")

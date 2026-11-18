@@ -9,7 +9,7 @@ internal sealed class BodySearchIndex(SqliteMailStore store)
     private const int Version = 1;
     internal static void Initialize(SqliteMailStore store)
     {
-        using var db = store.Open(); using var cmd = db.CreateCommand();
+        using var db = store.Open();using var tx=db.BeginTransaction();using var cmd = db.CreateCommand();cmd.Transaction=tx;
         cmd.CommandText = """
             CREATE TABLE IF NOT EXISTS body_index_state(message TEXT PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE,hash TEXT NOT NULL,version INTEGER NOT NULL);
             CREATE VIRTUAL TABLE IF NOT EXISTS body_fts USING fts5(grams, tokenize='ascii', detail=none);
@@ -18,25 +18,44 @@ internal sealed class BodySearchIndex(SqliteMailStore store)
             END;
             """;
         cmd.ExecuteNonQuery();
+        cmd.CommandText="SELECT count(*) FROM sqlite_master WHERE name='body_pending_v1'";
+        bool seed=(long)cmd.ExecuteScalar()! ==0;
+        cmd.CommandText="""
+            CREATE TABLE IF NOT EXISTS body_pending_v1(id TEXT PRIMARY KEY);
+            CREATE TRIGGER IF NOT EXISTS body_pending_add AFTER INSERT ON search_meta BEGIN INSERT OR IGNORE INTO body_pending_v1 VALUES(new.id); END;
+            CREATE TRIGGER IF NOT EXISTS body_pending_meta AFTER UPDATE OF body,hash,version ON search_meta BEGIN INSERT OR IGNORE INTO body_pending_v1 VALUES(new.id); END;
+            CREATE TRIGGER IF NOT EXISTS body_pending_stale AFTER UPDATE OF version,hash ON body_index_state BEGIN INSERT OR IGNORE INTO body_pending_v1 VALUES(new.message); END;
+            CREATE TRIGGER IF NOT EXISTS body_pending_remove AFTER DELETE ON messages BEGIN DELETE FROM body_pending_v1 WHERE id=old.id; END;
+            """;
+        cmd.ExecuteNonQuery();
+        if(seed){cmd.CommandText="INSERT OR IGNORE INTO body_pending_v1 SELECT x.id FROM search_meta x LEFT JOIN body_index_state b ON b.message=x.id WHERE b.message IS NULL OR b.hash<>x.hash OR b.version<>$v";cmd.Parameters.AddWithValue("$v",Version);cmd.ExecuteNonQuery();}
+        cmd.CommandText="CREATE TABLE IF NOT EXISTS search_coverage_revision(revision INTEGER NOT NULL); INSERT INTO search_coverage_revision SELECT 0 WHERE NOT EXISTS(SELECT 1 FROM search_coverage_revision)";cmd.ExecuteNonQuery();
+        foreach(var (table,columns) in new[]{("messages","folder_id,subject,sha256"),("folders","account_id"),("accounts","enabled,removed"),("search_meta","id,hash,complete,body"),("body_index_state","message")})
+        {
+            foreach(string operation in new[]{"INSERT","DELETE","UPDATE OF "+columns})
+            {
+                string name=operation.Split(' ')[0];
+                cmd.CommandText=$"CREATE TRIGGER IF NOT EXISTS coverage_{table}_{name} AFTER {operation} ON {table} BEGIN UPDATE search_coverage_revision SET revision=revision+1; END";
+                cmd.ExecuteNonQuery();
+            }
+        }
+        tx.Commit();
     }
 
     internal void Prepare(bool rebuild, IProgress<SearchIndexProgress>? progress, CancellationToken token)
     {
         using var db = store.Open(); using var cmd = db.CreateCommand();
-        if (rebuild) { cmd.CommandText = "DELETE FROM body_index_state"; cmd.ExecuteNonQuery(); }
+        if (rebuild) { cmd.CommandText = "DELETE FROM body_index_state; INSERT OR IGNORE INTO body_pending_v1 SELECT id FROM search_meta"; cmd.ExecuteNonQuery(); }
         cmd.Parameters.AddWithValue("$version", Version);
-        const string pending = """
-             FROM search_meta x JOIN messages m ON x.id=m.id AND x.hash=m.sha256 LEFT JOIN body_index_state s ON s.message=x.id
-             WHERE (s.message IS NULL OR s.hash<>x.hash OR s.version<>$version)
-            """;
-        cmd.CommandText = "SELECT count(*) " + pending;
+        const string pending=" FROM body_pending_v1 p CROSS JOIN search_meta x ON x.id=p.id";
+        cmd.CommandText = "SELECT count(*) FROM body_pending_v1";
         int total = Convert.ToInt32(cmd.ExecuteScalar()), done = 0;
         progress?.Report(new(done, total));
         cmd.Parameters.AddWithValue("$last", "");
         while (true)
         {
             token.ThrowIfCancellationRequested();
-            cmd.CommandText = "SELECT x.id,x.hash,x.body " + pending + " AND x.id>$last ORDER BY x.id LIMIT 1";
+            cmd.CommandText = "SELECT x.id,x.hash,x.body " + pending + " WHERE p.id>$last ORDER BY p.id LIMIT 1";
             string id, hash; string? body;
             using (var r = cmd.ExecuteReader())
             {
@@ -54,6 +73,7 @@ internal sealed class BodySearchIndex(SqliteMailStore store)
             if (write.ExecuteScalar() is long row)
             {
                 write.CommandText = "INSERT INTO body_fts(rowid,grams) VALUES($row,$grams)"; write.Parameters.AddWithValue("$row", row); write.ExecuteNonQuery();
+                write.CommandText="DELETE FROM body_pending_v1 WHERE id=$id";write.ExecuteNonQuery();
             }
             tx.Commit(); progress?.Report(new(++done, total));
         }

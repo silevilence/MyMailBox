@@ -12,7 +12,6 @@ public sealed partial class MailSearchService
         using var cmd=db.CreateCommand();cmd.CommandText="""
             CREATE TEMP TABLE search_meta AS SELECT * FROM main.search_meta LIMIT 0;
             CREATE UNIQUE INDEX temp.preview_meta_key ON search_meta(id);
-            CREATE TEMP VIEW preview_meta AS SELECT * FROM temp.search_meta UNION ALL SELECT x.* FROM main.search_meta x WHERE NOT EXISTS(SELECT 1 FROM temp.search_meta t WHERE t.id=x.id);
             CREATE TEMP TABLE derived_search_value(field TEXT,id TEXT,source TEXT,value TEXT,PRIMARY KEY(field,id));
             """;
         cmd.ExecuteNonQuery();_metadata.Prepare(token,db);
@@ -23,7 +22,9 @@ public sealed partial class MailSearchService
         using var c=db.CreateCommand();var unavailable=new HashSet<string>();
         var filter=string.IsNullOrWhiteSpace(scope.Filter)?"1":Compile(db,c,ConditionTree.Parse(scope.Filter),unavailable,token,preview:true);
         c.Parameters.AddWithValue("$a",(object?)scope.Account?.ToString()??DBNull.Value);c.Parameters.AddWithValue("$f",(object?)scope.Folder?.ToString()??DBNull.Value);
-        c.CommandText=PreviewDocuments+$", filtered AS (SELECT ({filter}) AS matched,read,size,localid FROM docs WHERE ($a IS NULL OR accountid=$a) AND ($f IS NULL OR folderid=$f)) "+
+        string folders = scope.Folder.HasValue ? "folderid=$f" : "1";
+        string accounts = scope.Account.HasValue ? "accountid=$a" : "1";
+        c.CommandText=PreviewDocuments+$", filtered AS (SELECT ({filter}) AS matched,read,size,localid FROM docs WHERE {accounts} AND {folders}) "+
             "SELECT count(*) FILTER(WHERE matched),count(*) FILTER(WHERE matched AND NOT read),coalesce(sum(size) FILTER(WHERE matched),0),coalesce(sum(size) FILTER(WHERE matched AND localid IS NOT NULL),0),count(*) FILTER(WHERE matched IS NULL),count(*) FILTER(WHERE NOT matched) FROM filtered";
         long count,unread,logical,cached,unknown,outside;using(var r=c.ExecuteReader()){r.Read();count=r.GetInt64(0);unread=r.GetInt64(1);logical=r.GetInt64(2);cached=r.GetInt64(3);unknown=r.GetInt64(4);outside=r.GetInt64(5);}
         bool complete=true;long? pending=0;decimal? quota=null;var at=now;string basis="本地邮件库快照";

@@ -39,6 +39,7 @@ public sealed class App : Application
             PluginCatalog? activeCatalog = null;
             PluginConfiguration? activeCore = null;
             desktop.MainWindow = new ShellWindow(pages);
+            if(desktop.Args?.Contains("--measure-frames")==true)FrameMeasurements.Attach(desktop.MainWindow,workspace);
             var initialized = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             Avalonia.Threading.Dispatcher.UIThread.Post(async () =>
             {

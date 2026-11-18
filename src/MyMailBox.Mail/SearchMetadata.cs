@@ -10,7 +10,7 @@ internal sealed class SearchMetadata(SqliteMailStore store)
 
     internal static void Initialize(SqliteMailStore store)
     {
-        using var db = store.Open(); using var c = db.CreateCommand();
+        using var db = store.Open();using var tx=db.BeginTransaction();using var c = db.CreateCommand();c.Transaction=tx;
         c.CommandText = """
             CREATE TABLE IF NOT EXISTS search_meta(id TEXT PRIMARY KEY REFERENCES messages(id) ON DELETE CASCADE,
                 hash TEXT NOT NULL,version INTEGER NOT NULL,complete INTEGER NOT NULL,sent INTEGER,received INTEGER,
@@ -23,32 +23,47 @@ internal sealed class SearchMetadata(SqliteMailStore store)
         {
             c.CommandText = "ALTER TABLE search_meta ADD COLUMN body TEXT"; c.ExecuteNonQuery();
         }
+        c.CommandText="SELECT count(*) FROM sqlite_master WHERE name='search_pending_v2'";
+        bool seed=(long)c.ExecuteScalar()! ==0;
+        c.CommandText="""
+            CREATE TABLE IF NOT EXISTS search_pending_v2(id TEXT PRIMARY KEY);
+            CREATE INDEX IF NOT EXISTS search_message_coverage ON messages(folder_id,id,sha256,subject);
+            CREATE INDEX IF NOT EXISTS search_meta_coverage ON search_meta(id,hash,complete,(body IS NOT NULL));
+            CREATE INDEX IF NOT EXISTS search_meta_dates ON search_meta(sent DESC,id);
+            CREATE TRIGGER IF NOT EXISTS search_pending_add AFTER INSERT ON messages BEGIN INSERT OR IGNORE INTO search_pending_v2 VALUES(new.id); END;
+            CREATE TRIGGER IF NOT EXISTS search_pending_change AFTER UPDATE OF sha256 ON messages WHEN new.sha256 IS NOT old.sha256 BEGIN INSERT OR IGNORE INTO search_pending_v2 VALUES(new.id); END;
+            CREATE TRIGGER IF NOT EXISTS search_pending_remove AFTER DELETE ON messages BEGIN DELETE FROM search_pending_v2 WHERE id=old.id; END;
+            CREATE TRIGGER IF NOT EXISTS search_meta_stale AFTER UPDATE OF version,hash ON search_meta BEGIN INSERT OR IGNORE INTO search_pending_v2 VALUES(new.id); END;
+            """;
+        c.ExecuteNonQuery();
+        if(seed){c.CommandText="INSERT OR IGNORE INTO search_pending_v2 SELECT m.id FROM messages m LEFT JOIN search_meta x ON x.id=m.id WHERE x.id IS NULL OR x.hash<>m.sha256 OR x.version<>$v";c.Parameters.AddWithValue("$v",Version);c.ExecuteNonQuery();}
+        tx.Commit();
     }
 
     internal void Prepare(CancellationToken token,SqliteConnection? preview=null)
     {
         using var owned=preview is null ? store.Open() : null;
         var db=preview ?? owned!;
-        using var find = db.CreateCommand(); find.Parameters.AddWithValue("$v", Version);
-        find.CommandText = """
-            SELECT m.id,m.sha256 FROM messages m LEFT JOIN search_meta x ON x.id=m.id
-            WHERE x.id IS NULL OR x.hash<>m.sha256 OR x.version<>$v LIMIT 64
-            """;
-        if (preview is not null) find.CommandText=find.CommandText.Replace("JOIN search_meta","JOIN preview_meta",StringComparison.Ordinal);
+        using var find = db.CreateCommand();
+        const string pending = "SELECT m.id,m.sha256 FROM search_pending_v2 p CROSS JOIN messages m ON m.id=p.id";
+        find.CommandText = preview is null
+            ? pending + " LIMIT 64"
+            : pending + " WHERE NOT EXISTS(SELECT 1 FROM temp.search_meta t WHERE t.id=p.id AND t.hash=m.sha256) LIMIT 64";
         while (true)
         {
             token.ThrowIfCancellationRequested();
             var ids = new List<(string Id, string Hash)>();
             using (var r = find.ExecuteReader()) while (r.Read()) ids.Add((r.GetString(0), r.GetString(1)));
             if (ids.Count == 0) return;
+            using var batch=db.BeginTransaction(deferred:preview is not null);
             foreach (var item in ids)
             {
                 token.ThrowIfCancellationRequested();
-                using var source = db.CreateCommand();
+                using var source = db.CreateCommand();source.Transaction=batch;
                 source.CommandText = "SELECT raw FROM messages WHERE id=$id AND sha256=$hash";
                 source.Parameters.AddWithValue("$id", item.Id); source.Parameters.AddWithValue("$hash", item.Hash);
                 if (source.ExecuteScalar() is not byte[] raw) continue;
-                using var c = db.CreateCommand();
+                using var c = db.CreateCommand();c.Transaction=batch;
                 c.CommandText = """
                     INSERT OR REPLACE INTO search_meta
                         SELECT id,sha256,$version,$complete,$sent,$received,$actual,$reply,$cc,$bcc,$files,$headers,$priority,$thread,$body
@@ -84,8 +99,10 @@ internal sealed class SearchMetadata(SqliteMailStore store)
                     Bind("thread", NonEmpty(mime?.References.FirstOrDefault() ?? mime?.InReplyTo ?? mime?.MessageId));
                     token.ThrowIfCancellationRequested();
                     c.ExecuteNonQuery();
+                    if(preview is null){c.CommandText="DELETE FROM search_pending_v2 WHERE id=$id AND EXISTS(SELECT 1 FROM messages WHERE id=$id AND sha256=$hash)";c.ExecuteNonQuery();}
                 }
             }
+            batch.Commit();
         }
     }
     private static string? NonEmpty(string? s) => string.IsNullOrWhiteSpace(s) ? null : s;
