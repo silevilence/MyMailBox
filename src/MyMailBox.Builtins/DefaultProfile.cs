@@ -42,7 +42,8 @@ public static class DefaultProfile
             var search = new Mail.MailSearchService(store, protocols, searchExtensions);
             ctx.Effect(() => host.Add(new Page("search", "搜索邮件", "", [], [], (_, _) => Task.FromResult("")) { Search = search }));
             ctx.Effect(() => host.Add(new Page("compose", "写邮件与草稿", "", [], [], (_, _) => Task.FromResult("")) { Composer = new(accounts,new Mail.MailDraftStore(store),protocols) }));
-            var automation=new Mail.MailAutomationService(store,search,protocols);
+            var automation=new Mail.MailAutomationService(store,search,protocols,notify:notification);
+            ctx.Effect(()=>new Mail.AutomationRunner(automation,notification));
             ctx.Effect(()=>host.Add(new Page("automation","邮件自动化","",[],[],(_,_)=>Task.FromResult("")){Automation=automation}));
             var rules = new Mail.ReceiveRuleService(store,search,protocols);
             ctx.Effect(() => host.Add(new Page("rules", "收件规则", "", [], [], (_, _) => Task.FromResult("")) { Rules=rules }));

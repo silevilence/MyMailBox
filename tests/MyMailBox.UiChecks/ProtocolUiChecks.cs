@@ -24,6 +24,16 @@ internal static class ProtocolUiChecks
         var actionSource = service.Create(SqliteMailStore.LocalAccount,null,"界面动作来源").GetAwaiter().GetResult();
         var sample = System.Text.Encoding.UTF8.GetBytes("From: fixture@example.test\r\nSubject: Local action\r\n\r\nFixture");
         store.Import(actionSource,sample,new MyMailBox.Mail.MimeReader().Parse(sample).GetAwaiter().GetResult()).GetAwaiter().GetResult();
+        var archiveRoot=service.Create(SqliteMailStore.LocalAccount,null,"界面归档").GetAwaiter().GetResult();
+        var archiveInput=service.Create(SqliteMailStore.LocalAccount,null,"归档来源").GetAwaiter().GetResult();
+        var old=System.Text.Encoding.UTF8.GetBytes("Subject: Archive fixture\r\nDate: Tue, 01 Apr 2025 12:00:00 +0000\r\n\r\nArchive");
+        store.Import(archiveInput,old,new MyMailBox.Mail.MimeReader().Parse(old).GetAwaiter().GetResult()).GetAwaiter().GetResult();
+        var auto=new MailAutomationService(store,new MailSearchService(store,service),service);
+        var archive=auto.Save(new AutomationPlan(Guid.NewGuid(),0,"旧邮件测试",new(SqliteMailStore.LocalAccount,archiveInput,"","count>=1",0,0),true)
+        {
+            Target=new(SqliteMailStore.LocalAccount,archiveInput,false,"",null,null,30,0,true,"保留",SearchOrder.Oldest,10,0,null),
+            Archive=new(SqliteMailStore.LocalAccount,archiveRoot,false,540,"UTC")
+        }).GetAwaiter().GetResult();
         var start = new ProcessStartInfo(Environment.GetEnvironmentVariable("MYMAILBOX_UI_EXE") ?? Path.Combine(repo, "artifacts/publish/MyMailBox.Desktop.exe")) { UseShellExecute = false };
         start.Environment["MYMAILBOX_HOME"] = workspace;
         using var automation = new UIA3Automation(); using var app = Application.Launch(start);
@@ -100,6 +110,10 @@ internal static class ProtocolUiChecks
             ui.Click("compose-plain");if(ui.Find("compose-body").AsTextBox().Text!="editable body")throw new Exception("Rich/plain draft handoff lost body");
             ui.Click("nav-accounts/rules"); ui.Text("rule-name","界面试运行");ui.Text("rule-condition","subject:Local");
             ui.Click("rule-add-action");ui.Click("rule-preview");ui.Status("rule-status","命中");
+            ui.Click("nav-accounts/automation");ui.Select("auto-plans",0);ui.Click("auto-load");ui.Expand("动作、时间与执行记录");
+            ui.Click("auto-archive-preview");ui.Status("auto-status","2025/04");ui.Click("auto-start");
+            if(!SpinWait.SpinUntil(()=>auto.Runs(archive.Id).GetAwaiter().GetResult().Any(r=>r.State=="done"),15000))throw new Exception("UI archive failed to finish");
+            ui.Click("auto-history-refresh");ui.Status("auto-status","完成 1");
             ui.Click("nav-local-mail/inbox");
             Capture.Element(window).ToFile(Path.Combine(output, "04-local.png"));
             var process = Process.GetProcessById(app.ProcessId); window.Close();

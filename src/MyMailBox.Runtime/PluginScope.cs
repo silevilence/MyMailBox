@@ -270,7 +270,12 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         public Task<AutomationPlan> Save(AutomationPlan plan,CancellationToken token=default)=>scope.Run(t=>service.Value.Save(plan,t),token);
         public Task<TargetSnapshot> Select(AutomationPlan plan,DateTimeOffset? at=null,CancellationToken token=default)=>scope.Run(t=>service.Value.Select(plan,at,t),token);
         public Task<string?> Recheck(AutomationPlan plan,TargetSnapshot snapshot,TargetMail mail,CancellationToken token=default)=>scope.Run(t=>service.Value.Recheck(plan,snapshot,mail,t),token);
+        public Task<AutomationRun> Start(Guid plan,string cause,CancellationToken token=default)=>scope.Run(t=>service.Value.Start(plan,cause,t),token);
+        public Task<IReadOnlyList<AutomationRun>> Runs(Guid plan,CancellationToken token=default)=>scope.Run(t=>service.Value.Runs(plan,t),token);
+        public Task<AutomationRun> Advance(Guid run,CancellationToken token=default)=>scope.Run(t=>service.Value.Advance(run,t),token);
+        public async Task Control(Guid run,bool resume,CancellationToken token=default)=>await scope.Run(async t=>{await service.Value.Control(run,resume,t);return true;},token);
         public Task<ConditionReport> Inspect(AutomationPlan plan,bool observe=false,CancellationToken token=default)=>scope.Run(t=>service.Value.Inspect(plan,observe,t),token);
+        public Task<IReadOnlyList<MailFolder>> ArchiveFolders(CancellationToken token=default)=>scope.Run(t=>service.Value.ArchiveFolders(t),token);
         public Task<SearchLibrary> Library(CancellationToken token=default)=>scope.Run(t=>service.Value.Library(t),token);
     }
     private sealed class ScopedRules(PluginScope scope, ServiceTarget<IReceiveRules> service) : IReceiveRules

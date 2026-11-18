@@ -9,15 +9,19 @@ namespace MyMailBox.Mail;
 public sealed partial class MailAutomationService : IMailAutomation
 {
     private readonly SqliteMailStore _store;private readonly MailSearchService _search;private readonly ProtocolMailService _protocols;private readonly TimeProvider _clock;
-    public MailAutomationService(SqliteMailStore store,MailSearchService search,ProtocolMailService protocols,TimeProvider? clock=null)
+    public MailAutomationService(SqliteMailStore store,MailSearchService search,ProtocolMailService protocols,TimeProvider? clock=null,Action<string>? notify=null)
     {
-        _store=store;_search=search;_protocols=protocols;_clock=clock??TimeProvider.System;
+        _store=store;_search=search;_protocols=protocols;_clock=clock??TimeProvider.System;_notify=notify;
         using var db=store.Open();using var c=db.CreateCommand();c.CommandText="""
             CREATE TABLE IF NOT EXISTS automation_plan(id TEXT PRIMARY KEY,version INTEGER NOT NULL,definition TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS automation_gate(id TEXT PRIMARY KEY,version INTEGER NOT NULL,latched INTEGER NOT NULL,last_fire INTEGER);
+            CREATE TABLE IF NOT EXISTS automation_run(id TEXT PRIMARY KEY,plan TEXT NOT NULL,cause TEXT NOT NULL,state TEXT NOT NULL,detail TEXT NOT NULL,at INTEGER NOT NULL,
+                definition TEXT NOT NULL,snapshot TEXT NOT NULL,UNIQUE(plan,cause));
+            CREATE TABLE IF NOT EXISTS automation_item(run TEXT NOT NULL,ordinal INTEGER NOT NULL,op TEXT NOT NULL,destination TEXT,state TEXT NOT NULL,detail TEXT NOT NULL,PRIMARY KEY(run,ordinal));
             CREATE TABLE IF NOT EXISTS automation_outcome(id TEXT PRIMARY KEY,success INTEGER NOT NULL,at INTEGER NOT NULL);
             """;c.ExecuteNonQuery();
     }
+    public Task<IReadOnlyList<MailFolder>> ArchiveFolders(CancellationToken token=default)=>_protocols.Destinations(Guid.Empty,token);
     public Task<SearchLibrary> Library(CancellationToken token=default)=>_search.Library(token);
     public Task<IReadOnlyList<AutomationPlan>> Plans(CancellationToken token=default)=>Task.Run<IReadOnlyList<AutomationPlan>>(()=>
     {
@@ -29,6 +33,14 @@ public sealed partial class MailAutomationService : IMailAutomation
         if(string.IsNullOrWhiteSpace(plan.Name)||plan.When.Hysteresis<0||plan.When.CooldownMinutes<0)throw new InvalidDataException("请填写任务名、非负迟滞和冷却时间。");
         await Inspect(plan,false,token);
         if(plan.Target is not null)await Select(plan,null,token);
+        if(plan.Archive is {} archive)
+        {
+            if(plan.Target is null||archive.LocalMinute is <0 or >=1440)throw new InvalidDataException("归档任务需要目标集合和有效的每日时刻。");
+            _=TimeZoneInfo.FindSystemTimeZoneById(archive.Zone);
+            var accounts=await new AccountService(_store).List(token);
+            if(!accounts.Any(a=>a.Id==archive.Account && a.Enabled && a.Provider=="local") || !(await Library(token)).Scopes.Any(s=>s.Account==archive.Account&&s.Folder==archive.Folder))
+                throw new InvalidDataException("请选择可写的本地归档目录。");
+        }
         using var db=_store.Open();using var tx=db.BeginTransaction();using var c=db.CreateCommand();c.Transaction=tx;
         c.CommandText="SELECT version FROM automation_plan WHERE id=$id";c.Parameters.AddWithValue("$id",plan.Id.ToString());
         if(Convert.ToInt32(c.ExecuteScalar())!=plan.Version)throw new InvalidDataException("任务已修改，请重新载入。");

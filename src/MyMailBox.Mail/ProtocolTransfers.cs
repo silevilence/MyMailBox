@@ -53,7 +53,8 @@ public sealed partial class ProtocolMailService
         catch (IOException e) when ((e.HResult & 0xffff) is 32 or 33) { throw new InvalidDataException("另一个归档操作正在运行，请稍后继续。"); }
     }
 
-    public async Task<MailTransfer> Continue(Guid operation, IProgress<MailTransfer>? progress = null, CancellationToken token = default)
+    public Task<MailTransfer> Continue(Guid operation,IProgress<MailTransfer>? progress=null,CancellationToken token=default)=>ContinueTransfer(operation,progress,null,token);
+    internal async Task<MailTransfer> ContinueTransfer(Guid operation,IProgress<MailTransfer>? progress,Func<CancellationToken,Task<string?>>? beforeCleanup,CancellationToken token)
     {
         using var lease = LockTransfers();
         var step = _transfers.Get(operation);
@@ -81,6 +82,11 @@ public sealed partial class ProtocolMailService
             token.ThrowIfCancellationRequested();
             if (step.Phase == "verified")
             {
+                if(request.Move && beforeCleanup is not null && await beforeCleanup(token) is {} reason)
+                {
+                    _transfers.Update(operation,"canceled","已保留验证后的目标副本及来源："+reason);
+                    return _transfers.Get(operation);
+                }
                 if (!request.Move) _transfers.VerifyTarget(step);
                 _transfers.Update(operation, request.Move ? "cleaning" : "done", request.Move ? "目标已保存，准备核对并清理来源。" : "复制完成，来源原样保留。");
                 step = _transfers.Get(operation); progress?.Report(step);

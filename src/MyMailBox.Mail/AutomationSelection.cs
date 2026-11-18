@@ -69,7 +69,7 @@ public sealed partial class MailSearchService
         c.Parameters.AddWithValue("$a",(object?)t.Account?.ToString()??DBNull.Value);c.Parameters.AddWithValue("$f",(object?)t.Folder?.ToString()??DBNull.Value);c.Parameters.AddWithValue("$sub",t.Descendants);
         string scoped=PreviewDocuments+"""
             , tree(id) AS (SELECT id FROM folders WHERE id=$f UNION SELECT f.id FROM folders f JOIN tree t ON f.parent_id=t.id WHERE $sub),
-            scoped AS (SELECT docs.* FROM docs WHERE ($a IS NULL OR accountid=$a) AND ($f IS NULL OR folderid IN tree OR ($sub AND folderid IN
+            scoped AS (SELECT docs.* FROM docs WHERE ($a IS NULL OR accountid=$a) AND ($f IS NULL OR folderid=$f OR folderid IN tree OR ($sub AND folderid IN
                 (SELECT child.id FROM imap_folders parent JOIN imap_delimiter d ON d.folder=parent.id JOIN imap_folders child
                 ON child.account=parent.account AND child.source=parent.source AND substr(child.path,1,length(parent.path||d.separator))=parent.path||d.separator WHERE parent.id=$f))))
             """;
