@@ -17,6 +17,7 @@ internal sealed partial class MailSearchView : UserControl, IDisposable
     private readonly ListBox _results = new() { MinHeight = 120, MaxHeight = 240 };
     private readonly StackPanel _panel = new() { MaxWidth = 900, Spacing = 8 };
     private readonly Button _prev, _next, _read, _folder, _back;
+    private readonly TextBox _expression = new();
     private SearchRequest _request = new([]);
     private SearchRequest? _previousRequest;
     private string? _backId;
@@ -31,6 +32,14 @@ internal sealed partial class MailSearchView : UserControl, IDisposable
         _match.ItemTemplate = new FuncDataTemplate<SearchMatch>((m, _) => new TextBlock { Text = MatchName(m) });
         Field(_panel, "字段", _field, "search-field"); Field(_panel, "匹配方式", _match, "search-match");
         Field(_panel, "条件值", _value, "search-value"); _panel.Children.Add(_hint);
+        var advanced = new StackPanel { Spacing = 4 };
+        Field(advanced, "组合表达式", _expression, "search-expression");
+        advanced.Children.Add(new TextBlock { TextWrapping = TextWrapping.Wrap, Text =
+            "例：(subject:采购 OR body:合同) AND NOT star=true。运算顺序为 NOT、AND、OR，可用括号分组。" +
+            "用 : 包含、= 精确、^= 开头、$= 结尾、~ 正则、? 存在、< 早于、>= 当天或以后。含空格的值用双引号包住。" +
+            """引号内用 \" 表示引号、\\ 表示反斜杠。""" +
+            "\n字段：" + string.Join("、", service.Fields.Select(f => f.Id + "（" + f.Name + "）")) });
+        _panel.Children.Add(new Expander { Header = "高级搜索", Content = advanced });
         Field(_panel, "结果排序", _order, "search-order");
         var toolbar = new WrapPanel(); Action(toolbar, "搜索", "search-run", RunInput);
         _back = Action(toolbar, "返回搜索结果", "search-back", async () =>
@@ -115,7 +124,7 @@ internal sealed partial class MailSearchView : UserControl, IDisposable
         var criteria = _field.SelectedItem is SearchField field && _match.SelectedItem is SearchMatch match && !string.IsNullOrWhiteSpace(_value.Text)
             ? new[] { new FieldCriterion(field.Id, match, _value.Text!) } : [];
         _previousRequest = null;
-        return Run(new(criteria, (SearchOrder)_order.SelectedIndex));
+        return Run(new(criteria, (SearchOrder)_order.SelectedIndex) { Condition = string.IsNullOrWhiteSpace(_expression.Text) ? null : ConditionTree.Parse(_expression.Text) });
     }
 
     private async Task Locate(SearchHit hit)
@@ -145,6 +154,8 @@ internal sealed partial class MailSearchView : UserControl, IDisposable
         _request = request; _results.ItemsSource = result.Items; _results.SelectedItem = result.Items.FirstOrDefault(m => m.Id == selected);
         _prev.IsEnabled = request.Offset > 0; _next.IsEnabled = result.HasMore; _back.IsVisible = _previousRequest is not null; SetSelection();
         _coverage.Text = $"当前工作空间 · 原文 {result.FullMessages} 封，仅摘要 {result.Summaries} 封，原文元数据不完整 {result.MissingMetadata} 封。";
+        if (result.Unknown > 0) _coverage.Text += $" 条件未知 {result.Unknown} 封。";
+        if (result.UnavailableFields.Count > 0) _coverage.Text += " 缺少字段插件：" + string.Join("、", result.UnavailableFields);
         _status.Text = result.Items.Count == 0 ? "没有匹配邮件。" : $"第 {request.Offset / request.Limit + 1} 页 · {result.Items.Count} 封。";
     }
     private async Task Read()

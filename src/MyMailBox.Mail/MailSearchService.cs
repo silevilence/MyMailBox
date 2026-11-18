@@ -19,7 +19,7 @@ public sealed partial class MailSearchService : IMailSearch
     private static SearchField DateField(string id, string label) => new(id, label, SearchKind.LocalDate, [SearchMatch.Equals, SearchMatch.OnOrAfter, SearchMatch.Before]);
     public IReadOnlyList<SearchField> Fields { get; } =
     [
-        TextField("subject","主题"),TextField("from","发件人 From"),TextField("sender","实际发送者 Sender"),TextField("reply","回复地址 Reply-To"),
+        TextField("subject","主题"),TextField("body","已下载正文"),TextField("from","发件人 From"),TextField("sender","实际发送者 Sender"),TextField("reply","回复地址 Reply-To"),
         TextField("to","收件人 To"),TextField("cc","抄送 Cc"),TextField("bcc","可见密送 Bcc"),TextField("account","账户名称"),TextField("folder","目录路径"),
         TextField("attachment","附件名"),TextField("header","原文邮件头"),TextField("priority","优先级"),TextField("thread","会话标识"),
         TextField("tag","本地标签"),DateField("sent","发送时间（Date）"),DateField("received","接收时间（服务器或 Received）"),
@@ -36,7 +36,7 @@ public sealed partial class MailSearchService : IMailSearch
             x.files AS attachment,x.headers AS header,x.priority,x.thread,x.sent,
             coalesce(json_extract(s.envelope,'$.Received'),x.received) AS received,m.size,m.is_read AS read,
             coalesce((s.flags & {(int)MailKit.MessageFlags.Flagged})<>0,t.starred,0) AS star,coalesce(rt.labels,t.labels) AS tag,
-            m.id AS localid,s.uid,fm.validity,fm.path AS remote_path,coalesce(x.complete,0) AS complete
+            m.id AS localid,s.uid,fm.validity,fm.path AS remote_path,coalesce(x.complete,0) AS complete,x.body
           FROM messages m JOIN folders f ON f.id=m.folder_id JOIN accounts a ON a.id=f.account_id
           LEFT JOIN search_meta x ON x.id=m.id AND x.hash=m.sha256
           LEFT JOIN imap_summaries s ON s.message=m.id LEFT JOIN imap_folders fm ON fm.id=s.folder
@@ -47,7 +47,7 @@ public sealed partial class MailSearchService : IMailSearch
             NULLIF(json_extract(s.envelope,'$.Sender'),''),NULLIF(json_extract(s.envelope,'$.Reply'),''),
             NULLIF(json_extract(s.envelope,'$.To'),''),NULLIF(json_extract(s.envelope,'$.Cc'),''),NULLIF(json_extract(s.envelope,'$.Bcc'),''),
             NULL,NULL,NULL,json_extract(s.envelope,'$.Thread'),NULLIF(s.date_ms,0),json_extract(s.envelope,'$.Received'),
-            s.size,(s.flags & {(int)MailKit.MessageFlags.Seen})<>0,(s.flags & {(int)MailKit.MessageFlags.Flagged})<>0,t.labels,NULL,s.uid,fm.validity,fm.path,0
+            s.size,(s.flags & {(int)MailKit.MessageFlags.Seen})<>0,(s.flags & {(int)MailKit.MessageFlags.Flagged})<>0,t.labels,NULL,s.uid,fm.validity,fm.path,0,NULL
           FROM imap_summaries s JOIN imap_folders fm ON s.folder=fm.id JOIN folders f ON f.id=s.folder
           JOIN accounts a ON a.id=f.account_id LEFT JOIN mail_marks t ON t.folder=f.id AND t.item=CAST(s.uid AS TEXT)
           WHERE a.enabled AND NOT a.removed AND s.message IS NULL AND NOT s.missing
@@ -61,16 +61,19 @@ public sealed partial class MailSearchService : IMailSearch
         db.CreateFunction<string?, string?, long?>("mb_contains", (s, v) => s is null || v is null ? null : s.Contains(v, StringComparison.OrdinalIgnoreCase) ? 1 : 0, true);
         db.CreateCollation("MB_ORDINAL", StringComparer.OrdinalIgnoreCase.Compare);
         var filters = request.Criteria.Select((c, i) => Filter(cmd, c, i)).ToArray();
+        var unavailable = new HashSet<string>();
+        string? condition = request.Condition is null ? null : Compile(db, cmd, request.Condition, unavailable, token);
+        string combined = string.Join(" AND ", filters.Concat(condition is null ? [] : new[] { condition }));
         var order = Ordering(request.Order);
         _metadata.Prepare(token);
         using var tx = db.BeginTransaction(deferred: true); cmd.Transaction = tx;
-        cmd.CommandText = Documents + " SELECT count(localid),count(*)-count(localid),sum(localid IS NOT NULL AND NOT complete) FROM docs";
-        int full, summaries, missing;
+        cmd.CommandText = Documents + " SELECT count(localid),count(*)-count(localid),sum(localid IS NOT NULL AND NOT complete)," + (condition is null ? "0" : $"count(CASE WHEN ({combined}) IS NULL THEN 1 END)") + " FROM docs";
+        int full, summaries, missing, unknown;
         using (var r = cmd.ExecuteReader())
         {
-            r.Read(); full = r.GetInt32(0); summaries = r.GetInt32(1); missing = r.IsDBNull(2) ? 0 : r.GetInt32(2);
+            r.Read(); full = r.GetInt32(0); summaries = r.GetInt32(1); missing = r.IsDBNull(2) ? 0 : r.GetInt32(2); unknown = r.GetInt32(3);
         }
-        string where = filters.Length == 0 ? "" : " WHERE " + string.Join(" AND ", filters);
+        string where = combined.Length == 0 ? "" : " WHERE " + combined;
         cmd.CommandText = Documents + " SELECT id,accountid,folderid,folder,subject,\"from\",sent,size,localid,uid,validity FROM docs" + where +
             " ORDER BY " + order + ",id LIMIT $limit OFFSET $offset";
         cmd.Parameters.AddWithValue("$limit", request.Limit + 1); cmd.Parameters.AddWithValue("$offset", request.Offset);
@@ -82,7 +85,7 @@ public sealed partial class MailSearchService : IMailSearch
                 r.IsDBNull(5) ? "" : r.GetString(5), r.IsDBNull(6) ? null : DateTimeOffset.FromUnixTimeMilliseconds(r.GetInt64(6)), r.GetInt64(7),
                 r.IsDBNull(8) ? null : Guid.Parse(r.GetString(8)), r.IsDBNull(9) ? null : (uint)r.GetInt64(9), r.IsDBNull(10) ? null : (uint)r.GetInt64(10)));
         }
-        return new SearchPage(hits.Take(request.Limit).ToArray(), hits.Count > request.Limit, full, summaries, missing);
+        return new SearchPage(hits.Take(request.Limit).ToArray(), hits.Count > request.Limit, full, summaries, missing) { Unknown = unknown, UnavailableFields = unavailable.ToArray() };
     }, token);
 
     private static string Ordering(SearchOrder order) => order switch

@@ -37,6 +37,7 @@ if (args.Length == 0 || args.Contains("transfer-recovery")) await TransferChecks
 if (args.Contains("transfer-live")) await TransferChecks.Live();
 if (args.Contains("mail-actions-live")) await MailActionChecks.Run(true);
 if (args.Contains("organization-live")) await OrganizationChecks.Run(true);
+if (args.Length == 0 || args.Contains("search-conditions")) await SearchChecks.Conditions();
 if (args.Length == 0 || args.Contains("search-fields")) await SearchChecks.Fields();
 if (args.Contains("imap-conflicts")) await ConflictChecks.Run();
 if (args.Contains("imap-sync")) await ProtocolChecks.ImapSync();

@@ -6,7 +6,7 @@ namespace MyMailBox.Mail;
 
 internal sealed class SearchMetadata(SqliteMailStore store)
 {
-    private const int Version = 1;
+    private const int Version = 2;
 
     internal static void Initialize(SqliteMailStore store)
     {
@@ -18,6 +18,11 @@ internal sealed class SearchMetadata(SqliteMailStore store)
             CREATE INDEX IF NOT EXISTS imap_summaries_message ON imap_summaries(message) WHERE message IS NOT NULL;
             """;
         c.ExecuteNonQuery();
+        c.CommandText = "SELECT count(*) FROM pragma_table_info('search_meta') WHERE name='body'";
+        if ((long)c.ExecuteScalar()! == 0)
+        {
+            c.CommandText = "ALTER TABLE search_meta ADD COLUMN body TEXT"; c.ExecuteNonQuery();
+        }
     }
 
     internal void Prepare(CancellationToken token)
@@ -44,7 +49,7 @@ internal sealed class SearchMetadata(SqliteMailStore store)
                 using var c = db.CreateCommand();
                 c.CommandText = """
                     INSERT OR REPLACE INTO search_meta
-                        SELECT id,sha256,$version,$complete,$sent,$received,$actual,$reply,$cc,$bcc,$files,$headers,$priority,$thread
+                        SELECT id,sha256,$version,$complete,$sent,$received,$actual,$reply,$cc,$bcc,$files,$headers,$priority,$thread,$body
                         FROM messages WHERE id=$id AND sha256=$hash
                     """;
                 void Bind(string key, object? value) => c.Parameters.AddWithValue("$" + key, value ?? DBNull.Value);
@@ -66,6 +71,14 @@ internal sealed class SearchMetadata(SqliteMailStore store)
                     var priority = mime is null ? null : mime.Importance == MessageImportance.High || mime.Priority == MessagePriority.Urgent || (int)mime.XPriority < 3 ? "high" :
                         mime.Importance == MessageImportance.Low || mime.Priority == MessagePriority.NonUrgent || (int)mime.XPriority > 3 ? "low" : "normal";
                     Bind("priority", priority);
+                    string? body = mime?.TextBody;
+                    if (string.IsNullOrWhiteSpace(body) && mime?.HtmlBody is { } html)
+                    {
+                        using var doc = new AngleSharp.Html.Parser.HtmlParser().ParseDocument(html);
+                        foreach (var active in doc.QuerySelectorAll("script,style,head")) active.Remove();
+                        body = doc.Body?.TextContent;
+                    }
+                    Bind("body", NonEmpty(body));
                     Bind("thread", NonEmpty(mime?.References.FirstOrDefault() ?? mime?.InReplyTo ?? mime?.MessageId));
                     token.ThrowIfCancellationRequested();
                     c.ExecuteNonQuery();
