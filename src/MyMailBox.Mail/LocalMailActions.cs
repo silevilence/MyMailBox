@@ -68,7 +68,7 @@ internal sealed class LocalMailActions(SqliteMailStore store)
             }
             else
             {
-                undo = Guid.NewGuid(); targetKey = key;
+                undo = request.OperationId ?? Guid.NewGuid(); targetKey = key;
                 c.Parameters.AddWithValue("$undo",undo.ToString());
                 c.CommandText = """
                     UPDATE messages SET folder_id=$dest WHERE id=$key;

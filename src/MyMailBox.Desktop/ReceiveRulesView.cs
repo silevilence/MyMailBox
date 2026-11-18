@@ -17,6 +17,7 @@ internal sealed partial class ReceiveRulesView : UserControl, IDisposable
     private readonly CheckBox _enabled = new() { Content = "启用规则", IsChecked = true }, _halt = new() { Content = "命中后停止后续规则" }, _history = new() { Content = "同时处理新导入的历史邮件和初次同步" };
     private readonly ListBox _actions = new() { MaxHeight = 100 }, _runs = new() { MaxHeight = 190 };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly ListBox _trace = new() { MaxHeight=150 };
     private readonly List<RuleAction> _draft = [];
     private ReceiveRule? _editing;
     private RuleDashboard? _dashboard;
@@ -44,7 +45,15 @@ internal sealed partial class ReceiveRulesView : UserControl, IDisposable
         _panel.Children.Add(_enabled); _panel.Children.Add(_halt); _panel.Children.Add(_history);
         var save = new WrapPanel(); Button(save, "保存规则", "rule-save", Save); Button(save, "刷新记录", "rule-refresh", () => Refresh(_editing?.Id)); _panel.Children.Add(save);
         _runs.ItemTemplate = new FuncDataTemplate<RuleRun>((r, _) => new TextBlock { Text = r is null ? "" : $"{r.Name} v{r.Version} · {r.Detail}", TextWrapping = TextWrapping.Wrap });
-        Field("最近执行记录", _runs, "rule-log"); AutomationProperties.SetAutomationId(_status, "rule-status"); _panel.Children.Add(_status);
+        Field("最近执行记录", _runs, "rule-log");
+        _trace.ItemTemplate = new FuncDataTemplate<RuleActionLog>((a,_) => new TextBlock { Text=a is null ? "" : $"{a.Ordinal+1}. {ActionName(a.Kind)} · {a.Detail} · {a.Operation}", TextWrapping=TextWrapping.Wrap });
+        Field("所选记录的动作",_trace,"rule-trace");
+        _runs.SelectionChanged += async (_,_) => await Guard(async () =>
+        {
+            if (_runs.SelectedItem is not RuleRun run) { _trace.ItemsSource = null; return; }
+            var items = await service.Actions(run.Id,_stop.Token);
+            if (_runs.SelectedItem is RuleRun selected && selected.Id==run.Id) _trace.ItemsSource=items;
+        }); AutomationProperties.SetAutomationId(_status, "rule-status"); _panel.Children.Add(_status);
         Content = new ScrollViewer { Content = _panel }; AttachedToVisualTree += async (_, _) => await Guard(async () => { await Refresh(null); Edit(null); });
     }
     private void Field(string label, Control control, string id)

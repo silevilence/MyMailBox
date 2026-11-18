@@ -13,6 +13,8 @@ internal static class RuleInbox
             CREATE TABLE IF NOT EXISTS rule_run(id TEXT PRIMARY KEY,event TEXT NOT NULL,rule TEXT NOT NULL,version INTEGER NOT NULL,
                 name TEXT NOT NULL,account TEXT NOT NULL,folder TEXT NOT NULL,item TEXT NOT NULL,priority INTEGER NOT NULL,
                 definition TEXT NOT NULL,state TEXT NOT NULL,detail TEXT NOT NULL,created INTEGER NOT NULL,UNIQUE(event,rule));
+            CREATE TABLE IF NOT EXISTS rule_action_log(op TEXT PRIMARY KEY,run TEXT NOT NULL REFERENCES rule_run(id),ordinal INTEGER NOT NULL,
+                kind INTEGER NOT NULL,state TEXT NOT NULL,source TEXT NOT NULL,item TEXT NOT NULL,destination TEXT,target TEXT,undo TEXT,detail TEXT NOT NULL,UNIQUE(run,ordinal));
             CREATE INDEX IF NOT EXISTS rule_run_work ON rule_run(state,created,priority);
             CREATE TABLE IF NOT EXISTS pop_rule_baseline(account TEXT NOT NULL,source TEXT NOT NULL,PRIMARY KEY(account,source));
             """;

@@ -11,6 +11,7 @@ public sealed partial class ProtocolMailService
     public async Task<IReadOnlyList<MailActionResult>> Apply(MailActionRequest request, CancellationToken token = default)
     {
         if (!Enum.IsDefined(request.Action)) throw new InvalidDataException("未知邮件动作。");
+        if (request.OperationId.HasValue && request.Keys.Length != 1) throw new InvalidDataException("一个操作 ID 只对应一封邮件。");
         if (request.Keys.Length == 0) return [];
         var identity = await ManagedAccount(request.Account, token);
         if (IsImap(identity)) return await ImapActions(identity,request,token);

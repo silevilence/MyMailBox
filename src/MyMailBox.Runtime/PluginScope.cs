@@ -232,6 +232,7 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
 
     private sealed class ScopedRules(PluginScope scope, ServiceTarget<IReceiveRules> service) : IReceiveRules
     {
+        public Task<IReadOnlyList<RuleActionLog>> Actions(string run,CancellationToken token=default) => scope.Run(t=>service.Value.Actions(run,t),token);
         public Task<RuleDashboard> Dashboard(CancellationToken token=default) => scope.Run(t=>service.Value.Dashboard(t),token);
         public Task<ReceiveRule> Save(ReceiveRule rule,CancellationToken token=default) => scope.Run(t=>service.Value.Save(rule,t),token);
         public Task<int> Process(int limit=32,CancellationToken token=default) => scope.Run(t=>service.Value.Process(limit,t),token);

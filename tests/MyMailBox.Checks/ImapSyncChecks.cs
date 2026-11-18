@@ -67,11 +67,18 @@ internal static partial class ProtocolChecks
         using var timer = new CancellationTokenSource(TimeSpan.FromSeconds(80));
         var rules = new ReceiveRuleService(store,search,service);
         await rules.Save(new(Guid.NewGuid(),0,"实时收件规则",account.Id,first[0].FolderId,"subject:新到邮件","",[new(RuleActionKind.Star)],10,true,true,false));
+        await rules.Save(new(Guid.NewGuid(),0,"正文阶段",account.Id,first[0].FolderId,"body:可离线","",[new(RuleActionKind.Label,"正文已核对")],5,true,false,false));
         var wait = service.WaitForChange(account.Id, path, expanded, timer.Token);
         sample.Subject = "新到邮件"; await remote.AppendAsync(sample);
         await wait;
         MailChecks.Check((await service.Sync(account.Id, path, 100)).Added == 1, "Incremental sync missed new arrival");
         await rules.Process();
+        var beforeBody = (await rules.Dashboard()).Runs.Single(r=>r.Name=="正文阶段");
+        MailChecks.Check(beforeBody.State=="waiting" && (await rules.Actions(beforeBody.Id)).Count==0,"Unknown body executed prematurely");
+        var newMail = (await service.CachedPage(account.Id,path,0,1)).Items.Single();
+        await service.OpenMessage(account.Id,path,newMail,true); await rules.Process();
+        await service.OpenMessage(account.Id,path,newMail,true); await rules.Process();
+        MailChecks.Check((await rules.Actions(beforeBody.Id)).Count==1,"Body stage repeated or skipped its action");
         MailChecks.Check((await rules.Dashboard()).Runs.Any(r=>r.State=="applied") && (await service.CachedPage(account.Id,path,0,1)).Items.Single().IsStarred,
             "Real new arrival did not execute the configured rule");
         await remote.OpenAsync(FolderAccess.ReadWrite);

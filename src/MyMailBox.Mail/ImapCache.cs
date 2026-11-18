@@ -327,6 +327,7 @@ internal sealed partial class ImapCache(SqliteMailStore store, Guid account, Mai
             UPDATE imap_summaries SET message=$message WHERE folder=$folder AND uid=$uid;
             UPDATE messages SET is_read=(SELECT (flags & $seen)<>0 FROM imap_summaries WHERE folder=$folder AND uid=$uid) WHERE id=$message;
             """;
+        command.CommandText += " UPDATE rule_run SET state='pending',detail='正文已可用，等待判断' WHERE folder=$folder AND item=CAST($uid AS TEXT) AND state='waiting';";
         command.Parameters.AddWithValue("$seen",(int)MessageFlags.Seen);
         command.Parameters.AddWithValue("$message", id.ToString());
         command.ExecuteNonQuery();

@@ -4,8 +4,10 @@ using System.Text.Json;
 
 namespace MyMailBox.Mail;
 
-public sealed partial class ReceiveRuleService(SqliteMailStore store, MailSearchService search, ProtocolMailService protocols) : IReceiveRules
+public sealed partial class ReceiveRuleService(SqliteMailStore store, MailSearchService search, IMailActionService mailActions, IMailOrganizer organizer) : IReceiveRules
 {
+    public ReceiveRuleService(SqliteMailStore store, MailSearchService search, ProtocolMailService protocols) : this(store,search,protocols,protocols) { }
+
     public async Task<RuleDashboard> Dashboard(CancellationToken token = default)
     {
         var scopes = (await search.Library(token)).Scopes;
@@ -84,13 +86,19 @@ public sealed partial class ReceiveRuleService(SqliteMailStore store, MailSearch
     public async Task<int> Process(int limit = 32, CancellationToken token = default)
     {
         if (limit is < 1 or > 200) throw new ArgumentOutOfRangeException(nameof(limit));
+        using var owner = AcquireProcessor();
+        if (owner is null) return 0;
+        using (var db = store.Open()) using (var c = db.CreateCommand())
+        {
+            c.CommandText = "UPDATE rule_run SET state='pending',detail='恢复中断的处理' WHERE state='running'"; c.ExecuteNonQuery();
+        }
         int count = 0;
         while (count < limit)
         {
             token.ThrowIfCancellationRequested();
             var work = Claim(); if (work is null) break;
             try { await Execute(work, token); }
-            catch (OperationCanceledException) { Finish(work, "paused", "处理已中断，请检查动作记录。", true); throw; }
+            catch (OperationCanceledException) { Finish(work, "pending", "已中断，将从动作记录恢复。"); throw; }
             catch (Exception e) { Finish(work, "failed", e.Message, true); }
             count++;
         }
@@ -103,34 +111,20 @@ public sealed partial class ReceiveRuleService(SqliteMailStore store, MailSearch
         c.CommandText = "SELECT version FROM receive_rule WHERE id=$id AND enabled"; c.Parameters.AddWithValue("$id", work.Rule.Id.ToString());
         if (Convert.ToInt32(c.ExecuteScalar()) != work.Rule.Version) { Finish(work, "skipped", "规则已停用或改版，本次收件不采用新版本。"); return; }
         var messageId = Guid.TryParse(work.Item, out _) ? work.Item : work.Folder + "/" + work.Item;
-        var result = await search.Evaluate(messageId, Conditions(work.Rule), token);
-        if (result != ConditionResult.True) { Finish(work, result == ConditionResult.False ? "no-match" : "unknown", result == ConditionResult.False ? "条件或例外未命中。" : "条件数据或扩展不完整，未执行动作。", result == ConditionResult.Unknown && work.Rule.Stop); return; }
-        Guid folder = work.Folder; string key = work.Item;
-        var notes = new List<string>();
-        foreach (var action in work.Rule.Actions)
+        var journal = await Actions(work.Id,token);
+        if (journal.Count == 0)
         {
-            if (action.Kind == RuleActionKind.Move)
+            var tree = Conditions(work.Rule);
+            bool awaitingBody = NeedsBody(tree.Root) && MissingBody(work);
+            var result = await search.Evaluate(messageId, tree, token);
+            if (result == ConditionResult.Unknown && awaitingBody) { WaitForBody(work); return; }
+            if (result != ConditionResult.True)
             {
-                var row = (await protocols.Apply(new(work.Account, folder, [key], MailAction.Move, action.Destination), token)).Single();
-                if (!row.Success) throw new InvalidDataException(row.Detail);
-                folder = action.Destination!.Value; key = row.DestinationKey ?? key; notes.Add(row.Detail);
-            }
-            else
-            {
-                var mark = action.Kind switch
-                {
-                    RuleActionKind.Read => MailMark.Read,
-                    RuleActionKind.Unread => MailMark.Unread,
-                    RuleActionKind.Star => MailMark.Star,
-                    RuleActionKind.Unstar => MailMark.Unstar,
-                    RuleActionKind.Label => MailMark.AddLabel,
-                    _ => throw new InvalidDataException("未知规则动作。")
-                };
-                var row = (await protocols.Mark(work.Account, folder, [key], mark, action.Label ?? "", token)).Single();
-                if (!row.Success) throw new InvalidDataException(row.Detail); notes.Add(row.Detail);
+                Finish(work, result == ConditionResult.False ? "no-match" : "unknown", result == ConditionResult.False ? "条件或例外未命中。" : "条件数据或扩展不完整，未执行动作。", result == ConditionResult.Unknown && work.Rule.Stop);
+                return;
             }
         }
-        Finish(work, "applied", "已命中：" + string.Join("；", notes), work.Rule.Stop);
+        await ApplyActions(work,journal,token);
     }
 }
 
