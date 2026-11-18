@@ -53,6 +53,7 @@ if (args.Length == 0 || args.Contains("search-extension")) await SearchChecks.Ex
 if (args.Length == 0 || args.Contains("workspace-owner")) await WorkspaceOwnerChecks.Run();
 if (args.Length == 0 || args.Contains("activity")) await ActivityChecks.Run();
 if (args.Length == 0 || args.Contains("task-history")) await AutomationChecks.History();
+if (args.Length == 0 || args.Contains("task-plugins")) await AutomationChecks.Plugins();
 if (args.Contains("task-events-live")) await AutomationChecks.Events(true);
 if (args.Length == 0 || args.Contains("task-events")) await AutomationChecks.Events(false);
 if (args.Length == 0 || args.Contains("task-actions")) await AutomationChecks.Actions();

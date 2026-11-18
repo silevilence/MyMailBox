@@ -36,6 +36,7 @@ public interface IContributions
     IDisposable Add(Page page);
     IDisposable AddSelector(Selector selector);
     IDisposable AddNative(NativePage page);
+    IDisposable AddAutomationExtension(AutomationExtension extension)=>throw new NotSupportedException("宿主不支持自动化扩展。");
     IDisposable AddNotificationPresenter(NotificationPresenter presenter)=>throw new NotSupportedException("宿主不支持通知呈现扩展。");
     IDisposable AddAddressProvider(AddressProvider provider) => throw new NotSupportedException("宿主尚不支持地址建议。");
     IDisposable AddEditor(ComposerEditor editor) => throw new NotSupportedException("宿主尚不支持编辑器贡献。");

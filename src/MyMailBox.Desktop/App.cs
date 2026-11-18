@@ -52,7 +52,7 @@ public sealed class App : Application
                         start.Environment["MYMAILBOX_HOME"] = restored;
                         System.Diagnostics.Process.Start(start);
                     }, presenters:()=>new[]{new MyMailBox.Contracts.NotificationPresenter("builtin","应用内通知",(batch,_)=>{Avalonia.Threading.Dispatcher.UIThread.Post(()=>{pages.ShowActivity(batch);});return Task.CompletedTask;})}.Concat(pages.Presenters).ToArray(),
-                        locked:()=>AutomationSystemEvents.IsLocked,searchExtensions: () => pages.SearchExtensions, printer: new WebViewPdfPrinter(), notification: message => Avalonia.Threading.Dispatcher.UIThread.Post(() => pages.Notice = message), installUpdate: package =>
+                        automationExtensions:()=>pages.AutomationExtensions,locked:()=>AutomationSystemEvents.IsLocked,searchExtensions: () => pages.SearchExtensions, printer: new WebViewPdfPrinter(), notification: message => Avalonia.Threading.Dispatcher.UIThread.Post(() => pages.Notice = message), installUpdate: package =>
                     {
                         if (!File.Exists(Path.Combine(AppContext.BaseDirectory, "update-host", "MyMailBox.UpdateHost.exe"))) throw new InvalidOperationException("当前运行目录缺少更新助手，请从完整安装包运行应用。");
                         pendingUpdate = package;

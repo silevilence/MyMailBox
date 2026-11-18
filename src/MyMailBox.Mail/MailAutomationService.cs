@@ -9,9 +9,9 @@ namespace MyMailBox.Mail;
 public sealed partial class MailAutomationService : IMailAutomation
 {
     private readonly SqliteMailStore _store;private readonly MailSearchService _search;private readonly ProtocolMailService _protocols;private readonly TimeProvider _clock;
-    public MailAutomationService(SqliteMailStore store,MailSearchService search,ProtocolMailService protocols,TimeProvider? clock=null,Action<string>? notify=null,bool activityNotices=false)
+    public MailAutomationService(SqliteMailStore store,MailSearchService search,ProtocolMailService protocols,TimeProvider? clock=null,Action<string>? notify=null,bool activityNotices=false,Func<IReadOnlyList<AutomationExtension>>? extensions=null)
     {
-        _store=store;_search=search;_protocols=protocols;_clock=clock??TimeProvider.System;_notify=notify;_activityNotices=activityNotices;
+        _store=store;_search=search;_protocols=protocols;_clock=clock??TimeProvider.System;_notify=notify;_activityNotices=activityNotices;_extensions=extensions??(()=>[]);
         using var db=store.Open();using var c=db.CreateCommand();c.CommandText="""
             CREATE TABLE IF NOT EXISTS automation_plan(id TEXT PRIMARY KEY,version INTEGER NOT NULL,definition TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS automation_gate(id TEXT PRIMARY KEY,version INTEGER NOT NULL,latched INTEGER NOT NULL,last_fire INTEGER);
@@ -36,6 +36,8 @@ public sealed partial class MailAutomationService : IMailAutomation
     public async Task<AutomationPlan> Save(AutomationPlan plan,CancellationToken token=default)
     {
         if(string.IsNullOrWhiteSpace(plan.Name)||plan.When.Hysteresis<0||plan.When.CooldownMinutes<0)throw new InvalidDataException("请填写任务名、非负迟滞和冷却时间。");
+        plan=await NormalizeExtensions(plan,token);
+        await CheckExtensions(plan,_clock.GetUtcNow(),token);
         await Inspect(plan,false,token);
         if(plan.Target is not null)await Select(plan,null,token);
         await ValidateActions(plan,token);
@@ -57,7 +59,13 @@ public sealed partial class MailAutomationService : IMailAutomation
     {
         var library=await Library(token);var w=plan.When;
         if(!library.Scopes.Any(s=>s.Account==w.Account&&s.Folder==w.Folder))throw new InvalidDataException("前置条件统计范围已失效。");
-        return await Task.Run(()=>Measure(plan,observe,token),token);
+        var report=await Task.Run(()=>Measure(plan,observe,token),token);
+        if(plan.PluginCondition is null)return report;
+        var answer=await EvaluatePart(plan.PluginCondition,AutomationPart.Condition,plan.When.Account,report.At,report.Values,true,token);
+        var result=answer.Condition??ConditionResult.Unknown;
+        return report with{Result=report.Result==ConditionResult.False||result==ConditionResult.False?ConditionResult.False:
+            report.Result==ConditionResult.Unknown||result==ConditionResult.Unknown?ConditionResult.Unknown:ConditionResult.True,
+            Detail=report.Detail+" "+answer.Detail,Crossed=report.Crossed&&result==ConditionResult.True};
     }
     private ConditionReport Measure(AutomationPlan plan,bool observe,CancellationToken token)
     {

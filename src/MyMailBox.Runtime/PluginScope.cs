@@ -61,6 +61,20 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         return Own(pages.AddUpdatePreparation(new(InstanceId + "/" + preparation.Id,
             async token => await Run(async t => { await save.Value(t); return true; }, token))));
     }
+    public IDisposable AddAutomationExtension(AutomationExtension extension)
+    {
+        var d=extension.Descriptor;var evaluate=Target(extension.Evaluate);var migrate=Target(extension.Migrate);
+        string capability=d.Part switch{AutomationPart.Condition=>"automation.condition",AutomationPart.Action=>"automation.action",AutomationPart.Schedule=>"automation.schedule",_=>throw new InvalidDataException("未知扩展类型。")};
+        if(d.Capability!=capability)throw new InvalidDataException("扩展类型与声明能力不匹配。");
+        return Own(pages.AddAutomationExtension(new(d with{Id=InstanceId+"/"+d.Id},
+            (input,parameters,token)=>Run(async t=>
+            {
+                permissions.Require(capability,input.Account.ToString());
+                var answer=await evaluate.Value(input,parameters,t);
+                if(d.Part==AutomationPart.Action && answer.Effect is not null)permissions.Require("mail.write",input.Account.ToString());
+                return answer;
+            },token),(v,p,token)=>Run(t=>migrate.Value(v,p,t),token))));
+    }
     public IDisposable AddNotificationPresenter(NotificationPresenter p)
     {
         var show=Target(p.Show);
@@ -286,6 +300,7 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         public Task<AutomationPlan> Save(AutomationPlan plan,CancellationToken token=default)=>scope.Run(t=>service.Value.Save(plan,t),token);
         public Task<TargetSnapshot> Select(AutomationPlan plan,DateTimeOffset? at=null,CancellationToken token=default)=>scope.Run(t=>service.Value.Select(plan,at,t),token);
         public Task<string?> Recheck(AutomationPlan plan,TargetSnapshot snapshot,TargetMail mail,CancellationToken token=default)=>scope.Run(t=>service.Value.Recheck(plan,snapshot,mail,t),token);
+        public IReadOnlyList<AutomationDescriptor> Extensions=>service.Value.Extensions;
         public Task SystemEvent(string kind,CancellationToken token=default)=>scope.Run(async t=>{await service.Value.SystemEvent(kind,t);return true;},token);
         public Task<ActionPreview> PreviewActions(AutomationPlan plan,CancellationToken token=default)=>scope.Run(t=>service.Value.PreviewActions(plan,t),token);
         public Task<IReadOnlyList<TaskStepLog>> Steps(Guid run,CancellationToken token=default)=>scope.Run(t=>service.Value.Steps(run,t),token);

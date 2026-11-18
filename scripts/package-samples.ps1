@@ -9,6 +9,8 @@ foreach ($sample in @(
     @{ Id='example'; Project='ExamplePluginV2'; Version='2.0.0'; Entry='example'; Files=@('ExamplePlugin.dll','PrivateGreeting.dll'); Permissions=@() },
     @{ Id='alternative-selector'; Project='ExamplePlugin'; Entry='selector'; Files=@('ExamplePlugin.dll','PrivateGreeting.dll'); Permissions=@() },
     @{ Id='example-exporter'; Project='ExamplePlugin'; Entry='exporter'; Files=@('ExamplePlugin.dll','PrivateGreeting.dll'); Permissions=@() },
+    @{ Id='automation-example'; Project='ExamplePlugin'; Entry='automation-example'; Files=@('ExamplePlugin.dll','PrivateGreeting.dll'); Permissions=@('automation.condition','automation.action','automation.schedule','mail.write') },
+    @{ Id='automation-example'; Project='ExamplePluginV2'; Version='2.0.0'; Entry='automation-example'; Files=@('ExamplePlugin.dll','PrivateGreeting.dll'); Permissions=@('automation.condition','automation.action','automation.schedule','mail.write') },
     @{ Id='native'; Project='NativePlugin'; Entry='native'; Files=@('NativePlugin.dll'); Permissions=@('ui.native') }
 )) {
     $files = @{}

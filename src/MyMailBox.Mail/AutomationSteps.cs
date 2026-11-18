@@ -7,19 +7,21 @@ namespace MyMailBox.Mail;
 public sealed partial class MailAutomationService
 {
     private static bool Destructive(TaskAction a)=>a.Kind is TaskActionKind.Trash or TaskActionKind.DeletePermanently;
-    private static string Approval(AutomationPlan plan)=>Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new{plan.Id,plan.When,plan.Target,plan.Archive,plan.Actions})));
+    private static string Approval(AutomationPlan plan)=>Convert.ToHexString(SHA256.HashData(JsonSerializer.SerializeToUtf8Bytes(new{plan.Id,plan.When,plan.Target,plan.Archive,plan.Actions,plan.Triggers,plan.PluginCondition,plan.PluginSchedule})));
     public async Task<ActionPreview> PreviewActions(AutomationPlan plan,CancellationToken token=default)
     {
         await ValidateActions(plan,token,false);
         var targets=await Select(plan,token:token);var folders=(await Library(token)).Scopes;
         var effects=plan.Actions.Select(a=>a.Kind switch
         {
-            TaskActionKind.Copy=>"复制完整邮件 → "+folders.First(s=>s.Folder==a.Destination).Name,
+            TaskActionKind.Extension=>"扩展动作："+Extensions.First(d=>d.Id==a.Extension!.Id).Name,TaskActionKind.Copy=>"复制完整邮件 → "+folders.First(s=>s.Folder==a.Destination).Name,
             TaskActionKind.SaveAttachments=>"保存附件 → "+a.Argument,TaskActionKind.ExportEml=>"导出完整 EML → "+a.Argument,
             TaskActionKind.Notify=>"显示通知："+a.Argument,TaskActionKind.Label=>"添加分类："+a.Argument,
             TaskActionKind.Trash=>"移至垃圾箱，邮件将离开原目录。",TaskActionKind.DeletePermanently=>"永久删除原文及附件，此操作无法撤销。",
             TaskActionKind.Read=>"标为已读",TaskActionKind.Unread=>"标为未读",TaskActionKind.Star=>"添加星标",_=>"移除星标"
         }).ToArray();
+        for(int i=0;i<plan.Actions.Length;i++)if(plan.Actions[i] is {Kind:TaskActionKind.Extension,Extension:{} ext})
+            effects[i]+=" · "+(await EvaluatePart(ext,AutomationPart.Action,plan.Target?.Account,targets.At,[],true,token)).Detail;
         return new(effects,targets.Items.Count,targets.SelectedBytes,Approval(plan));
     }
     private async Task ValidateActions(AutomationPlan p,CancellationToken token,bool save=true)
@@ -79,7 +81,7 @@ public sealed partial class MailAutomationService
             Guid op;string state,note;using(var r=step.ExecuteReader()){r.Read();op=Guid.Parse(r.GetString(0));state=r.GetString(1);note=r.GetString(2);}
             if(state=="done")continue;
             if(state=="continued"){partial=true;continue;}
-            bool safeReplay=a.Kind is TaskActionKind.SaveAttachments or TaskActionKind.Read or TaskActionKind.Unread or TaskActionKind.Star or TaskActionKind.Unstar or TaskActionKind.Label or TaskActionKind.ExportEml;
+            bool safeReplay=a.Kind is TaskActionKind.Extension or TaskActionKind.SaveAttachments or TaskActionKind.Read or TaskActionKind.Unread or TaskActionKind.Star or TaskActionKind.Unstar or TaskActionKind.Label or TaskActionKind.ExportEml;
             if(state=="uncertain"||state=="started"&&!safeReplay)
             {
                 Set("uncertain","上次步骤回执缺失，已停止。请核对副本、导出物或通知记录。");throw new InvalidDataException("存在未确认的外部效果，请核对步骤记录。");
@@ -91,6 +93,7 @@ public sealed partial class MailAutomationService
             {
                 step.CommandText="UPDATE automation_step SET state='started',attempts=attempts+1"+key;step.ExecuteNonQuery();
                 try{note=await ApplyAction(run,a,mail,op,token);Set("done",note);break;}
+                catch(ExtensionPaused){Set("ready","等待原扩展和权限恢复。");throw;}
                 catch(OperationCanceledException){throw;}
                 catch(Exception e)
                 {
@@ -112,6 +115,13 @@ public sealed partial class MailAutomationService
     }
     private async Task<string> ApplyAction(Guid run,TaskAction a,TargetMail mail,Guid operation,CancellationToken token)
     {
+        if(a.Kind==TaskActionKind.Extension)
+        {
+            var response=await EvaluatePart(a.Extension!,AutomationPart.Action,mail.Account,_clock.GetUtcNow(),[],false,token);
+            if(response.Effect is not {} effect || effect.Kind is not (TaskActionKind.Read or TaskActionKind.Unread or TaskActionKind.Star or TaskActionKind.Unstar or TaskActionKind.Label))
+                throw new InvalidDataException("动作扩展需要返回宿主允许的幂等标记或分类操作。");
+            return await ApplyAction(run,effect,mail,operation,token);
+        }
         if(a.Kind==TaskActionKind.Notify && _activityNotices){using var db=_store.Open();using var c=db.CreateCommand();ActivityCenter.Add(c,"notice/"+operation,"task",mail.Account.ToString(),a.Argument,"由邮件任务生成。","task",run.ToString());return "已提交到活动中心。";}
         if(a.Kind==TaskActionKind.Notify){if(_notify is null)throw new InvalidOperationException("当前宿主无法显示通知。");_notify(a.Argument);return "已提交通知。";}
         if(a.Kind is TaskActionKind.ExportEml or TaskActionKind.SaveAttachments)

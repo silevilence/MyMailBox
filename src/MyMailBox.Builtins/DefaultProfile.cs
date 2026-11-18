@@ -9,7 +9,7 @@ public static class DefaultProfile
     public static PluginConfiguration Core => new(1, [new("platform", "core.platform", "1.0.0")]);
     public static PluginConfiguration Ordinary => new(1, [new("welcome", "welcome", "1.0.0"), new("prototype", "prototype", "1.0.0"), new("selector", "selector", "1.0.0"), new("local-mail", "local-mail", "1.0.0"), new("accounts", "accounts", "1.0.0"), new("mail-selectors", "mail-selectors", "1.0.0"), new("reminders", "reminders", "1.0.0"), new("updates", "updates", "1.0.0")]);
 
-    public static PluginCatalog Catalog(string? workspace = null, IMailStore? mailStore = null, IMimeReader? mimeReader = null, Action<string>? openWorkspace = null, IMailPdfPrinter? printer = null, Action<string>? notification = null, Action<Updates.PreparedUpdate>? installUpdate = null, Func<IReadOnlyList<SearchExtension>>? searchExtensions = null,Func<IReadOnlyList<NotificationPresenter>>? presenters=null,Func<bool>? locked=null)
+    public static PluginCatalog Catalog(string? workspace = null, IMailStore? mailStore = null, IMimeReader? mimeReader = null, Action<string>? openWorkspace = null, IMailPdfPrinter? printer = null, Action<string>? notification = null, Action<Updates.PreparedUpdate>? installUpdate = null, Func<IReadOnlyList<SearchExtension>>? searchExtensions = null,Func<IReadOnlyList<NotificationPresenter>>? presenters=null,Func<bool>? locked=null,Func<IReadOnlyList<AutomationExtension>>? automationExtensions=null)
     {
         var catalog = new PluginCatalog();
         var location = workspace ?? Environment.GetEnvironmentVariable("MYMAILBOX_HOME")
@@ -46,7 +46,7 @@ public static class DefaultProfile
             ctx.Effect(() => host.Add(new Page("search", "搜索邮件", "", [], [], (_, _) => Task.FromResult("")) { Search = search }));
             ctx.Effect(() => host.Add(new Page("compose", "写邮件与草稿", "", [], [], (_, _) => Task.FromResult("")) { Composer = new(accounts,new Mail.MailDraftStore(store),protocols) }));
             var activity=new Mail.ActivityCenter(store);
-            var automation=new Mail.MailAutomationService(store,search,protocols,notify:activity.RecordError,activityNotices:true);
+            var automation=new Mail.MailAutomationService(store,search,protocols,notify:activity.RecordError,activityNotices:true,extensions:automationExtensions);
             ctx.Effect(()=>new Mail.AutomationRunner(automation,activity.RecordError));
             ctx.Effect(()=>host.Add(new Page("automation","邮件自动化","",[],[],(_,_)=>Task.FromResult("")){Automation=automation}));
             var rules = new Mail.ReceiveRuleService(store,search,protocols);

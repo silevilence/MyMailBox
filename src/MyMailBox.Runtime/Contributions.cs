@@ -9,6 +9,16 @@ public sealed class Contributions(Action<Action>? dispatch = null) : IContributi
     private readonly Dictionary<string, Selector> _selectors = [];
     private readonly Dictionary<string, NativePage> _native = [];
     private readonly Dictionary<string, IMessageExporter> _exporters = [];
+    private readonly Dictionary<string,AutomationExtension> _automation=[];
+    public IReadOnlyList<AutomationExtension> AutomationExtensions {get{lock(_gate)return _automation.Values.ToArray();}}
+    public IDisposable AddAutomationExtension(AutomationExtension extension)
+    {
+        var d=extension.Descriptor;
+        if(d.Version<1||string.IsNullOrWhiteSpace(d.Name)||d.Parameters.Any(p=>string.IsNullOrWhiteSpace(p.Id))||d.Parameters.DistinctBy(p=>p.Id).Count()!=d.Parameters.Length)
+            throw new InvalidDataException("自动化扩展的版本或参数定义无效。");
+        lock(_gate)_automation.Add(d.Id,extension);Notify();
+        return new Cleanup(()=>{lock(_gate)_automation.Remove(d.Id);Notify();});
+    }
     private readonly Dictionary<string,NotificationPresenter> _presenters=[];
     public IReadOnlyList<NotificationPresenter> Presenters {get{lock(_gate)return _presenters.Values.ToArray();}}
     public IDisposable AddNotificationPresenter(NotificationPresenter p)

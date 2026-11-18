@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><AssemblyName>ExamplePlugin</AssemblyName><DefineConstants>PLUGIN_V2</DefineConstants><CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies></PropertyGroup>
   <ItemGroup>
+    <Compile Include="../ExamplePlugin/AutomationPlugin.cs" Link="AutomationPlugin.cs" />
     <Compile Include="../ExamplePlugin/ExamplePlugin.cs" Link="ExamplePlugin.cs" />
     <ProjectReference Include="../../src/MyMailBox.Contracts/MyMailBox.Contracts.csproj" />
     <ProjectReference Include="../PrivateGreeting/PrivateGreeting.csproj" />

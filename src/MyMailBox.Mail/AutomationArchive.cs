@@ -37,9 +37,11 @@ public sealed partial class MailAutomationService
         if(!definition.Enabled||(definition.Archive is null && definition.Actions.Length==0))throw new InvalidDataException("任务尚未启用或未配置动作。");
         using var db=_store.Open();using var c=db.CreateCommand();c.Parameters.AddWithValue("$p",plan.ToString());c.Parameters.AddWithValue("$cause",cause);
         if(Existing(c) is Guid known)return Run(known);
-        var at=_clock.GetUtcNow();var gate=await Inspect(definition,false,token);
+        var at=_clock.GetUtcNow();ConditionReport gate;string? pause=null;
+        try{await CheckExtensions(definition,at,token);gate=await Inspect(definition,false,token);}
+        catch(ExtensionPaused e){pause=e.Message;gate=new(ConditionResult.Unknown,[],false,e.Message,at);}
         var snapshot=await Select(definition,at,token);
-        bool run=gate.Result==ConditionResult.True && snapshot.Items.Count>0;
+        bool run=(gate.Result==ConditionResult.True||pause is not null) && snapshot.Items.Count>0;
         string detail=gate.Result==ConditionResult.True?(run?"已冻结目标与执行时刻。":"当前没有可处理邮件。"):gate.Detail+" 前置条件未满足。";
         using var tx=db.BeginTransaction();c.Transaction=tx;
         c.CommandText="SELECT count(*) FROM automation_retired WHERE cause_hash=$retired";c.Parameters.AddWithValue("$retired",CauseHash(plan.ToString(),cause));
@@ -48,8 +50,8 @@ public sealed partial class MailAutomationService
         c.CommandText="SELECT version FROM automation_plan WHERE id=$p";
         if(Convert.ToInt32(c.ExecuteScalar())!=definition.Version)throw new InvalidDataException("准备执行期间配置已变更，请重试。");
         var id=Guid.NewGuid();c.CommandText="INSERT INTO automation_run VALUES($id,$p,$cause,$state,$detail,$at,$def,$snap)";
-        c.Parameters.AddWithValue("$id",id.ToString());c.Parameters.AddWithValue("$state",run?"ready":"skipped");
-        c.Parameters.AddWithValue("$detail",detail);c.Parameters.AddWithValue("$at",at.ToUnixTimeSeconds());
+        c.Parameters.AddWithValue("$id",id.ToString());c.Parameters.AddWithValue("$state",pause is not null?"paused":run?"ready":"skipped");
+        c.Parameters.AddWithValue("$detail",pause??detail);c.Parameters.AddWithValue("$at",at.ToUnixTimeSeconds());
         c.Parameters.AddWithValue("$def",JsonSerializer.Serialize(definition));c.Parameters.AddWithValue("$snap",JsonSerializer.Serialize(snapshot));c.ExecuteNonQuery();
         c.CommandText="INSERT INTO automation_gate_sample VALUES($id,$report)";c.Parameters.AddWithValue("$report",JsonSerializer.Serialize(gate));c.ExecuteNonQuery();
         if(signal is not null)
@@ -91,6 +93,13 @@ public sealed partial class MailAutomationService
         c.CommandText="SELECT definition FROM automation_plan WHERE id=$plan";c.Parameters.AddWithValue("$plan",plan.Id.ToString());
         if(c.ExecuteScalar() is not string current || !JsonSerializer.Deserialize<AutomationPlan>(current)!.Enabled)
         {await Control(run,false,token);return Run(run);}
+        try
+        {
+            await CheckExtensions(plan,snap.At,token);
+            if(plan.PluginCondition is not null && (await Inspect(plan,false,token)).Result!=ConditionResult.True)
+                {PauseRun(run,"扩展前置条件未满足，已暂停后续动作。");return Run(run);}
+        }
+        catch(ExtensionPaused e){PauseRun(run,e.Message);return Run(run);}
         c.CommandText="UPDATE automation_run SET state='running' WHERE id=$id AND state IN ('ready','running')";if(c.ExecuteNonQuery()!=1)return Run(run);
         c.CommandText="SELECT ordinal,op,destination FROM automation_item WHERE run=$id AND state='pending' ORDER BY ordinal LIMIT 1";
         int ordinal;Guid op;Guid? dest;
@@ -109,6 +118,7 @@ public sealed partial class MailAutomationService
                 c.CommandText="UPDATE automation_item SET state=$s,detail=$note WHERE run=$id AND ordinal=$n";
                 c.Parameters.AddWithValue("$s",state);c.Parameters.AddWithValue("$note",note);c.ExecuteNonQuery();
             }
+            catch(ExtensionPaused e){PauseRun(run,e.Message);return Run(run);}
             catch(OperationCanceledException){throw;}
             catch(Exception e)
             {
@@ -173,6 +183,16 @@ public sealed partial class MailAutomationService
             {
                 var local=TimeZoneInfo.ConvertTime(_clock.GetUtcNow(),TimeZoneInfo.FindSystemTimeZoneById(a.Zone));
                 if(local.Hour*60+local.Minute>=a.LocalMinute)await Start(plan.Id,"daily/"+local.ToString("yyyy-MM-dd"),token);
+            }
+            if(plan.PluginSchedule is {} binding)
+            {
+                try
+                {
+                    var due=await EvaluatePart(binding,AutomationPart.Schedule,plan.When.Account,_clock.GetUtcNow(),[],false,token);
+                    if(!string.IsNullOrWhiteSpace(due.Occurrence))await Start(plan.Id,"extension/"+binding.Id+"/"+due.Occurrence,token);
+                }
+                catch(ExtensionPaused){await Start(plan.Id,"extension/unavailable/"+plan.Version,token);}
+                catch(Exception e)when(e is not OperationCanceledException){_notify?.Invoke("扩展调度未完成："+e.Message);}
             }
             var run=(await Runs(plan.Id,token)).FirstOrDefault(r=>r.State is "ready" or "running");
             if(run is not null)await Advance(run.Id,token);
