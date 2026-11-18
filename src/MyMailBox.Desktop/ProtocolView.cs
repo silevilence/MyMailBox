@@ -10,6 +10,11 @@ namespace MyMailBox.Desktop;
 public sealed partial class ProtocolView : UserControl, IDisposable
 {
     private readonly ProtocolPage _page;
+    private readonly ComboBox _presetChoice = new();
+    private readonly TextBlock _presetGuide = new() { TextWrapping = TextWrapping.Wrap };
+    private readonly StackPanel _presetPanel = new() { Spacing = 6 };
+    private IReadOnlyList<ProtocolPreset> _presets = [];
+    private string? _presetId;
     private readonly CancellationTokenSource _lifetime = new();
     private CancellationTokenSource? _operation;
     private readonly ComboBox _accounts = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
@@ -38,6 +43,11 @@ public sealed partial class ProtocolView : UserControl, IDisposable
         Add(panel, "在线账户", _accounts, "protocol-account"); _editors.Add(_accounts);
         panel.Children.Add(Action("刷新账户", "protocol-refresh", LoadAccounts));
         var tabs = new TabControl(); var connection = new StackPanel { Spacing = 12 };
+        _presetChoice.ItemTemplate = new FuncDataTemplate<Choice>((c,_) => new TextBlock { Text = c?.Label });
+        Add(_presetPanel,"服务器预设",_presetChoice,"protocol-preset");
+        _presetPanel.Children.Add(Action("应用所选预设","protocol-apply-preset",ApplyPreset));
+        AutomationProperties.SetAutomationId(_presetGuide,"protocol-preset-guide");
+        _presetPanel.Children.Add(_presetGuide);connection.Children.Add(_presetPanel);
         connection.Children.Add(_incoming.Panel); connection.Children.Add(_outgoing.Panel); _editors.Add(_incoming.Panel); _editors.Add(_outgoing.Panel);
         connection.Children.Add(Action("保存连接配置", "protocol-save", Save));
         _folders.ItemTemplate = new FuncDataTemplate<RemoteFolder>((f, _) => new TextBlock { Text = f is null ? "" : $"{f.Path} · {f.Role}" });
@@ -110,6 +120,18 @@ public sealed partial class ProtocolView : UserControl, IDisposable
         _selected = _accounts.SelectedItem as MailAccount; _messages.ItemsSource = null; _folders.ItemsSource = null; _offset = 0; _hasMore = false;
         if (_selected is null) { _status.Text = "请先在账户管理创建并启用在线账户。"; _incoming.Panel.IsVisible = _outgoing.Panel.IsVisible = _imap.IsVisible = false; return; }
         var id = _selected.Id; var settings = await _page.Service.Settings(id, Token); if (_disposed) return;
+        _presets = await _page.Service.Presets(Token);
+        if (_disposed || _selected?.Id != id) return;
+        _presetPanel.IsVisible = _selected.Provider == "imap-smtp";
+        _presetId = settings.PresetId;
+        var choices = new List<Choice> { new("","自定义服务器") };
+        choices.AddRange(_presets.Select(p=>new Choice(p.Id,p.Name)));
+        if (_presetId is not null && !_presets.Any(p=>p.Id==_presetId))
+            choices.Add(new(_presetId,"已停用的预设"));
+        _presetChoice.ItemsSource = choices;
+        _presetChoice.SelectedItem = choices.First(c=>c.Id==(_presetId??""));
+        _presetGuide.Text = _presetId is null ? "" : _presets.FirstOrDefault(p=>p.Id==_presetId)?.Guidance ??
+            "原预设插件已停用，账户和邮件仍保留。重新启用插件，或明确选择自定义服务器。";
         _incoming.Load(settings.Incoming, _selected.Provider == "pop3" ? 995 : 993, _selected.Address);
         _outgoing.Load(settings.Outgoing, 465, _selected.Address);
         _incoming.Panel.IsVisible = _selected.Capabilities.HasFlag(AccountCapabilities.Receive);
@@ -125,11 +147,27 @@ public sealed partial class ProtocolView : UserControl, IDisposable
         await LoadOutbox(0);
         _status.Text = "已载入连接配置。密码留空保留已有凭据；选择操作后才会联网。";
     }
+    private async Task ApplyPreset()
+    {
+        if (_presetChoice.SelectedItem is not Choice choice) return;
+        if (choice.Id.Length == 0)
+        {
+            _presetId = null;_presetGuide.Text = "";
+            _status.Text = "已选择自定义服务器，请核对配置后保存。";return;
+        }
+        var active = await _page.Service.Presets(Token);
+        var preset = active.FirstOrDefault(p=>p.Id==choice.Id) ?? throw new InvalidDataException("所选预设插件已停用。");
+        var settings = preset.ForAddress(Selected().Address);
+        _presetId = preset.Id;_presetGuide.Text = preset.Guidance;
+        _incoming.Load(settings.Incoming,993,Selected().Address);_outgoing.Load(settings.Outgoing,465,Selected().Address);
+        _status.Text = "已填入 "+preset.Name+" 的加密连接参数，请核对授权码并保存。";
+    }
+
     private MailAccount Selected() => _selected ?? throw new InvalidDataException("请先选择在线账户。");
     private async Task Save()
     {
         var account = Selected();
-        await _page.Service.Save(account.Id, new(_incoming.Panel.IsVisible ? _incoming.Value() : null, _outgoing.Panel.IsVisible ? _outgoing.Value() : null), _incoming.Secret.Text, _outgoing.Secret.Text, Token);
+        await _page.Service.Save(account.Id, new ProtocolSettings(_incoming.Panel.IsVisible ? _incoming.Value() : null, _outgoing.Panel.IsVisible ? _outgoing.Value() : null) { PresetId = _presetId }, _incoming.Secret.Text, _outgoing.Secret.Text, Token);
         await SelectAccount(); if (!_disposed) _status.Text = "连接配置已保存，凭据已加密。尚未连接服务器。";
     }
     private async Task ConnectImap()

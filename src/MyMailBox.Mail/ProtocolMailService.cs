@@ -20,11 +20,16 @@ public sealed partial class ProtocolMailService : IProtocolMailService, IImapSyn
     private readonly TransferJournal _transfers;
     private readonly AccountService _accounts;
     private readonly Func<ImapClient> _imapClients;
+    private readonly Func<IReadOnlyList<ProtocolPreset>> _presets;
+    public Task<IReadOnlyList<ProtocolPreset>> Presets(CancellationToken cancellation = default) => Task.FromResult(_presets());
+    public ProtocolMailService(SqliteMailStore store, Func<IReadOnlyList<ProtocolPreset>> presets)
+        : this(store, () => new ImapClient(), presets) { }
     public ProtocolMailService(SqliteMailStore store) : this(store, () => new ImapClient()) { }
-    public ProtocolMailService(SqliteMailStore store, Func<ImapClient> imapClients)
+    public ProtocolMailService(SqliteMailStore store, Func<ImapClient> imapClients, Func<IReadOnlyList<ProtocolPreset>>? presets = null)
     {
         _draftStore=new(store);
         _imapClients = imapClients;
+        _presets = presets ?? (() => []);
         _store = store; _accounts = new(store);
         using var db = store.Open(); using var command = db.CreateCommand();
         command.CommandText = """
@@ -68,10 +73,12 @@ public sealed partial class ProtocolMailService : IProtocolMailService, IImapSyn
         var identity = await Account(account, AccountCapabilities.None, cancellation);
         if (identity.Capabilities.HasFlag(AccountCapabilities.Receive)) Validate(settings.Incoming ?? throw new InvalidDataException("请配置收信服务器。"));
         if (identity.Capabilities.HasFlag(AccountCapabilities.Send)) Validate(settings.Outgoing ?? throw new InvalidDataException("请配置发信服务器。"));
+        if (settings.PresetId is not null && identity.Provider != "imap-smtp") throw new InvalidDataException("此预设需要 IMAP 与 SMTP 收发账户。");
+        ResolvePreset(settings);
         using var db = _store.Open(); using var tx = db.BeginTransaction(); using var command = db.CreateCommand(); command.Transaction = tx;
-        command.CommandText = "SELECT incoming_ref,outgoing_ref FROM protocol_settings WHERE account_id=$id"; command.Parameters.AddWithValue("$id", account.ToString());
-        string? incoming = null, outgoing = null;
-        using (var reader = command.ExecuteReader()) if (reader.Read()) { incoming = reader.IsDBNull(0) ? null : reader.GetString(0); outgoing = reader.IsDBNull(1) ? null : reader.GetString(1); }
+        command.CommandText = "SELECT incoming_ref,outgoing_ref,settings FROM protocol_settings WHERE account_id=$id"; command.Parameters.AddWithValue("$id", account.ToString());
+        string? incoming = null, outgoing = null; ProtocolSettings? previous = null;
+        using (var reader = command.ExecuteReader()) if (reader.Read()) { incoming = reader.IsDBNull(0) ? null : reader.GetString(0); outgoing = reader.IsDBNull(1) ? null : reader.GetString(1); previous = JsonSerializer.Deserialize<ProtocolSettings>(reader.GetString(2)); }
         string? Protect(string? secret, string? reference)
         {
             if (string.IsNullOrEmpty(secret)) return reference;
@@ -84,7 +91,23 @@ public sealed partial class ProtocolMailService : IProtocolMailService, IImapSyn
             using var save = db.CreateCommand(); save.Transaction = tx; save.CommandText = "INSERT INTO credentials VALUES($id,$secret) ON CONFLICT(id) DO UPDATE SET protected=excluded.protected";
             save.Parameters.AddWithValue("$id", reference); save.Parameters.AddWithValue("$secret", encrypted); save.ExecuteNonQuery(); return reference;
         }
-        incoming = Protect(incomingSecret, incoming); outgoing = Protect(outgoingSecret, outgoing);
+        static bool Changed(MailEndpoint? prior, MailEndpoint? next) => next is not null &&
+            (prior is null || !prior.Host.Equals(next.Host,StringComparison.OrdinalIgnoreCase) || prior.User != next.User || prior.Authentication != next.Authentication);
+        if ((incoming != null && Changed(previous?.Incoming,settings.Incoming) && string.IsNullOrEmpty(incomingSecret)) ||
+            (outgoing != null && Changed(previous?.Outgoing,settings.Outgoing) && string.IsNullOrEmpty(outgoingSecret)))
+            throw new InvalidDataException("服务器、认证方式或登录身份已更改，请重新输入对应凭据后保存。");
+        string? SaveSecret(MailEndpoint? endpoint,string? value,string? reference)
+        {
+            if (endpoint is not null) return Protect(value,reference);
+            if (reference is not null)
+            {
+                using var forget = db.CreateCommand();forget.Transaction=tx;
+                forget.CommandText="DELETE FROM credentials WHERE id=$ref";forget.Parameters.AddWithValue("$ref",reference);forget.ExecuteNonQuery();
+            }
+            return null;
+        }
+        incoming = SaveSecret(settings.Incoming,incomingSecret,incoming);
+        outgoing = SaveSecret(settings.Outgoing,outgoingSecret,outgoing);
         command.CommandText = "INSERT INTO protocol_settings VALUES($id,$settings,$incoming,$outgoing) ON CONFLICT(account_id) DO UPDATE SET settings=excluded.settings,incoming_ref=excluded.incoming_ref,outgoing_ref=excluded.outgoing_ref";
         command.Parameters.AddWithValue("$settings", JsonSerializer.Serialize(settings)); command.Parameters.AddWithValue("$incoming", (object?)incoming ?? DBNull.Value); command.Parameters.AddWithValue("$outgoing", (object?)outgoing ?? DBNull.Value);
         cancellation.ThrowIfCancellationRequested(); command.ExecuteNonQuery(); tx.Commit();
@@ -97,11 +120,24 @@ public sealed partial class ProtocolMailService : IProtocolMailService, IImapSyn
         if (endpoint.Proxy != MailProxy.None && (Uri.CheckHostName(endpoint.ProxyHost) == UriHostNameType.Unknown || endpoint.ProxyPort is < 1 or > 65535)) throw new InvalidDataException("代理主机或端口无效。");
         if (endpoint.CertificateSha256.Length > 0 && (endpoint.CertificateSha256.Length != 64 || !endpoint.CertificateSha256.All(Uri.IsHexDigit))) throw new InvalidDataException("证书指纹须为 64 位 SHA-256 十六进制值。");
     }
+    private ProtocolPreset? ResolvePreset(ProtocolSettings settings)
+    {
+        if (settings.PresetId is null) return null;
+        var preset = _presets().FirstOrDefault(p => p.Id == settings.PresetId)
+            ?? throw new InvalidDataException("账户的预设插件已停用，请重新启用，或明确选择自定义服务器后保存。");
+        static bool Matches(MailEndpoint? endpoint,string host,int port) => endpoint is null ||
+            (endpoint.Host.Equals(host,StringComparison.OrdinalIgnoreCase) && endpoint.Port==port && endpoint.Tls==MailTls.Implicit &&
+             endpoint.Authentication==MailAuthentication.Password);
+        if (!Matches(settings.Incoming,preset.IncomingHost,993) || !Matches(settings.Outgoing,preset.OutgoingHost,465))
+            throw new InvalidDataException("已保存服务器与当前预设不一致，请重新应用预设或选择自定义服务器。");
+        return preset;
+    }
     private async Task<MailEndpoint> Connect(MailService client, Guid id, bool outgoing, CancellationToken token)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token);
         timeout.CancelAfter(TimeSpan.FromSeconds(15));
         var settings = await Settings(id, token);
+        var preset = ResolvePreset(settings);
         var endpoint = (outgoing ? settings.Outgoing : settings.Incoming) ?? throw new InvalidDataException("请先保存对应的连接配置。");
         Validate(endpoint);
         using var db = _store.Open(); using var command = db.CreateCommand();
@@ -126,6 +162,11 @@ public sealed partial class ProtocolMailService : IProtocolMailService, IImapSyn
             else await client.AuthenticateAsync(endpoint.User, secret, timeout.Token);
             command.CommandText = "UPDATE accounts SET auth_state=$state WHERE id=$id AND enabled=1 AND removed=0";
             command.Parameters.AddWithValue("$state", outgoing ? "发信连接已验证" : "收信连接已验证"); command.ExecuteNonQuery();
+        }
+        catch (MailKit.Security.AuthenticationException) when (preset is not null)
+        {
+            await _accounts.AuthenticationFailed(id);
+            throw new InvalidDataException("认证失败。" + preset.Guidance);
         }
         catch (OperationCanceledException) when (!token.IsCancellationRequested) { throw new TimeoutException("连接或认证超时。"); }
         finally { CryptographicOperations.ZeroMemory(plain); }

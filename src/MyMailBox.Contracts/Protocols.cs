@@ -6,7 +6,16 @@ public enum MailProxy { None, Http, Socks5 }
 public sealed record MailEndpoint(string Host, int Port, string User, MailTls Tls = MailTls.Implicit,
     MailAuthentication Authentication = MailAuthentication.Password, MailProxy Proxy = MailProxy.None,
     string ProxyHost = "", int ProxyPort = 1080, string CertificateSha256 = "");
-public sealed record ProtocolSettings(MailEndpoint? Incoming = null, MailEndpoint? Outgoing = null);
+public sealed record ProtocolSettings(MailEndpoint? Incoming = null, MailEndpoint? Outgoing = null)
+{
+    public string? PresetId { get; init; }
+}
+
+public sealed record ProtocolPreset(string Id, string Name, string IncomingHost, string OutgoingHost,
+    string Guidance, bool IdentifyClient = false)
+{
+    public ProtocolSettings ForAddress(string address) => new(new(IncomingHost,993,address),new(OutgoingHost,465,address)) { PresetId = Id };
+}
 public sealed record RemoteFolder(string Path, string Name, string Role, bool Selectable);
 public sealed record RemoteSummary(uint Uid, string Subject, string From, DateTimeOffset? Date, long Size, bool IsRead);
 public sealed record RemoteMailPage(IReadOnlyList<RemoteSummary> Items, int Offset, bool HasMore, uint UidValidity);
@@ -28,6 +37,7 @@ public sealed record SendOutcome(string State, string Message, IReadOnlyList<str
 public sealed record PopOutcome(int Imported, int Existing, int DeleteRequested, bool HasMore, string Message);
 public interface IProtocolMailService
 {
+    Task<IReadOnlyList<ProtocolPreset>> Presets(CancellationToken cancellation = default) => Task.FromResult<IReadOnlyList<ProtocolPreset>>([]);
     Task<ProtocolSettings> Settings(Guid account, CancellationToken cancellation = default);
     Task Save(Guid account, ProtocolSettings settings, string? incomingSecret, string? outgoingSecret, CancellationToken cancellation = default);
     Task<IReadOnlyList<RemoteFolder>> Folders(Guid account, CancellationToken cancellation = default);

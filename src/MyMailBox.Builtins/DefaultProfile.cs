@@ -7,13 +7,15 @@ namespace MyMailBox.Builtins;
 public static class DefaultProfile
 {
     public static PluginConfiguration Core => new(1, [new("platform", "core.platform", "1.0.0")]);
-    public static PluginConfiguration Ordinary => new(1, [new("welcome", "welcome", "1.0.0"), new("prototype", "prototype", "1.0.0"), new("selector", "selector", "1.0.0"), new("local-mail", "local-mail", "1.0.0"), new("accounts", "accounts", "1.0.0"), new("mail-selectors", "mail-selectors", "1.0.0"), new("reminders", "reminders", "1.0.0"), new("updates", "updates", "1.0.0")]);
+    public static PluginConfiguration Ordinary => new(1, [new("welcome", "welcome", "1.0.0"), new("prototype", "prototype", "1.0.0"), new("selector", "selector", "1.0.0"), new("local-mail", "local-mail", "1.0.0"), new("qq-mail", "qq-mail", "1.0.0"), new("accounts", "accounts", "1.0.0"), new("mail-selectors", "mail-selectors", "1.0.0"), new("reminders", "reminders", "1.0.0"), new("updates", "updates", "1.0.0")]);
 
     public static PluginCatalog Catalog(string? workspace = null, IMailStore? mailStore = null, IMimeReader? mimeReader = null, Action<string>? openWorkspace = null, IMailPdfPrinter? printer = null, Action<string>? notification = null, Action<Updates.PreparedUpdate>? installUpdate = null, Func<IReadOnlyList<SearchExtension>>? searchExtensions = null,Func<IReadOnlyList<NotificationPresenter>>? presenters=null,Func<bool>? locked=null,Func<IReadOnlyList<AutomationExtension>>? automationExtensions=null)
     {
         var catalog = new PluginCatalog();
         var location = workspace ?? Environment.GetEnvironmentVariable("MYMAILBOX_HOME")
             ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MyMailBox");
+        AddPreset(catalog, "qq-mail", new("imap-smtp","QQ 邮箱","imap.qq.com","smtp.qq.com",
+            "请在 QQ 邮箱网页版的设置中开启 IMAP/SMTP 服务，完成安全验证并生成授权码。收信与发信均填写该授权码；网页登录密码仅用于登录网页。授权失效时重新生成并更新两处凭据。"));
         catalog.Add(new(new("updates", "1.0.0", 1, 1, PluginKind.Ordinary, "updates"), PluginOrigin.Builtin, "", (ctx, _) => UpdatePlugin.Apply(ctx, location, notification, install: installUpdate)));
         catalog.Add(new(new("reminders", "1.0.0", 1, 1, PluginKind.Ordinary, "reminders"), PluginOrigin.Builtin, "", (ctx, _) =>
         {
@@ -41,7 +43,7 @@ public static class DefaultProfile
             var host = ctx.Get<IPluginHost>("mailbox.host")!;
             var store = new Mail.SqliteMailStore(Path.Combine(location, "mail"));
             var accounts = new Mail.AccountService(store);
-            var protocols = new Mail.ProtocolMailService(store);
+            var protocols = new Mail.ProtocolMailService(store, () => host.ProtocolPresets);
             var search = new Mail.MailSearchService(store, protocols, searchExtensions);
             ctx.Effect(() => host.Add(new Page("search", "搜索邮件", "", [], [], (_, _) => Task.FromResult("")) { Search = search }));
             ctx.Effect(() => host.Add(new Page("compose", "写邮件与草稿", "", [], [], (_, _) => Task.FromResult("")) { Composer = new(accounts,new Mail.MailDraftStore(store),protocols) }));
@@ -120,6 +122,15 @@ public static class DefaultProfile
             ctx.Effect(() => host.Add(new Page("welcome", "欢迎", "MyMailBox 0.1.0\n你的邮件工作空间，从这里开始。", [], [], (_, _) => Task.FromResult(""))));
         }));
         return catalog;
+    }
+
+    private static void AddPreset(PluginCatalog catalog, string id, ProtocolPreset preset)
+    {
+        catalog.Add(new(new(id,"1.0.0",1,1,PluginKind.Ordinary,id),PluginOrigin.Builtin,"",(ctx,_) =>
+        {
+            var host=ctx.Get<IPluginHost>("mailbox.host")!;
+            ctx.Effect(() => host.AddProtocolPreset(preset));
+        }));
     }
 
     public static void Ensure(string directory)

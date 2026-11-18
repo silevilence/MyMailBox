@@ -61,6 +61,9 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         return Own(pages.AddUpdatePreparation(new(InstanceId + "/" + preparation.Id,
             async token => await Run(async t => { await save.Value(t); return true; }, token))));
     }
+    public IReadOnlyList<ProtocolPreset> ProtocolPresets => pages.ProtocolPresets;
+    public IDisposable AddProtocolPreset(ProtocolPreset preset) => Own(pages.AddProtocolPreset(preset with { Id = InstanceId + "/" + preset.Id }));
+
     public IDisposable AddAutomationExtension(AutomationExtension extension)
     {
         var d=extension.Descriptor;var evaluate=Target(extension.Evaluate);var migrate=Target(extension.Migrate);
@@ -422,6 +425,7 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
 
     private sealed partial class ScopedProtocols(PluginScope scope, ServiceTarget<IProtocolMailService> service) : IProtocolMailService
     {
+        public Task<IReadOnlyList<ProtocolPreset>> Presets(CancellationToken cancellation = default) => scope.Run(t => service.Value.Presets(t),cancellation);
         public Task<ProtocolSettings> Settings(Guid account, CancellationToken cancellation = default) => scope.Run(t => service.Value.Settings(account, t), cancellation);
         public async Task Save(Guid account, ProtocolSettings settings, string? incomingSecret, string? outgoingSecret, CancellationToken cancellation = default) => await scope.Run(async t => { await service.Value.Save(account, settings, incomingSecret, outgoingSecret, t); return true; }, cancellation);
         public Task<IReadOnlyList<RemoteFolder>> Folders(Guid account, CancellationToken cancellation = default) => scope.Run(t => service.Value.Folders(account, t), cancellation);

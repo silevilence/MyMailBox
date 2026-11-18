@@ -7,6 +7,21 @@ public sealed class Contributions(Action<Action>? dispatch = null) : IContributi
     private readonly Dictionary<string, Page> _pages = [];
     private readonly object _gate = new();
     private readonly Dictionary<string, Selector> _selectors = [];
+    private readonly Dictionary<string,ProtocolPreset> _protocolPresets = [];
+    public IReadOnlyList<ProtocolPreset> ProtocolPresets
+    {
+        get { lock (_gate) return _protocolPresets.Values.OrderBy(p => p.Name).ToArray(); }
+    }
+
+    public IDisposable AddProtocolPreset(ProtocolPreset preset)
+    {
+        if (string.IsNullOrWhiteSpace(preset.Id) || string.IsNullOrWhiteSpace(preset.Name) ||
+            Uri.CheckHostName(preset.IncomingHost) == UriHostNameType.Unknown || Uri.CheckHostName(preset.OutgoingHost) == UriHostNameType.Unknown)
+            throw new InvalidDataException("预设缺少有效名称或服务器。");
+        lock (_gate) _protocolPresets.Add(preset.Id,preset);
+        Notify();
+        return new Cleanup(() => { lock (_gate) _protocolPresets.Remove(preset.Id); Notify(); });
+    }
     private readonly Dictionary<string, NativePage> _native = [];
     private readonly Dictionary<string, IMessageExporter> _exporters = [];
     private readonly Dictionary<string,AutomationExtension> _automation=[];

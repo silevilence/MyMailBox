@@ -38,6 +38,7 @@ if (args.Length == 0 || args.Contains("diagnostics")) await DiagnosticChecks.Run
 if (args.Length == 0 || args.Contains("management")) await ManagementChecks.Run();
 if (args.Length == 0 || args.Contains("mail")) await MailChecks.Run();
 if (args.Length == 0 || args.Contains("accounts")) await AccountChecks.Run();
+if (args.Length == 0 || args.Contains("qq-preset")) await ProtocolChecks.Preset("qq-mail");
 if (args.Length == 0 || args.Contains("protocols")) await ProtocolChecks.Run();
 if (args.Length == 0 || args.Contains("graph")) await GraphChecks.Run();
 if (args.Length == 0 || args.Contains("outbox")) await ProtocolChecks.Outbox();

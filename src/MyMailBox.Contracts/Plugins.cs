@@ -17,6 +17,7 @@ public sealed class PluginOptions
 public interface IPluginHost : IContributions
 {
     string InstanceId { get; }
+    IReadOnlyList<ProtocolPreset> ProtocolPresets => [];
     IDisposable Command(string id, Func<CancellationToken, Task<string>> execute);
     IDisposable Subscribe(Action<string> listener);
     void Notify(string value);

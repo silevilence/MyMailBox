@@ -35,6 +35,7 @@ public interface IContributions
 {
     IDisposable Add(Page page);
     IDisposable AddSelector(Selector selector);
+    IDisposable AddProtocolPreset(ProtocolPreset preset) => throw new NotSupportedException("宿主不支持协议预设。");
     IDisposable AddNative(NativePage page);
     IDisposable AddAutomationExtension(AutomationExtension extension)=>throw new NotSupportedException("宿主不支持自动化扩展。");
     IDisposable AddNotificationPresenter(NotificationPresenter presenter)=>throw new NotSupportedException("宿主不支持通知呈现扩展。");
