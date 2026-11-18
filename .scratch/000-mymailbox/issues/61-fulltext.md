@@ -2,7 +2,7 @@
 
 Spec: 000-mymailbox
 Status: ready-for-agent
-Progress: not-started
+Progress: done
 Type: task
 Scope: 必做
 Estimate: 2–3 人日
@@ -21,9 +21,9 @@ Blocked by: 59, 17
 
 ## Acceptance criteria
 
-- [ ] “采购”“合同”等两字词以及单字策略明确，不能默认 trigram 覆盖所有中文搜索。
-- [ ] 新增/修改/删除邮件后索引更新，原文与索引版本失配可修复。
-- [ ] 索引中与未下载内容的覆盖率可见，建立索引时仍可使用邮件列表。
+- [x] “采购”“合同”等两字词以及单字策略明确，不能默认 trigram 覆盖所有中文搜索。
+- [x] 新增/修改/删除邮件后索引更新，原文与索引版本失配可修复。
+- [x] 索引中与未下载内容的覆盖率可见，建立索引时仍可使用邮件列表。
 
 ## Blocked by
 
@@ -38,7 +38,7 @@ Blocked by: 59, 17
 
 ## 验证与交付记录
 
-实施时记录演示步骤或检查命令、结果、适用环境和已知限制；目前未执行，所有验收项保持未勾选。若发现超出预计粒度，先拆为完整可验收子场景；环境不足时保留具体缺口，不标完成。
+2026-11-18：FTS5 保存 Unicode 单字符和相邻双字符倒排项，候选经原文核对后以高亮片段展示。search-index、search-conditions、search-fields 通过，验证中英文混合、日文、表情、HTML、原文更新删除、版本修复及重建中浏览。
 
 ## Comments
 

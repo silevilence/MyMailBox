@@ -8,12 +8,18 @@ public sealed partial class MailSearchService : IMailSearch
 {
     private readonly SqliteMailStore _store;
     private readonly ProtocolMailService _protocols;
+    private readonly BodySearchIndex _bodyIndex;
     private readonly SearchMetadata _metadata;
     public MailSearchService(SqliteMailStore store, ProtocolMailService protocols)
     {
         _store = store; _protocols = protocols; _metadata = new(store);
-        SearchMetadata.Initialize(store);
+        SearchMetadata.Initialize(store); BodySearchIndex.Initialize(store); _bodyIndex = new(store);
     }
+
+    public Task RebuildBodyIndex(IProgress<SearchIndexProgress>? progress = null, CancellationToken token = default) => Task.Run(() =>
+    {
+        _metadata.Prepare(token); _bodyIndex.Prepare(true, progress, token);
+    }, token);
 
     private static SearchField TextField(string id, string label) => new(id, label, SearchKind.Text, [SearchMatch.Contains, SearchMatch.Equals]);
     private static SearchField DateField(string id, string label) => new(id, label, SearchKind.LocalDate, [SearchMatch.Equals, SearchMatch.OnOrAfter, SearchMatch.Before]);
@@ -65,16 +71,17 @@ public sealed partial class MailSearchService : IMailSearch
         string? condition = request.Condition is null ? null : Compile(db, cmd, request.Condition, unavailable, token);
         string combined = string.Join(" AND ", filters.Concat(condition is null ? [] : new[] { condition }));
         var order = Ordering(request.Order);
-        _metadata.Prepare(token);
+        _metadata.Prepare(token); _bodyIndex.Prepare(false, null, token);
         using var tx = db.BeginTransaction(deferred: true); cmd.Transaction = tx;
-        cmd.CommandText = Documents + " SELECT count(localid),count(*)-count(localid),sum(localid IS NOT NULL AND NOT complete)," + (condition is null ? "0" : $"count(CASE WHEN ({combined}) IS NULL THEN 1 END)") + " FROM docs";
-        int full, summaries, missing, unknown;
+        cmd.CommandText = Documents + " SELECT count(localid),count(*)-count(localid),sum(localid IS NOT NULL AND NOT complete)," + (condition is null ? "0" : $"count(CASE WHEN ({combined}) IS NULL THEN 1 END)") + ",count(CASE WHEN body IS NOT NULL AND localid IN(SELECT message FROM body_index_state) THEN 1 END) FROM docs";
+        int full, summaries, missing, unknown, indexed;
         using (var r = cmd.ExecuteReader())
         {
-            r.Read(); full = r.GetInt32(0); summaries = r.GetInt32(1); missing = r.IsDBNull(2) ? 0 : r.GetInt32(2); unknown = r.GetInt32(3);
+            r.Read(); full = r.GetInt32(0); summaries = r.GetInt32(1); missing = r.IsDBNull(2) ? 0 : r.GetInt32(2); unknown = r.GetInt32(3); indexed = r.GetInt32(4);
         }
         string where = combined.Length == 0 ? "" : " WHERE " + combined;
-        cmd.CommandText = Documents + " SELECT id,accountid,folderid,folder,subject,\"from\",sent,size,localid,uid,validity FROM docs" + where +
+        var highlights = HighlightTerms(request).ToArray();
+        cmd.CommandText = Documents + " SELECT id,accountid,folderid,folder,subject,\"from\",sent,size,localid,uid,validity," + (highlights.Length > 0 ? "body" : "NULL") + " FROM docs" + where +
             " ORDER BY " + order + ",id LIMIT $limit OFFSET $offset";
         cmd.Parameters.AddWithValue("$limit", request.Limit + 1); cmd.Parameters.AddWithValue("$offset", request.Offset);
         var hits = new List<SearchHit>();
@@ -83,9 +90,9 @@ public sealed partial class MailSearchService : IMailSearch
             token.ThrowIfCancellationRequested();
             hits.Add(new(r.GetString(0), Guid.Parse(r.GetString(1)), Guid.Parse(r.GetString(2)), r.GetString(3), r.GetString(4),
                 r.IsDBNull(5) ? "" : r.GetString(5), r.IsDBNull(6) ? null : DateTimeOffset.FromUnixTimeMilliseconds(r.GetInt64(6)), r.GetInt64(7),
-                r.IsDBNull(8) ? null : Guid.Parse(r.GetString(8)), r.IsDBNull(9) ? null : (uint)r.GetInt64(9), r.IsDBNull(10) ? null : (uint)r.GetInt64(10)));
+                r.IsDBNull(8) ? null : Guid.Parse(r.GetString(8)), r.IsDBNull(9) ? null : (uint)r.GetInt64(9), r.IsDBNull(10) ? null : (uint)r.GetInt64(10)) { Excerpt = r.IsDBNull(11) ? null : Excerpt(r.GetString(11), highlights) });
         }
-        return new SearchPage(hits.Take(request.Limit).ToArray(), hits.Count > request.Limit, full, summaries, missing) { Unknown = unknown, UnavailableFields = unavailable.ToArray() };
+        return new SearchPage(hits.Take(request.Limit).ToArray(), hits.Count > request.Limit, full, summaries, missing) { IndexedBodies = indexed, Unknown = unknown, UnavailableFields = unavailable.ToArray() };
     }, token);
 
     private static string Ordering(SearchOrder order) => order switch
@@ -139,6 +146,7 @@ public sealed partial class MailSearchService : IMailSearch
         }
         cmd.Parameters.AddWithValue(parameter, value);
         string Compare(string expression) => criterion.Match == SearchMatch.Contains ? $"mb_contains({expression},{parameter})" : $"{expression} = {parameter} COLLATE MB_ORDINAL";
+        if (field.Id == "body" && criterion.Match == SearchMatch.Contains) return BodySearchIndex.Contains(cmd, Compare(column), value, parameter + "grams");
         return field.Id == "tag" ? $"EXISTS (SELECT 1 FROM json_each(tag) WHERE {Compare("value")})" : Compare(column);
     }
 

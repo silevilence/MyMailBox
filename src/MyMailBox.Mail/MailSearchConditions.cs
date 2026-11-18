@@ -8,7 +8,7 @@ public sealed partial class MailSearchService
 {
     public Task<ConditionResult> Evaluate(string messageId, ConditionTree condition, CancellationToken token = default) => Task.Run(() =>
     {
-        _metadata.Prepare(token);
+        _metadata.Prepare(token); _bodyIndex.Prepare(false, null, token);
         using var db = _store.Open(); using var cmd = db.CreateCommand();
         var expression = Compile(db, cmd, condition, [], token);
         cmd.Parameters.AddWithValue("$id", messageId);
@@ -63,6 +63,8 @@ public sealed partial class MailSearchService
                     }
                     catch (RegexMatchTimeoutException) { return null; }
                 });
+                if (field.Id == "body" && mode == SearchMatch.Contains)
+                    return BodySearchIndex.Contains(cmd, $"{fn}({column},{param})", criterion.Value, param + "grams");
                 return field.Id == "tag" ? $"CASE WHEN tag IS NOT NULL THEN EXISTS(SELECT 1 FROM json_each(tag) WHERE {fn}(value,{param})) END" : $"{fn}({column},{param})";
             }
             if (node.Logic == ConditionLogic.Not && node.Children.Length == 1) return "(NOT " + Visit(node.Children[0], depth + 1) + ")";

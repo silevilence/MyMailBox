@@ -39,6 +39,11 @@ internal sealed partial class MailSearchView : UserControl, IDisposable
             "用 : 包含、= 精确、^= 开头、$= 结尾、~ 正则、? 存在、< 早于、>= 当天或以后。含空格的值用双引号包住。" +
             """引号内用 \" 表示引号、\\ 表示反斜杠。""" +
             "\n字段：" + string.Join("、", service.Fields.Select(f => f.Id + "（" + f.Name + "）")) });
+        Action(advanced, "重建正文索引", "search-reindex", async () =>
+        {
+            await service.RebuildBodyIndex(new Progress<SearchIndexProgress>(p => _status.Text = $"正在建立正文索引 {p.Completed}/{p.Total}，可继续浏览邮件。"), _stop.Token);
+            await RunInput();
+        });
         _panel.Children.Add(new Expander { Header = "高级搜索", Content = advanced });
         Field(_panel, "结果排序", _order, "search-order");
         var toolbar = new WrapPanel(); Action(toolbar, "搜索", "search-run", RunInput);
@@ -49,10 +54,18 @@ internal sealed partial class MailSearchView : UserControl, IDisposable
         });
         _back.IsVisible = false; _panel.Children.Add(toolbar);
         AutomationProperties.SetAutomationId(_coverage, "search-coverage"); _panel.Children.Add(_coverage);
-        _results.ItemTemplate = new FuncDataTemplate<SearchHit>((m, _) => new TextBlock
+        _results.ItemTemplate = new FuncDataTemplate<SearchHit>((m, _) =>
         {
-            Text = m is null ? "" : $"{m.Subject}\n{m.Path} · {m.From} · {m.Sent?.LocalDateTime.ToString("g") ?? "发件时间未知"} · {m.Size:N0} 字节",
-            TextWrapping = TextWrapping.Wrap
+            var item = new StackPanel();
+            item.Children.Add(new TextBlock { TextWrapping = TextWrapping.Wrap, Text = m is null ? "" : $"{m.Subject}\n{m.Path} · {m.From} · {m.Sent?.LocalDateTime.ToString("g") ?? "发件时间未知"} · {m.Size:N0} 字节" });
+            if (m?.Excerpt is { } excerpt)
+            {
+                var line = new TextBlock { TextWrapping = TextWrapping.Wrap };
+                line.Inlines!.Add(new Avalonia.Controls.Documents.Run(excerpt.Before));
+                line.Inlines.Add(new Avalonia.Controls.Documents.Run(excerpt.Match) { FontWeight = FontWeight.Bold, TextDecorations = TextDecorations.Underline });
+                line.Inlines.Add(new Avalonia.Controls.Documents.Run(excerpt.After)); item.Children.Add(line);
+            }
+            return item;
         });
         Field(_panel, "结果", _results, "search-results");
         var nav = new WrapPanel();
@@ -107,6 +120,7 @@ internal sealed partial class MailSearchView : UserControl, IDisposable
         _match.ItemsSource = field.Matches; _match.SelectedIndex = 0;
         _hint.Text = field.Kind switch
         {
+            SearchKind.Text when field.Id == "body" => "正文支持单字、双字和跨词短语，匹配处以粗体下划线显示。",
             SearchKind.LocalDate => "本地日期 yyyy-MM-dd。当天从本地午夜起，至次日午夜前。",
             SearchKind.Number => "单位为字节。",
             SearchKind.Boolean => "输入「是」或「否」。",
@@ -153,7 +167,7 @@ internal sealed partial class MailSearchView : UserControl, IDisposable
     {
         _request = request; _results.ItemsSource = result.Items; _results.SelectedItem = result.Items.FirstOrDefault(m => m.Id == selected);
         _prev.IsEnabled = request.Offset > 0; _next.IsEnabled = result.HasMore; _back.IsVisible = _previousRequest is not null; SetSelection();
-        _coverage.Text = $"当前工作空间 · 原文 {result.FullMessages} 封，仅摘要 {result.Summaries} 封，原文元数据不完整 {result.MissingMetadata} 封。";
+        _coverage.Text = $"当前工作空间 · 原文 {result.FullMessages} 封，已索引正文 {result.IndexedBodies} 封，仅摘要 {result.Summaries} 封，原文元数据不完整 {result.MissingMetadata} 封。";
         if (result.Unknown > 0) _coverage.Text += $" 条件未知 {result.Unknown} 封。";
         if (result.UnavailableFields.Count > 0) _coverage.Text += " 缺少字段插件：" + string.Join("、", result.UnavailableFields);
         _status.Text = result.Items.Count == 0 ? "没有匹配邮件。" : $"第 {request.Offset / request.Limit + 1} 页 · {result.Items.Count} 封。";
