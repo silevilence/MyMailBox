@@ -3,6 +3,7 @@ namespace MyMailBox.Contracts;
 public sealed record Page(string Id, string Title, string Description, IReadOnlyList<Field> Fields,
     IReadOnlyList<PageAction> Actions, Func<IReadOnlyDictionary<string, string>, string, Task<string>> Execute, MailReader? Reader = null, IAccountService? Accounts = null, ISelectionService? Selections = null)
 {
+    public ActivityPage? Activity {get;init;}
     public ExportSource? Export { get; init; }
     public ILocalMailboxService? LocalMailboxes { get; init; }
     public ReminderPage? Reminders { get; init; }
@@ -35,6 +36,7 @@ public interface IContributions
     IDisposable Add(Page page);
     IDisposable AddSelector(Selector selector);
     IDisposable AddNative(NativePage page);
+    IDisposable AddNotificationPresenter(NotificationPresenter presenter)=>throw new NotSupportedException("宿主不支持通知呈现扩展。");
     IDisposable AddAddressProvider(AddressProvider provider) => throw new NotSupportedException("宿主尚不支持地址建议。");
     IDisposable AddEditor(ComposerEditor editor) => throw new NotSupportedException("宿主尚不支持编辑器贡献。");
     IDisposable AddSearchExtension(SearchExtension extension) => throw new NotSupportedException("宿主尚不支持搜索扩展。");

@@ -17,7 +17,7 @@ internal sealed partial class AutomationView : UserControl,IDisposable
     private readonly TextBlock _status=new(){TextWrapping=TextWrapping.Wrap};
     private Guid _draftId=Guid.NewGuid();private AutomationPlan? _loaded;private SearchLibrary? _library;
 
-    internal AutomationView(IMailAutomation service)
+    internal AutomationView(IMailAutomation service,Guid? linked=null)
     {
         _service=service;_panel.Children.Add(new TextBlock{Text="邮件自动化",FontSize=28,FontWeight=FontWeight.SemiBold});
         _plans.ItemTemplate=new FuncDataTemplate<AutomationPlan>((p,_)=>new TextBlock{Text=p?.Name});
@@ -31,7 +31,8 @@ internal sealed partial class AutomationView : UserControl,IDisposable
         AddTarget();AddTriggers();AddSteps();AddArchive();_panel.Children.Add(_enabled);var actions=new WrapPanel();Button(actions,"预览统计","auto-preview",()=>Inspect(false));Button(actions,"记录采样","auto-observe",()=>Inspect(true));
         Button(actions,"保存任务","auto-save",Save);_panel.Children.Add(actions);
         AutomationProperties.SetAutomationId(_status,"auto-status");_panel.Children.Add(_status);Content=new ScrollViewer{Content=_panel};
-        AttachedToVisualTree+=async(_,_)=>await Guard(async()=>{_library=await service.Library(_stop.Token);_scope.ItemsSource=_library.Scopes;_destinations=await service.ArchiveFolders(_stop.Token);await Refresh();Load(null);});
+        AttachedToVisualTree+=async(_,_)=>await Guard(async()=>{_library=await service.Library(_stop.Token);_scope.ItemsSource=_library.Scopes;_destinations=await service.ArchiveFolders(_stop.Token);await Refresh();Load(null);
+            if(linked is {} run){var audit=await service.Audit(run,0,1,_stop.Token);Load(_plans.Items.OfType<AutomationPlan>().FirstOrDefault(x=>x.Id==audit.Run.Plan));await History(run);await ShowAudit(0);}});
     }
     private static void Field(Panel p,string label,Control input,string id)
     {p.Children.Add(new TextBlock{Text=label});AutomationProperties.SetName(input,label);AutomationProperties.SetAutomationId(input,id);p.Children.Add(input);}

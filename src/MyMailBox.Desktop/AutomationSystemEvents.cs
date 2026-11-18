@@ -13,6 +13,10 @@ internal sealed class AutomationSystemEvents : IDisposable
     private readonly Action<string> _error;
     private nint _handle;
     private bool _closed;
+    private static volatile bool _locked;
+    internal static bool IsLocked=>_locked;
+    [DllImport("user32.dll")]private static extern nint OpenInputDesktop(int flags,bool inherit,uint access);
+    [DllImport("user32.dll")]private static extern bool CloseDesktop(nint desktop);
     internal AutomationSystemEvents(Window window,Func<IMailAutomation?> service,Action<string> error)
     {
         _window=window;_service=service;_error=error;
@@ -23,11 +27,13 @@ internal sealed class AutomationSystemEvents : IDisposable
     {
         _handle=_window.TryGetPlatformHandle()?.Handle??0;
         if(_handle!=0 && !WTSRegisterSessionNotification(_handle,0))_error("无法注册 Windows 解锁通知。");
+        var desktop=OpenInputDesktop(0,false,1);_locked=desktop==0;if(desktop!=0)CloseDesktop(desktop);
         Emit("startup");
     }
     private nint Message(nint hwnd,uint msg,nint wParam,nint lParam,ref bool handled)
     {
-        if(msg==0x02B1 && wParam==8)Emit("unlock");
+        if(msg==0x02B1 && wParam==7){_locked=true;_error("");}
+        if(msg==0x02B1 && wParam==8){_locked=false;Emit("unlock");}
         if(msg==0x0218 && wParam==18)Emit("resume");
         return 0;
     }

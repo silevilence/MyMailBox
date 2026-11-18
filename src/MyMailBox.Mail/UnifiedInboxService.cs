@@ -168,11 +168,13 @@ public sealed class UnifiedInboxService : IUnifiedInbox
     private void Finish(Guid id, int revision, string state, string detail, bool success)
     {
         using var db = _store.Open();
-        using var cmd = Command(db, """
+        using var tx=db.BeginTransaction();using var cmd = Command(db, """
             UPDATE receive_jobs SET state=$state,detail=$detail,requested=0,due=unixepoch()+300,
                 last_ok=CASE WHEN $ok THEN unixepoch() ELSE last_ok END WHERE account=$id AND revision=$revision
             """, ("id", id.ToString()), ("revision", revision), ("state", state), ("detail", detail), ("ok", success));
-        cmd.ExecuteNonQuery();
+        cmd.Transaction=tx;
+        if(cmd.ExecuteNonQuery()==1)ActivityCenter.Add(cmd,"receive/"+Guid.NewGuid(),success?"sync":"error",id.ToString(),success?"收件箱已同步":"收件未完成",detail,"account",id.ToString());
+        tx.Commit();
     }
 }
 

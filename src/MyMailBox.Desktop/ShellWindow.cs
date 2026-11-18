@@ -24,6 +24,8 @@ public sealed class ShellWindow : Window
     private int _exporterRevision;
     private readonly List<Action> _viewCleanup = [];
     private readonly TextBlock _notice = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(16), Foreground = Brush.Parse("#7C2D12") };
+    private ActivityLink? _activityLink;
+    private readonly Button _noticeOpen=new(){Content="打开活动",IsVisible=false};
     private readonly Button _noticeClose = new() { Content = "关闭提示", IsVisible = false, Margin = new Thickness(8), VerticalAlignment = VerticalAlignment.Center };
 
     public ShellWindow(Contributions pages)
@@ -45,7 +47,11 @@ public sealed class ShellWindow : Window
         var sidebar = new Border { Background = Brush.Parse("#F1F5F9"), Child = new ScrollViewer { Content = _navigation } };
         grid.Children.Add(sidebar);
         Grid.SetColumn(_body, 1); grid.Children.Add(_body);
-        var banner = new DockPanel(); DockPanel.SetDock(_noticeClose, Dock.Right); banner.Children.Add(_noticeClose); banner.Children.Add(_notice);
+        var banner = new DockPanel(); DockPanel.SetDock(_noticeClose, Dock.Right); banner.Children.Add(_noticeClose);DockPanel.SetDock(_noticeOpen,Dock.Right);banner.Children.Add(_noticeOpen);banner.Children.Add(_notice);
+        AutomationProperties.SetAutomationId(_noticeOpen,"global-notice-open");_noticeOpen.Click+=async(_,_)=>{
+            if(pages.NoticeActivity is {} id && pages.Pages.FirstOrDefault(p=>p.Activity is not null)?.Activity is {} a)
+                try{OpenActivity(await a.Center.Resolve(id));}catch(Exception e){pages.Notice=e.Message;}
+        };
         _noticeClose.Click += (_, _) => _pages.Notice = ""; AutomationProperties.SetAutomationId(_noticeClose, "global-notice-close");
         var layout = new DockPanel(); DockPanel.SetDock(banner, Dock.Bottom); layout.Children.Add(banner); layout.Children.Add(grid);
         AutomationProperties.SetAutomationId(_notice, "global-notice");
@@ -57,7 +63,7 @@ public sealed class ShellWindow : Window
         Refresh();
     }
 
-    private void NoticeChanged() => Dispatcher.UIThread.Post(() => { _notice.Text = _pages.Notice; _noticeClose.IsVisible = !string.IsNullOrWhiteSpace(_pages.Notice); });
+    private void NoticeChanged() => Dispatcher.UIThread.Post(() => { _notice.Text = _pages.Notice;_noticeOpen.IsVisible=_pages.NoticeActivity.HasValue; _noticeClose.IsVisible = !string.IsNullOrWhiteSpace(_pages.Notice); });
 
     private void Refresh()
     {
@@ -113,6 +119,12 @@ public sealed class ShellWindow : Window
         if(composer is null){_pages.Notice="写信插件未启用。";return;}
         _reply=intent;Show(composer.Id);
     }
+    private async void OpenActivity(ActivityLink link)
+    {
+        string id=link.Route switch{"mail"=>"accounts/search","task"=>"accounts/automation","schedule"=>"reminders/recurring","reminder"=>"reminders/list","account"=>"accounts/inbox",_=>""};
+        if(!_pages.Pages.Any(p=>p.Id==id)){_pages.Notice="关联功能未启用。";return;}
+        _activityLink=link;try{await Navigate(id);}finally{_activityLink=null;}
+    }
     private void Show(string? id)
     {
         _selected = id;
@@ -131,14 +143,15 @@ public sealed class ShellWindow : Window
         {
             var view=new ComposerView(composer,_pages,page.Id.Split('/')[0],_reply);_reply=null;_hostView=view;_body.Content=view;return;
         }
-        if(page.Automation is {} automation){var view=new AutomationView(automation);_hostView=view;_body.Content=view;return;}
+        if(page.Activity is {} activity){var view=new ActivityView(activity,_pages.Presenters,OpenActivity);_hostView=view;_body.Content=view;return;}
+        if(page.Automation is {} automation){var view=new AutomationView(automation,_activityLink?.Record);_hostView=view;_body.Content=view;return;}
         if (page.Rules is { } rules)
         {
             var view = new ReceiveRulesView(rules); _hostView = view; _body.Content = view; return;
         }
         if (page.Search is { } search)
         {
-            var view = new MailSearchView(search,Respond); _hostView = view; _body.Content = view; return;
+            var view = new MailSearchView(search,Respond,_activityLink?.Mail); _hostView = view; _body.Content = view; return;
         }
         if (page.Organization is { } organization)
         {
@@ -146,7 +159,7 @@ public sealed class ShellWindow : Window
         }
         if (page.UnifiedInbox is { } inbox)
         {
-            var view = new UnifiedInboxView(inbox,Respond); _hostView = view; _body.Content = view; return;
+            var view = new UnifiedInboxView(inbox,Respond,_activityLink?.Account); _hostView = view; _body.Content = view; return;
         }
         if (page.Protocols is { } protocols)
         {
@@ -162,11 +175,11 @@ public sealed class ShellWindow : Window
         }
         if (page.Schedules is { } schedules)
         {
-            var view = new ScheduleView(schedules); _hostView = view; _body.Content = view; return;
+            var view = new ScheduleView(schedules,_activityLink?.Record); _hostView = view; _body.Content = view; return;
         }
         if (page.Reminders is { } reminders)
         {
-            var view = new ReminderView(reminders); _hostView = view; _body.Content = view; return;
+            var view = new ReminderView(reminders,_activityLink?.Record); _hostView = view; _body.Content = view; return;
         }
         if (page.LocalMailboxes is { } local)
         {

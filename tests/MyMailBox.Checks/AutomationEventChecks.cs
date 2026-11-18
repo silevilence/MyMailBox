@@ -51,6 +51,8 @@ internal static partial class AutomationChecks
         MailChecks.Check(delivery.State=="sent","Missing SMTP acceptance");
         using var worker=new AutomationRunner(auto,null);
         foreach(var p in new[]{received,sent,synced})await WaitFor(async()=>(await auto.Runs(p.Id)).Any(r=>r.State=="done"));
+        var center=new ActivityCenter(f.Store);var activity=(await center.Recent()).First(a=>a.Kind=="received" && a.Account==owner.Id);
+        var link=await center.Resolve(activity.Id);MailChecks.Check(link.Mail is {} hit && (await f.Search.Read(hit)).Contains("内容"),"Activity did not open originating IMAP message");
         Console.WriteLine("PASS real IMAP arrival after baseline, IMAP sync completion and acknowledged SMTP delivery trigger saved automation");
     }
 }

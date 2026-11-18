@@ -9,6 +9,15 @@ public sealed class Contributions(Action<Action>? dispatch = null) : IContributi
     private readonly Dictionary<string, Selector> _selectors = [];
     private readonly Dictionary<string, NativePage> _native = [];
     private readonly Dictionary<string, IMessageExporter> _exporters = [];
+    private readonly Dictionary<string,NotificationPresenter> _presenters=[];
+    public IReadOnlyList<NotificationPresenter> Presenters {get{lock(_gate)return _presenters.Values.ToArray();}}
+    public IDisposable AddNotificationPresenter(NotificationPresenter p)
+    {
+        lock(_gate)_presenters.Add(p.Id,p);Notify();
+        return new Cleanup(()=>{lock(_gate)_presenters.Remove(p.Id);Notify();});
+    }
+    public long? NoticeActivity {get;private set;}
+    public void ShowActivity(ActivityBatch batch){NoticeActivity=batch.Last;_notice=batch.Text;NoticeChanged?.Invoke();}
     private readonly Dictionary<string,AddressProvider> _addresses=[];
     public IReadOnlyList<AddressProvider> AddressProviders { get { lock(_gate) return _addresses.Values.ToArray(); } }
     public IDisposable AddAddressProvider(AddressProvider provider)
@@ -52,7 +61,7 @@ public sealed class Contributions(Action<Action>? dispatch = null) : IContributi
     public event Action? Changed;
     public event Action? NoticeChanged;
     private string _notice = "";
-    public string Notice { get => _notice; set { _notice = value; NoticeChanged?.Invoke(); } }
+    public string Notice { get => _notice; set { NoticeActivity=null;_notice = value; NoticeChanged?.Invoke(); } }
     public IReadOnlyList<Page> Pages { get { lock (_gate) return _pages.Values.ToArray(); } }
     public IReadOnlyList<NativePage> NativePages { get { lock (_gate) return _native.Values.ToArray(); } }
     public IReadOnlyList<Choice> Choices(string key) { lock (_gate) return _selectors.TryGetValue(key, out var provider) ? provider.Choices() : []; }

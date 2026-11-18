@@ -36,7 +36,7 @@ public sealed class ScheduleView : UserControl, IDisposable
     private readonly List<(Control Row, Func<bool> Visible)> _conditional = [];
     private string? _fingerprint;
     private bool _busy, _disposed;
-    public ScheduleView(IScheduleService service)
+    public ScheduleView(IScheduleService service,Guid? linked=null)
     {
         _service = service;
         _panel.Children.Add(new TextBlock { Text = "循环计划", FontSize = 28, FontWeight = FontWeight.SemiBold });
@@ -107,7 +107,7 @@ public sealed class ScheduleView : UserControl, IDisposable
         var layout = new DockPanel(); DockPanel.SetDock(_status, Dock.Bottom); layout.Children.Add(_status); layout.Children.Add(new ScrollViewer { Content = _panel }); Content = layout;
         _kind.SelectionChanged += (_, _) => { foreach (var item in _conditional) item.Row.IsVisible = item.Visible(); _fingerprint = null; };
         foreach (var item in _conditional) item.Row.IsVisible = item.Visible();
-        AttachedToVisualTree += async (_, _) => await Guard(Refresh);
+        AttachedToVisualTree += async (_, _) => await Guard(async()=>{await Refresh();if(linked.HasValue)_plans.SelectedItem=_plans.Items.OfType<ScheduleInfo>().FirstOrDefault(p=>p.Id==linked);});
     }
     private static StackPanel Add(StackPanel panel, string label, Control input, string id)
     { var row = new StackPanel { Spacing = 4 }; row.Children.Add(new TextBlock { Text = label, TextWrapping = TextWrapping.Wrap }); row.Children.Add(input); panel.Children.Add(row); AutomationProperties.SetAutomationId(input, id); AutomationProperties.SetName(input, label); return row; }

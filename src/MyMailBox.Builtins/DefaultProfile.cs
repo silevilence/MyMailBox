@@ -9,7 +9,7 @@ public static class DefaultProfile
     public static PluginConfiguration Core => new(1, [new("platform", "core.platform", "1.0.0")]);
     public static PluginConfiguration Ordinary => new(1, [new("welcome", "welcome", "1.0.0"), new("prototype", "prototype", "1.0.0"), new("selector", "selector", "1.0.0"), new("local-mail", "local-mail", "1.0.0"), new("accounts", "accounts", "1.0.0"), new("mail-selectors", "mail-selectors", "1.0.0"), new("reminders", "reminders", "1.0.0"), new("updates", "updates", "1.0.0")]);
 
-    public static PluginCatalog Catalog(string? workspace = null, IMailStore? mailStore = null, IMimeReader? mimeReader = null, Action<string>? openWorkspace = null, IMailPdfPrinter? printer = null, Action<string>? notification = null, Action<Updates.PreparedUpdate>? installUpdate = null, Func<IReadOnlyList<SearchExtension>>? searchExtensions = null)
+    public static PluginCatalog Catalog(string? workspace = null, IMailStore? mailStore = null, IMimeReader? mimeReader = null, Action<string>? openWorkspace = null, IMailPdfPrinter? printer = null, Action<string>? notification = null, Action<Updates.PreparedUpdate>? installUpdate = null, Func<IReadOnlyList<SearchExtension>>? searchExtensions = null,Func<IReadOnlyList<NotificationPresenter>>? presenters=null,Func<bool>? locked=null)
     {
         var catalog = new PluginCatalog();
         var location = workspace ?? Environment.GetEnvironmentVariable("MYMAILBOX_HOME")
@@ -18,13 +18,16 @@ public static class DefaultProfile
         catalog.Add(new(new("reminders", "1.0.0", 1, 1, PluginKind.Ordinary, "reminders"), PluginOrigin.Builtin, "", (ctx, _) =>
         {
             var host = ctx.Get<IPluginHost>("mailbox.host")!; var store = new Mail.SqliteMailStore(Path.Combine(location, "mail"));
-            var sink = new Mail.SqliteNotificationSink(store, notice => notification?.Invoke("提醒：" + notice.Title + "。可到“提醒与计划”延后或关闭。"));
+            var sink = new Mail.SqliteNotificationSink(store);
+            var activity=new Mail.ActivityCenter(store);
+            ctx.Effect(()=>host.Add(new Page("activity","活动中心","",[],[],(_,_)=>Task.FromResult("")){Activity=new(activity,new Mail.AccountService(store))}));
+            ctx.Effect(()=>new Mail.ActivityRunner(activity,locked??(()=>false),presenters??(()=>[new("builtin","应用内通知",(b,_)=>{notification?.Invoke(b.Text);return Task.CompletedTask;})])));
             var scheduler = new Mail.ReminderService(store, sink);
             var recurring = new Mail.ScheduleService(store, new Mail.RecurrencePlanner(), sink);
             ctx.Effect(() => host.Add(new Page("list", "提醒与计划", "", [], [], (_, _) => Task.FromResult("")) { Reminders = new(scheduler, new Mail.AvailableMailStore(store)) }));
             ctx.Effect(() => host.Add(new Page("recurring", "循环计划", "", [], [], (_, _) => Task.FromResult("")) { Schedules = recurring }));
-            ctx.Effect(() => new Mail.ReminderRunner(scheduler, notification));
-            ctx.Effect(() => new Mail.ScheduleRunner(recurring, notification));
+            ctx.Effect(() => new Mail.ReminderRunner(scheduler, activity.RecordError));
+            ctx.Effect(() => new Mail.ScheduleRunner(recurring, activity.RecordError));
         }));
         catalog.Add(new(new("mail-selectors", "1.0.0", 1, 1, PluginKind.Ordinary, "mail-selectors"), PluginOrigin.Builtin, "", (ctx, _) =>
         {
@@ -42,17 +45,18 @@ public static class DefaultProfile
             var search = new Mail.MailSearchService(store, protocols, searchExtensions);
             ctx.Effect(() => host.Add(new Page("search", "搜索邮件", "", [], [], (_, _) => Task.FromResult("")) { Search = search }));
             ctx.Effect(() => host.Add(new Page("compose", "写邮件与草稿", "", [], [], (_, _) => Task.FromResult("")) { Composer = new(accounts,new Mail.MailDraftStore(store),protocols) }));
-            var automation=new Mail.MailAutomationService(store,search,protocols,notify:notification);
-            ctx.Effect(()=>new Mail.AutomationRunner(automation,notification));
+            var activity=new Mail.ActivityCenter(store);
+            var automation=new Mail.MailAutomationService(store,search,protocols,notify:activity.RecordError,activityNotices:true);
+            ctx.Effect(()=>new Mail.AutomationRunner(automation,activity.RecordError));
             ctx.Effect(()=>host.Add(new Page("automation","邮件自动化","",[],[],(_,_)=>Task.FromResult("")){Automation=automation}));
             var rules = new Mail.ReceiveRuleService(store,search,protocols);
             ctx.Effect(() => host.Add(new Page("rules", "收件规则", "", [], [], (_, _) => Task.FromResult("")) { Rules=rules }));
-            ctx.Effect(() => new Mail.ReceiveRuleRunner(rules,notification));
+            ctx.Effect(() => new Mail.ReceiveRuleRunner(rules,activity.RecordError));
             var inbox = new Mail.UnifiedInboxService(store, accounts, new Mail.ProtocolReceiveProvider(store, protocols));
             ctx.Effect(() => host.Add(new Page("inbox", "统一收件箱", "", [], [], (_, _) => Task.FromResult("")) { UnifiedInbox = inbox }));
             ctx.Effect(() => host.Add(new Page("organize", "目录与标记", "", [], [], (_, _) => Task.FromResult("")) { Organization = new(accounts, protocols) { Actions = protocols, Transfers = protocols } }));
-            ctx.Effect(() => new Mail.ReceiveRunner(inbox, notification));
-            ctx.Effect(() => new Mail.OutboxRunner(protocols, notification));
+            ctx.Effect(() => new Mail.ReceiveRunner(inbox, activity.RecordError));
+            ctx.Effect(() => new Mail.OutboxRunner(protocols, activity.RecordError));
             var graph = new Mail.GraphMailService(new Mail.SqliteMailStore(Path.Combine(location, "mail")));
             ctx.Effect(() => graph);
             ctx.Effect(() => host.Add(new Page("graph", "Outlook.com 邮件", "", [], [], (_, _) => Task.FromResult("")) { Graph = new(accounts, graph) }));

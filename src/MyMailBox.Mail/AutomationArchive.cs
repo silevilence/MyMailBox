@@ -6,7 +6,7 @@ namespace MyMailBox.Mail;
 
 public sealed partial class MailAutomationService
 {
-    private readonly Action<string>? _notify;
+    private readonly Action<string>? _notify;private readonly bool _activityNotices;
     private const string RunRows="""
         SELECT r.id,r.plan,r.cause,r.state,r.detail,r.at,
         (SELECT count(*) FROM automation_item i WHERE i.run=r.id AND i.state='done'),
@@ -121,7 +121,7 @@ public sealed partial class MailAutomationService
         c.CommandText="UPDATE automation_run SET state='done',detail='执行完成。' WHERE id=$id AND state='running' AND NOT EXISTS(SELECT 1 FROM automation_item WHERE run=$id AND state='pending')";
         bool finished=c.ExecuteNonQuery()==1;
         if(finished)PublishOutcome(finish,plan.Id,run,Run(run).Failed==0);finish.Commit();
-        if(finished)_notify?.Invoke("邮件自动化已完成："+plan.Name);
+        if(finished&&!_activityNotices)_notify?.Invoke("邮件自动化已完成："+plan.Name);
         return Run(run);
     }
     private async Task<(string,string)> ArchiveItem(Guid run,AutomationPlan plan,TargetSnapshot snap,TargetMail mail,Guid op,Guid? dest,SqliteCommand c,CancellationToken token)

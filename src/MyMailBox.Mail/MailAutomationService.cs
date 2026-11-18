@@ -9,9 +9,9 @@ namespace MyMailBox.Mail;
 public sealed partial class MailAutomationService : IMailAutomation
 {
     private readonly SqliteMailStore _store;private readonly MailSearchService _search;private readonly ProtocolMailService _protocols;private readonly TimeProvider _clock;
-    public MailAutomationService(SqliteMailStore store,MailSearchService search,ProtocolMailService protocols,TimeProvider? clock=null,Action<string>? notify=null)
+    public MailAutomationService(SqliteMailStore store,MailSearchService search,ProtocolMailService protocols,TimeProvider? clock=null,Action<string>? notify=null,bool activityNotices=false)
     {
-        _store=store;_search=search;_protocols=protocols;_clock=clock??TimeProvider.System;_notify=notify;
+        _store=store;_search=search;_protocols=protocols;_clock=clock??TimeProvider.System;_notify=notify;_activityNotices=activityNotices;
         using var db=store.Open();using var c=db.CreateCommand();c.CommandText="""
             CREATE TABLE IF NOT EXISTS automation_plan(id TEXT PRIMARY KEY,version INTEGER NOT NULL,definition TEXT NOT NULL);
             CREATE TABLE IF NOT EXISTS automation_gate(id TEXT PRIMARY KEY,version INTEGER NOT NULL,latched INTEGER NOT NULL,last_fire INTEGER);

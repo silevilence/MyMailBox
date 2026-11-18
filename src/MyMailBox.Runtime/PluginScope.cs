@@ -32,6 +32,7 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
                   Outbox = protocols.Outbox is { } outbox ? new ScopedOutbox(this, Target(outbox)) : null,
                   ImapSync = protocols.ImapSync is { } sync ? new ScopedImapSync(this, Target(sync)) : null } : null,
             Composer = page.Composer is { } compose ? new(new ScopedAccounts(this, Target(compose.Accounts)),new ScopedDrafts(this,Target(compose.Drafts)),new ScopedOutbox(this,Target(compose.Outbox))) : null,
+            Activity=page.Activity is {} activity?new(new ScopedActivity(this,Target(activity.Center)),new ScopedAccounts(this,Target(activity.Accounts))):null,
             Automation=page.Automation is {} auto ? new ScopedAutomation(this,Target(auto)) : null,
             Rules = page.Rules is { } rules ? new ScopedRules(this,Target(rules)) : null,
             Search = page.Search is { } search ? new ScopedSearch(this,Target(search)) : null,
@@ -59,6 +60,12 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         var save = Target(preparation.Save);
         return Own(pages.AddUpdatePreparation(new(InstanceId + "/" + preparation.Id,
             async token => await Run(async t => { await save.Value(t); return true; }, token))));
+    }
+    public IDisposable AddNotificationPresenter(NotificationPresenter p)
+    {
+        var show=Target(p.Show);
+        return Own(pages.AddNotificationPresenter(p with{Id=InstanceId+"/"+p.Id,Show=async(batch,token)=>
+        {permissions.Require("notification.show");await Run(async t=>{await show.Value(batch,t);return true;},token);}}));
     }
     public IDisposable AddAddressProvider(AddressProvider provider)
     {
@@ -263,6 +270,15 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         public IReadOnlyList<MailDraft> List(Guid account)=>scope.Run(_=>Task.FromResult(service.Value.List(account))).GetAwaiter().GetResult();
         public MailDraft Save(MailDraft draft)=>scope.Run(_=>Task.FromResult(service.Value.Save(draft))).GetAwaiter().GetResult();
         public void Submitted(Guid draft,int version)=>scope.Run(_=>{service.Value.Submitted(draft,version);return Task.FromResult(true);}).GetAwaiter().GetResult();
+    }
+    private sealed class ScopedActivity(PluginScope scope,ServiceTarget<IActivityCenter> service):IActivityCenter
+    {
+        public Task<IReadOnlyList<ActivityEntry>> Recent(int offset=0,int limit=50,CancellationToken token=default)=>scope.Run(t=>service.Value.Recent(offset,limit,t),token);
+        public Task<NoticePolicy> Policy(CancellationToken token=default)=>scope.Run(t=>service.Value.Policy(t),token);
+        public async Task Configure(NoticePolicy settings,CancellationToken token=default)=>await scope.Run(async t=>{await service.Value.Configure(settings,t);return true;},token);
+        public Task<bool> Enabled(string kind,Guid? account,CancellationToken token=default)=>scope.Run(t=>service.Value.Enabled(kind,account,t),token);
+        public async Task SetEnabled(string kind,Guid? account,bool enabled,CancellationToken token=default)=>await scope.Run(async t=>{await service.Value.SetEnabled(kind,account,enabled,t);return true;},token);
+        public Task<ActivityLink> Resolve(long entry,CancellationToken token=default)=>scope.Run(t=>service.Value.Resolve(entry,t),token);
     }
     private sealed class ScopedAutomation(PluginScope scope,ServiceTarget<IMailAutomation> service):IMailAutomation
     {

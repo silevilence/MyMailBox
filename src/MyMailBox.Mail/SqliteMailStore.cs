@@ -47,6 +47,7 @@ public sealed class SqliteMailStore : IMailStore
         command.ExecuteNonQuery();
         RuleInbox.Initialize(command);
         AutomationSignals.Initialize(command);
+        ActivityCenter.Initialize(command);
         transaction.Commit();
     }
 

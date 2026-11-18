@@ -24,7 +24,7 @@ public sealed class ReminderView : UserControl, IDisposable
     private bool _disposed, _busy, _refreshing;
     private int _offset, _mailRevision;
     private bool _more;
-    public ReminderView(ReminderPage page)
+    public ReminderView(ReminderPage page,Guid? linked=null)
     {
         _page = page;
         _panel.Children.Add(new TextBlock { Text = "提醒与计划", FontSize = 28, FontWeight = FontWeight.SemiBold });
@@ -64,7 +64,7 @@ public sealed class ReminderView : UserControl, IDisposable
         var layout = new DockPanel(); DockPanel.SetDock(_status, Dock.Bottom); layout.Children.Add(_status); layout.Children.Add(new ScrollViewer { Content = _panel }); Content = layout;
         _folders.SelectionChanged += async (_, _) => await Guard(() => LoadMessages(0), false);
         _timer.Tick += async (_, _) => await Guard(Refresh, false);
-        AttachedToVisualTree += async (_, _) => await Guard(async () => { await Refresh(); var folders = await page.Mail.Folders(_lifetime.Token); if (!_disposed) { _folders.ItemsSource = folders; _folders.SelectedIndex = folders.Count > 0 ? 0 : -1; _timer.Start(); } });
+        AttachedToVisualTree += async (_, _) => await Guard(async () => { await Refresh(); if(linked.HasValue)_list.SelectedItem=_list.Items.OfType<ReminderInfo>().FirstOrDefault(r=>r.Id==linked); var folders = await page.Mail.Folders(_lifetime.Token); if (!_disposed) { _folders.ItemsSource = folders; _folders.SelectedIndex = folders.Count > 0 ? 0 : -1; _timer.Start(); } });
     }
     private static string State(string state) => state switch { "pending" => "待提醒", "notified" => "已到期", "dismissed" => "已关闭", "canceled" => "已取消", _ => state };
     private ReminderInfo Selected() => _list.SelectedItem as ReminderInfo ?? throw new InvalidDataException("请先选择提醒。");

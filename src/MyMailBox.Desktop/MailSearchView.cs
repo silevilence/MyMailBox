@@ -26,7 +26,7 @@ internal sealed partial class MailSearchView : UserControl, IDisposable
     private int _version;
     private CancellationTokenSource? _operation;
 
-    public MailSearchView(IMailSearch service,Action<ReplyIntent>? respond=null)
+    public MailSearchView(IMailSearch service,Action<ReplyIntent>? respond=null,SearchHit? linked=null)
     {
         _service = service;
         _panel.Children.Add(new TextBlock { Text = "搜索邮件", FontSize = 28, FontWeight = FontWeight.SemiBold });
@@ -100,7 +100,7 @@ internal sealed partial class MailSearchView : UserControl, IDisposable
         _field.SelectionChanged += (_, _) => Changed(); _match.SelectionChanged += (_, _) => Changed(); _order.SelectionChanged += (_, _) => Changed();
         _scopes.SelectionChanged += (_, _) => Changed(); _boolValue.SelectionChanged += (_, _) => Changed();
         _dateValue.SelectedDateChanged += (_, _) => Changed(); _sizeValue.ValueChanged += (_, _) => Changed(); _server.IsCheckedChanged += (_, _) => Changed();
-        AttachedToVisualTree += async (_, _) => await Guard(async () => { await RefreshLibrary(); await Run(new([])); });
+        AttachedToVisualTree += async (_, _) => await Guard(async () => { await RefreshLibrary(); if(linked is null)await Run(new([]));else{_results.ItemsSource=new[]{linked};_results.SelectedItem=linked;await Read();} });
     }
     private static void Field(Panel panel, string label, Control control, string id)
     {

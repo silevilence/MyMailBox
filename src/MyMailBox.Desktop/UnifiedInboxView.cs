@@ -29,7 +29,7 @@ internal sealed class UnifiedInboxView : UserControl, IDisposable
     private int _revision, _reading;
     private Guid? Account => (_filter.SelectedItem as Filter)?.Id;
 
-    public UnifiedInboxView(IUnifiedInbox service,Action<ReplyIntent>? respond=null)
+    public UnifiedInboxView(IUnifiedInbox service,Action<ReplyIntent>? respond=null,Guid? linked=null)
     {
         _service = service;
         var panel = new StackPanel { Spacing = 8, MaxWidth = 900 };
@@ -81,7 +81,7 @@ internal sealed class UnifiedInboxView : UserControl, IDisposable
         };
         _list.SelectionChanged += (_, _) => { _reading++; _body.Text = ""; Buttons(); };
         _timer.Tick += async (_, _) => await Guard(() => Update(false));
-        AttachedToVisualTree += async (_, _) => { await Guard(() => Update(true)); if (!_stop.IsCancellationRequested) _timer.Start(); };
+        AttachedToVisualTree += async (_, _) => { await Guard(async()=>{await Update(true);if(linked.HasValue)_filter.SelectedItem=_filter.Items.OfType<Filter>().FirstOrDefault(f=>f.Id==linked);}); if (!_stop.IsCancellationRequested) _timer.Start(); };
     }
 
     private async Task Guard(Func<Task> action)

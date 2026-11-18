@@ -74,6 +74,9 @@ public sealed partial class MailAutomationService
         c.Parameters.AddWithValue("$plan",plan.ToString());c.Parameters.AddWithValue("$ok",success);c.ExecuteNonQuery();
         c.CommandText="SELECT chain FROM automation_lineage WHERE run=$run";c.Parameters.AddWithValue("$run",run.ToString());
         var chain=c.ExecuteScalar() as string??JsonSerializer.Serialize(new[]{plan});
+        c.CommandText="SELECT json_extract(definition,'$.Name'),json_extract(definition,'$.Target.Account') FROM automation_run WHERE id=$run";
+        string name;string? account;using(var r=c.ExecuteReader()){r.Read();name=r.GetString(0);account=r.IsDBNull(1)?null:r.GetString(1);}
+        ActivityCenter.Add(c,"task/"+run+"/"+success,success?"task":"error",account,success?"任务已完成："+name:"任务执行失败："+name,"可查看选择快照及逐步结果。","task",run.ToString());
         AutomationSignals.Post(tx,"task",plan.ToString(),run+"/"+(success?"ok":"failed"),chain,success);
     }
     internal async Task DispatchSignals(CancellationToken token)

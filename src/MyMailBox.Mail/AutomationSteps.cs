@@ -90,7 +90,7 @@ public sealed partial class MailAutomationService
             for(int attempt=1;attempt<=limit;attempt++)
             {
                 step.CommandText="UPDATE automation_step SET state='started',attempts=attempts+1"+key;step.ExecuteNonQuery();
-                try{note=await ApplyAction(a,mail,op,token);Set("done",note);break;}
+                try{note=await ApplyAction(run,a,mail,op,token);Set("done",note);break;}
                 catch(OperationCanceledException){throw;}
                 catch(Exception e)
                 {
@@ -110,8 +110,9 @@ public sealed partial class MailAutomationService
         }
         return partial?("partial","部分步骤失败，已按策略继续。"):("done","已完成所有步骤。");
     }
-    private async Task<string> ApplyAction(TaskAction a,TargetMail mail,Guid operation,CancellationToken token)
+    private async Task<string> ApplyAction(Guid run,TaskAction a,TargetMail mail,Guid operation,CancellationToken token)
     {
+        if(a.Kind==TaskActionKind.Notify && _activityNotices){using var db=_store.Open();using var c=db.CreateCommand();ActivityCenter.Add(c,"notice/"+operation,"task",mail.Account.ToString(),a.Argument,"由邮件任务生成。","task",run.ToString());return "已提交到活动中心。";}
         if(a.Kind==TaskActionKind.Notify){if(_notify is null)throw new InvalidOperationException("当前宿主无法显示通知。");_notify(a.Argument);return "已提交通知。";}
         if(a.Kind is TaskActionKind.ExportEml or TaskActionKind.SaveAttachments)
         {

@@ -36,7 +36,13 @@ internal static class RuleInbox
         if(!historical)
         {
             cmd.CommandText="SELECT account_id FROM folders WHERE id=$folder";
-            if(cmd.ExecuteScalar() is string owner)AutomationSignals.Post(tx,"received",owner,eventId);
+            if(cmd.ExecuteScalar() is string owner)
+            {
+                AutomationSignals.Post(tx,"received",owner,eventId);
+                cmd.CommandText=uint.TryParse(key,out _)?"SELECT subject FROM imap_summaries WHERE folder=$folder AND uid=$item":"SELECT subject FROM messages WHERE folder_id=$folder AND id=$item";
+                var subject=cmd.ExecuteScalar() as string??"新邮件";
+                ActivityCenter.Add(cmd,"mail/"+owner+"/"+eventId,"received",owner,"收到邮件："+subject,"新邮件已进入收件记录。","mail",key,folder.ToString());
+            }
         }
     }
 

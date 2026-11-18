@@ -17,8 +17,11 @@ public sealed class SqliteNotificationSink : INotificationSink
     {
         var inserted = await Task.Run(() =>
         {
-            using var db = _store.Open(); using var command = db.CreateCommand(); command.CommandText = "INSERT OR IGNORE INTO notification_inbox(delivery_id,payload) VALUES($id,$payload)";
-            command.Parameters.AddWithValue("$id", notice.DeliveryId); command.Parameters.AddWithValue("$payload", JsonSerializer.Serialize(notice)); cancellation.ThrowIfCancellationRequested(); return command.ExecuteNonQuery() == 1;
+            using var db = _store.Open(); using var tx=db.BeginTransaction();using var command = db.CreateCommand();command.Transaction=tx; command.CommandText = "INSERT OR IGNORE INTO notification_inbox(delivery_id,payload) VALUES($id,$payload)";
+            command.Parameters.AddWithValue("$id", notice.DeliveryId); command.Parameters.AddWithValue("$payload", JsonSerializer.Serialize(notice)); cancellation.ThrowIfCancellationRequested(); bool created=command.ExecuteNonQuery()==1;
+            if(created)ActivityCenter.Add(command,"reminder/"+notice.DeliveryId,"reminder",null,"提醒："+notice.Title,"已到计划时间。",
+                notice.DeliveryId.StartsWith("schedule:",StringComparison.Ordinal)?"schedule":"reminder",notice.ReminderId.ToString(),announce:notice.Mode==ReminderNotificationMode.Banner);
+            tx.Commit();return created;
         }, cancellation);
         if (inserted && notice.Mode == ReminderNotificationMode.Banner) _show?.Invoke(notice);
     }
