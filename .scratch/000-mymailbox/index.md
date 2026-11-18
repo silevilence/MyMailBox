@@ -4,7 +4,7 @@ CI 修复验证：普通 push/PR 不再触发构建；修正 `runner.temp` 的�
 
 推送前复核：Exchange 验收地址及应用 ID 已从待推送历史移除。真实 ID 仅在本地忽略配置保留，Actions 从 `MYMAILBOX_GRAPH_CLIENT_ID` Secret 注入；普通用户仍直接登录，不填写 ID。真实服务地址由用户逐账户提供。
 
-日期：2026 年 11 月 18 日。**完成 50；进行中 3；阻塞 1；未开始 54。** 50 的 ANSI 中文及正文修复通过，研究选型完成；32 已内置发布者应用注册，普通用户直接登录，无需输入 Client ID，待个人账户真实登录/读取验收；35 的 EWS 认证仍失败，但 ActiveSync 带凭据 OPTIONS 已返回 200，声明最高协议 16.1，待部署、设备策略及测试目录读写验收。Exchange 产品须由用户逐账户填写服务器及身份，不绑定验收公司域名。证据见 [PST 修复](../../docs/validation/2026-11-17-pst-ansi-fix.md)、[Outlook.com 配置](../../docs/validation/outlook-com-setup.md)、[公司端点调查](../../docs/validation/2026-11-17-exchange-discovery.md)。
+日期：2026 年 11 月 18 日。**完成 51；进行中 3；阻塞 1；未开始 53。** 50 的 ANSI 中文及正文修复通过，研究选型完成；32 已内置发布者应用注册，普通用户直接登录，无需输入 Client ID，待个人账户真实登录/读取验收；35 的 EWS 认证仍失败，但 ActiveSync 带凭据 OPTIONS 已返回 200，声明最高协议 16.1，待部署、设备策略及测试目录读写验收。Exchange 产品须由用户逐账户填写服务器及身份，不绑定验收公司域名。证据见 [PST 修复](../../docs/validation/2026-11-17-pst-ansi-fix.md)、[Outlook.com 配置](../../docs/validation/outlook-com-setup.md)、[公司端点调查](../../docs/validation/2026-11-17-exchange-discovery.md)。
 
 - [000-mymailbox 开发规格与完成标准](spec.md)
 - [全部规格索引](../index.md)
@@ -145,7 +145,7 @@ flowchart TD
 | [60 组合 AND OR NOT 与字符串正则条件](issues/60-query-language.md) | 必做 | [59](issues/59-search-fields.md) | ready-for-agent | 完成 |
 | [61 搜索中文和多语言正文内容](issues/61-fulltext.md) | 必做 | [59](issues/59-search-fields.md)、[17](issues/17-encoding.md) | ready-for-agent | 完成 |
 | [62 用可视化条件构建并保存高级搜索](issues/62-search-builder.md) | 必做 | [60](issues/60-query-language.md)、[61](issues/61-fulltext.md)、[12](issues/12-selectors.md) | ready-for-agent | 完成 |
-| [63 在慢查询中更改条件并继续阅读](issues/63-search-cancel.md) | 必做 | [62](issues/62-search-builder.md)、[40](issues/40-multi-sync.md) | ready-for-agent | 未开始 |
+| [63 在慢查询中更改条件并继续阅读](issues/63-search-cancel.md) | 必做 | [62](issues/62-search-builder.md)、[40](issues/40-multi-sync.md) | ready-for-agent | 完成 |
 | [64 通过外部插件增加搜索字段和运算符](issues/64-search-plugin.md) | 必做 | [60](issues/60-query-language.md)、[61](issues/61-fulltext.md)、[07](issues/07-plugin-packages.md) | ready-for-agent | 未开始 |
 | [65 新邮件到达时执行可配置规则](issues/65-receive-rules.md) | 必做 | [60](issues/60-query-language.md)、[42](issues/42-same-store-actions.md)、[40](issues/40-multi-sync.md) | ready-for-agent | 未开始 |
 | [66 确保正文规则和重试不会重复产生副作用](issues/66-rule-stages.md) | 必做 | [65](issues/65-receive-rules.md)、[21](issues/21-imap-sync.md)、[44](issues/44-cross-store-move.md) | ready-for-agent | 未开始 |

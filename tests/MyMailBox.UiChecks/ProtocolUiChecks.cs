@@ -87,6 +87,11 @@ internal static class ProtocolUiChecks
             if (!SpinWait.SpinUntil(() => ui.Find("unified-body").AsTextBox().Text.Length > 0, 10000)) throw new Exception("Unified body missing");
             ui.Click("unified-auto"); ui.Status("unified-status", "已暂停");
             ui.Click("nav-accounts/search"); ui.Text("search-value","Local action"); ui.Click("search-run"); ui.Status("search-status","第 1 页");
+            var cancelSearch = ui.Find("search-cancel").AsButton(); var searchStatus = ui.Find("search-status");
+            var feedback = System.Diagnostics.Stopwatch.StartNew(); cancelSearch.Invoke();
+            if (!SpinWait.SpinUntil(() => searchStatus.Name.Contains("已取消搜索"), 100) || feedback.ElapsedMilliseconds >= 100)
+                throw new Exception($"取消搜索反馈超出 100 ms：{feedback.ElapsedMilliseconds} ms");
+            Console.WriteLine($"PASS cancel feedback via UI Automation: {feedback.ElapsedMilliseconds} ms");
             ui.Find("search-results").AsListBox().Select(0); ui.Click("search-open");
             if (!SpinWait.SpinUntil(()=>ui.Find("search-body").AsTextBox().Text.Contains("Fixture"),5000)) throw new Exception("Search result not readable");
             ui.Click("search-locate"); ui.Click("search-back"); ui.Status("search-status","第 1 页");

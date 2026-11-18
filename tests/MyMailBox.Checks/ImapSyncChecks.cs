@@ -84,7 +84,25 @@ internal static partial class ProtocolChecks
         var reset = await service.Sync(account.Id, path, 5);
         MailChecks.Check(reset.Added == 5 && (await store.Read(opened.LocalId)).Length > 0, "Generation reset reused old UIDs or removed cached MIME");
         await Reject(() => service.OpenMessage(account.Id, path, first[0], true), "目录标识");
+        sample.Body = new TextPart("plain") { Text = "distinct greenmail body search content" };
+        sample.Subject = "Remote-A"; await remote.AppendAsync(sample); sample.Subject = "Remote-B"; await remote.AppendAsync(sample);
+        await service.Sync(account.Id,path,1);
+        var cached = (await service.CachedPage(account.Id,path,0,1)).Items.Single();
+        await service.OpenMessage(account.Id,path,cached,true);
+        var definition = new SavedSearch(Guid.NewGuid(),"远端搜索","body:greenmail",SearchOrder.Newest,account.Id,cached.FolderId);
+        var localRequest = new SearchRequest([]) { Condition = definition.Condition() };
+        MailChecks.Check((await search.Search(localRequest)).Items.Count == 1, "Uncached body matched locally");
+        var response = await search.SearchRemote(definition);
+        var combined = await search.Search(localRequest with { RemoteBatch = response.Batch });
+        MailChecks.Check(response.Complete && combined.Items.Count == 2 && combined.Items.Count(m=>m.LocalId is null)==1 &&
+            combined.Items.Select(m=>m.Id).Distinct().Count()==2, "Remote results incomplete or duplicated: " + response.Detail);
+        var firstHit = await search.Search(localRequest with { RemoteBatch = response.Batch, Limit=1 });
+        var secondHit = await search.Search(localRequest with { RemoteBatch = response.Batch, Limit=1, Offset=1 });
+        MailChecks.Check(firstHit.HasMore && !secondHit.HasMore && firstHit.Items[0].Id != secondHit.Items[0].Id, "Remote union pagination");
+        var unsupported = await search.SearchRemote(definition with { Expression="NOT tag:待办" });
+        MailChecks.Check(unsupported.Batch is null && !unsupported.Complete, "Unsupported query treated as complete");
         await writer.DisconnectAsync(true);
+        Console.WriteLine("PASS real IMAP server/local search, bounded UID window, body without download, merged stable IDs and paging");
         Console.WriteLine("PASS real IMAP: recent-first, partial commit/cancel/resume, incremental arrival, generation rebuild, missing vs uncached, offline MIME and attachment after restart");
     }
 }

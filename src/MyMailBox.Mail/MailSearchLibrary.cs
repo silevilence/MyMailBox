@@ -9,7 +9,8 @@ public sealed partial class MailSearchService
         using var db = _store.Open(); using var cmd = db.CreateCommand();
         cmd.CommandText = """
             CREATE TABLE IF NOT EXISTS saved_search(id TEXT PRIMARY KEY,name TEXT NOT NULL,expression TEXT NOT NULL,
-                sort INTEGER NOT NULL,account TEXT,folder TEXT,version INTEGER NOT NULL)
+                sort INTEGER NOT NULL,account TEXT,folder TEXT,version INTEGER NOT NULL);
+            CREATE TABLE IF NOT EXISTS remote_search_hit(batch TEXT NOT NULL,id TEXT NOT NULL,created INTEGER NOT NULL,PRIMARY KEY(batch,id));
             """;
         cmd.ExecuteNonQuery();
     }

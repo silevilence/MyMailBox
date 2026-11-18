@@ -16,6 +16,8 @@ internal sealed partial class MailSearchView : UserControl, IDisposable
     private readonly TextBlock _hint = new(), _status = new() { TextWrapping = TextWrapping.Wrap }, _coverage = new() { TextWrapping = TextWrapping.Wrap };
     private readonly ListBox _results = new() { MinHeight = 120, MaxHeight = 240 };
     private readonly StackPanel _panel = new() { MaxWidth = 900, Spacing = 8 };
+    private readonly CheckBox _server = new() { Content = "同时搜索所选 IMAP 目录的服务器内容" };
+    private string? _remoteCoverage;
     private readonly Button _prev, _next, _read, _folder, _back;
     private readonly TextBox _expression = new();
     private SearchRequest _request = new([]);
@@ -50,7 +52,9 @@ internal sealed partial class MailSearchView : UserControl, IDisposable
         });
         _panel.Children.Add(new Expander { Header = "高级搜索", Content = advanced });
         Field(_panel, "结果排序", _order, "search-order");
+        _panel.Children.Add(_server);
         var toolbar = new WrapPanel(); Action(toolbar, "搜索", "search-run", RunInput);
+        Action(toolbar, "取消搜索", "search-cancel", () => { InvalidateSearch("已取消搜索，可继续阅读当前结果。"); return Task.CompletedTask; });
         _back = Action(toolbar, "返回搜索结果", "search-back", async () =>
         {
             if (_previousRequest is not { } previous) return;
@@ -91,6 +95,10 @@ internal sealed partial class MailSearchView : UserControl, IDisposable
         _results.SelectionChanged += (_, _) => { _body.Text = ""; SetSelection(); };
         _value.KeyDown += async (_, e) => { if (e.Key == Key.Enter) { e.Handled = true; await Guard(RunInput); } };
         _prev.IsEnabled = _next.IsEnabled = false; SetSelection();
+        _value.TextChanged += (_, _) => Changed(); _expression.TextChanged += (_, _) => Changed();
+        _field.SelectionChanged += (_, _) => Changed(); _match.SelectionChanged += (_, _) => Changed(); _order.SelectionChanged += (_, _) => Changed();
+        _scopes.SelectionChanged += (_, _) => Changed(); _boolValue.SelectionChanged += (_, _) => Changed();
+        _dateValue.SelectedDateChanged += (_, _) => Changed(); _sizeValue.ValueChanged += (_, _) => Changed(); _server.IsCheckedChanged += (_, _) => Changed();
         AttachedToVisualTree += async (_, _) => await Guard(async () => { await RefreshLibrary(); await Run(new([])); });
     }
     private static void Field(Panel panel, string label, Control control, string id)
@@ -144,7 +152,9 @@ internal sealed partial class MailSearchView : UserControl, IDisposable
     {
         var definition = CurrentDefinition(Guid.Empty);
         _previousRequest = null;
-        return Run(new([], definition.Order) { Condition = string.IsNullOrWhiteSpace(definition.Expression) && definition.Account is null ? null : definition.Condition() });
+        _remoteCoverage = null;
+        return Run(new([], definition.Order) { Condition = string.IsNullOrWhiteSpace(definition.Expression) && definition.Account is null ? null : definition.Condition() },
+            remote: _server.IsChecked == true ? definition : null);
     }
 
     private async Task Locate(SearchHit hit)
@@ -155,7 +165,16 @@ internal sealed partial class MailSearchView : UserControl, IDisposable
         if (version == _version) await Run(request with { Offset = position / request.Limit * request.Limit }, hit.Id);
     }
 
-    private async Task Run(SearchRequest request, string? selected = null)
+    private void Changed()
+    {
+        InvalidateSearch("条件已更改，请搜索以更新结果。");
+    }
+    private void InvalidateSearch(string status)
+    {
+        _version++; _status.Text = status; if (_operation is { } operation) _ = operation.CancelAsync();
+    }
+
+    private async Task Run(SearchRequest request, string? selected = null, SavedSearch? remote = null)
     {
         var version = ++_version; _operation?.Cancel();
         using var operation = CancellationTokenSource.CreateLinkedTokenSource(_stop.Token); _operation = operation;
@@ -163,7 +182,21 @@ internal sealed partial class MailSearchView : UserControl, IDisposable
         try
         {
             var page = await _service.Search(request, operation.Token);
-            if (version == _version && !_stop.IsCancellationRequested) Show(request, page, selected);
+            if (version != _version || _stop.IsCancellationRequested) return;
+            Show(request, page, selected);
+            if (remote is not null)
+            {
+                _status.Text = "已显示本地结果，正在搜索服务器…";
+                var progress = new Progress<SearchIndexProgress>(p => { if (version == _version && ReferenceEquals(_operation, operation)) _status.Text = $"已显示本地结果，服务器已检查 {p.Completed}/{p.Total} 封。"; });
+                var result = await _service.SearchRemote(remote, progress, operation.Token);
+                if (version != _version) return;
+                _remoteCoverage = result.Detail;
+                if (result.Batch is not null)
+                {
+                    request = request with { RemoteBatch = result.Batch }; page = await _service.Search(request, operation.Token);
+                }
+                if (version == _version) Show(request, page, selected);
+            }
         }
         catch (Exception e) when (e is not OperationCanceledException)
         { if (version == _version && !_stop.IsCancellationRequested) _status.Text = e.Message; }
@@ -174,6 +207,7 @@ internal sealed partial class MailSearchView : UserControl, IDisposable
         _request = request; _results.ItemsSource = result.Items; _results.SelectedItem = result.Items.FirstOrDefault(m => m.Id == selected);
         _prev.IsEnabled = request.Offset > 0; _next.IsEnabled = result.HasMore; _back.IsVisible = _previousRequest is not null; SetSelection();
         _coverage.Text = $"当前工作空间 · 原文 {result.FullMessages} 封，已索引正文 {result.IndexedBodies} 封，仅摘要 {result.Summaries} 封，原文元数据不完整 {result.MissingMetadata} 封。";
+        if (request.RemoteBatch is not null || _server.IsChecked == true) _coverage.Text += " " + _remoteCoverage;
         if (result.Unknown > 0) _coverage.Text += $" 条件未知 {result.Unknown} 封。";
         if (result.UnavailableFields.Count > 0) _coverage.Text += " 缺少字段插件：" + string.Join("、", result.UnavailableFields);
         _status.Text = result.Items.Count == 0 ? "没有匹配邮件。" : $"第 {request.Offset / request.Limit + 1} 页 · {result.Items.Count} 封。";

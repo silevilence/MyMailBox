@@ -60,7 +60,13 @@ public sealed partial class MailSearchService : IMailSearch
         )
         """;
 
-    public Task<SearchPage> Search(SearchRequest request, CancellationToken token = default) => Task.Run(() =>
+    public async Task<SearchPage> Search(SearchRequest request, CancellationToken token = default)
+    {
+        try { return await Task.Run(() => SearchLocal(request, token), token); }
+        catch (SqliteException) when (token.IsCancellationRequested) { throw new OperationCanceledException(token); }
+    }
+
+    private SearchPage SearchLocal(SearchRequest request, CancellationToken token)
     {
         if (request.Offset < 0 || request.Limit is < 1 or > 200) throw new ArgumentOutOfRangeException(nameof(request));
         using var db = _store.Open(); using var cmd = db.CreateCommand();
@@ -70,8 +76,15 @@ public sealed partial class MailSearchService : IMailSearch
         var unavailable = new HashSet<string>();
         string? condition = request.Condition is null ? null : Compile(db, cmd, request.Condition, unavailable, token);
         string combined = string.Join(" AND ", filters.Concat(condition is null ? [] : new[] { condition }));
+        if (request.RemoteBatch is Guid batch && combined.Length > 0 && unavailable.Count == 0)
+        {
+            cmd.Parameters.AddWithValue("$remote", batch.ToString());
+            combined = $"(({combined}) OR id IN(SELECT id FROM remote_search_hit WHERE batch=$remote))";
+        }
         var order = Ordering(request.Order);
         _metadata.Prepare(token); _bodyIndex.Prepare(false, null, token);
+        using var interrupt = token.Register(() => SQLitePCL.raw.sqlite3_interrupt(db.Handle));
+        token.ThrowIfCancellationRequested();
         using var tx = db.BeginTransaction(deferred: true); cmd.Transaction = tx;
         cmd.CommandText = Documents + " SELECT count(localid),count(*)-count(localid),sum(localid IS NOT NULL AND NOT complete)," + (condition is null ? "0" : $"count(CASE WHEN ({combined}) IS NULL THEN 1 END)") + ",count(CASE WHEN body IS NOT NULL AND localid IN(SELECT message FROM body_index_state) THEN 1 END) FROM docs";
         int full, summaries, missing, unknown, indexed;
@@ -93,7 +106,7 @@ public sealed partial class MailSearchService : IMailSearch
                 r.IsDBNull(8) ? null : Guid.Parse(r.GetString(8)), r.IsDBNull(9) ? null : (uint)r.GetInt64(9), r.IsDBNull(10) ? null : (uint)r.GetInt64(10)) { Excerpt = r.IsDBNull(11) ? null : Excerpt(r.GetString(11), highlights) });
         }
         return new SearchPage(hits.Take(request.Limit).ToArray(), hits.Count > request.Limit, full, summaries, missing) { IndexedBodies = indexed, Unknown = unknown, UnavailableFields = unavailable.ToArray() };
-    }, token);
+    }
 
     private static string Ordering(SearchOrder order) => order switch
     {

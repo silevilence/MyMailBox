@@ -216,6 +216,7 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
     private sealed class ScopedSearch(PluginScope scope, ServiceTarget<IMailSearch> service) : IMailSearch
     {
         public IReadOnlyList<SearchField> Fields => service.Value.Fields.ToArray();
+        public Task<RemoteSearchPage> SearchRemote(SavedSearch definition,IProgress<SearchIndexProgress>? progress=null,CancellationToken token=default) => scope.Run(t=>service.Value.SearchRemote(definition,progress,t),token);
         public Task<SearchLibrary> Library(CancellationToken token=default) => scope.Run(t=>service.Value.Library(t),token);
         public async Task Save(SavedSearch search,CancellationToken token=default) => await scope.Run(async t=>{await service.Value.Save(search,t);return true;},token);
         public Task<SearchPage> Search(SearchRequest request,CancellationToken token=default) =>
