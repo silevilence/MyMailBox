@@ -66,7 +66,7 @@ public sealed partial class ProtocolMailService
                         var requested = cache.MissingSummaries(folder, batch);
                         if (requested.Count > 0)
                         {
-                            var summaries = await remote.FetchAsync(requested.ToArray(), MessageSummaryItems.UniqueId | MessageSummaryItems.Envelope | MessageSummaryItems.Size | MessageSummaryItems.Flags, cancellation);
+                            var summaries = await remote.FetchAsync(requested.ToArray(), MessageSummaryItems.UniqueId | MessageSummaryItems.Envelope | MessageSummaryItems.InternalDate | MessageSummaryItems.Size | MessageSummaryItems.Flags, cancellation);
                             added += cache.Add(folder, summaries.Where(s => requested.Contains(s.UniqueId)), cancellation);
                         }
                         watermark = Math.Max(watermark, batch[0].Id);

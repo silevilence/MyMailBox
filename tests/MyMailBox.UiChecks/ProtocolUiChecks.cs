@@ -86,6 +86,10 @@ internal static class ProtocolUiChecks
             ui.Find("unified-list").AsListBox().Select(0); ui.Click("unified-open");
             if (!SpinWait.SpinUntil(() => ui.Find("unified-body").AsTextBox().Text.Length > 0, 10000)) throw new Exception("Unified body missing");
             ui.Click("unified-auto"); ui.Status("unified-status", "已暂停");
+            ui.Click("nav-accounts/search"); ui.Text("search-value","Local action"); ui.Click("search-run"); ui.Status("search-status","第 1 页");
+            ui.Find("search-results").AsListBox().Select(0); ui.Click("search-open");
+            if (!SpinWait.SpinUntil(()=>ui.Find("search-body").AsTextBox().Text.Contains("Fixture"),5000)) throw new Exception("Search result not readable");
+            ui.Click("search-locate"); ui.Click("search-back"); ui.Status("search-status","第 1 页");
             ui.Click("nav-local-mail/inbox");
             Capture.Element(window).ToFile(Path.Combine(output, "04-local.png"));
             var process = Process.GetProcessById(app.ProcessId); window.Close();

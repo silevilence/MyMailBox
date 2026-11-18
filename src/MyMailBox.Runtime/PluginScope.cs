@@ -31,6 +31,7 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
                 { OfflineMarks = protocols.OfflineMarks is { } marks ? new ScopedOfflineMarks(this,Target(marks)) : null,
                   Outbox = protocols.Outbox is { } outbox ? new ScopedOutbox(this, Target(outbox)) : null,
                   ImapSync = protocols.ImapSync is { } sync ? new ScopedImapSync(this, Target(sync)) : null } : null,
+            Search = page.Search is { } search ? new ScopedSearch(this,Target(search)) : null,
             Organization = page.Organization is { } org ? new(new ScopedAccounts(this, Target(org.Accounts)), new ScopedOrganizer(this, Target(org.Organizer)))
                 { Transfers = org.Transfers is { } transfers ? new ScopedTransfers(this,Target(transfers)) : null,
                   Actions = org.Actions is { } actions ? new ScopedActions(this,Target(actions)) : null } : null,
@@ -210,6 +211,15 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
             await scope.Run(async t=>{ await service.Value.Cancel(operation,t); return true; },token);
         public Task<IReadOnlyList<MailTransfer>> Recent(Guid sourceAccount,int offset,int limit,CancellationToken token=default) =>
             scope.Run(t=>service.Value.Recent(sourceAccount,offset,limit,t),token);
+    }
+
+    private sealed class ScopedSearch(PluginScope scope, ServiceTarget<IMailSearch> service) : IMailSearch
+    {
+        public IReadOnlyList<SearchField> Fields => service.Value.Fields.ToArray();
+        public Task<SearchPage> Search(SearchRequest request,CancellationToken token=default) =>
+            scope.Run(t=>service.Value.Search(request,t),token);
+        public Task<int> Position(SearchHit hit,SearchOrder order,CancellationToken token=default) => scope.Run(t=>service.Value.Position(hit,order,t),token);
+        public Task<string> Read(SearchHit hit,CancellationToken token=default) => scope.Run(t=>service.Value.Read(hit,t),token);
     }
 
     private sealed class ScopedActions(PluginScope scope, ServiceTarget<IMailActionService> service) : IMailActionService

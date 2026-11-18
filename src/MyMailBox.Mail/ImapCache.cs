@@ -48,6 +48,12 @@ internal sealed partial class ImapCache(SqliteMailStore store, Guid account, Mai
             command.CommandText = "ALTER TABLE imap_summaries ADD COLUMN flags INTEGER NOT NULL DEFAULT 0";
             command.ExecuteNonQuery();
         }
+        command.CommandText = "SELECT count(*) FROM pragma_table_info('imap_summaries') WHERE name='envelope'";
+        if (Convert.ToInt32(command.ExecuteScalar()) == 0)
+        {
+            command.CommandText = "ALTER TABLE imap_summaries ADD COLUMN envelope TEXT";
+            command.ExecuteNonQuery();
+        }
         tx.Commit();
     }
 
@@ -165,7 +171,7 @@ internal sealed partial class ImapCache(SqliteMailStore store, Guid account, Mai
         using var command = db.CreateCommand();
         command.Transaction = tx;
         command.CommandText = """
-            INSERT INTO imap_summaries(folder,uid,subject,sender,size,date_ms,flags) VALUES($folder,$uid,$subject,$sender,$size,$date,$flags)
+            INSERT INTO imap_summaries(folder,uid,subject,sender,size,date_ms,flags,envelope) VALUES($folder,$uid,$subject,$sender,$size,$date,$flags,$env)
             ON CONFLICT(folder,uid) DO NOTHING
             """;
         command.Parameters.AddWithValue("$folder", folder.Id.ToString());
@@ -175,6 +181,7 @@ internal sealed partial class ImapCache(SqliteMailStore store, Guid account, Mai
         var size = command.Parameters.Add("$size", SqliteType.Integer);
         var date = command.Parameters.Add("$date", SqliteType.Integer);
         var flags = command.Parameters.Add("$flags",SqliteType.Integer);
+        var envelope = command.Parameters.Add("$env",SqliteType.Text);
         int added = 0;
         foreach (var item in batch)
         {
@@ -184,6 +191,11 @@ internal sealed partial class ImapCache(SqliteMailStore store, Guid account, Mai
             sender.Value = item.Envelope?.From.ToString() ?? "";
             size.Value = (long)(item.Size ?? 0);
             date.Value = item.Envelope?.Date?.ToUnixTimeMilliseconds() ?? 0;
+            envelope.Value = System.Text.Json.JsonSerializer.Serialize(new {
+                To = item.Envelope?.To.ToString(), Cc = item.Envelope?.Cc.ToString(), Bcc = item.Envelope?.Bcc.ToString(),
+                Reply = item.Envelope?.ReplyTo.ToString(), Sender = item.Envelope?.Sender.ToString(), Thread = item.Envelope?.InReplyTo ?? item.Envelope?.MessageId,
+                Received = item.InternalDate?.ToUnixTimeMilliseconds()
+            });
             flags.Value = (int)(item.Flags ?? MessageFlags.None);
             added += command.ExecuteNonQuery();
         }

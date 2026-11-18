@@ -41,8 +41,13 @@ internal static partial class ProtocolChecks
         var initial = await service.Sync(account.Id, path, 5);
         var first = (await service.CachedPage(account.Id, path, 0, 3)).Items;
         MailChecks.Check(initial.Added == 5 && first[0].Subject == "测试 39" && first.All(m => m.LocalId is null), "Recent window downloaded bodies or selected wrong messages");
+        var search = new MailSearchService(store,service);
+        var results = await search.Search(new([new("subject",SearchMatch.Equals,"测试 39")]));
+        MailChecks.Check(results.Summaries==5 && results.Items.Single().LocalId is null,"IMAP-only search coverage missing");
         await Reject(() => service.OpenMessage(account.Id, path, first[0], false), "尚未缓存");
         var opened = await service.OpenMessage(account.Id, path, first[0], true);
+        var after = await search.Search(new([new("subject",SearchMatch.Equals,"测试 39")]));
+        MailChecks.Check(after.Summaries==4 && after.Items.Single().Id==results.Items[0].Id && (await search.Read(results.Items[0])).Contains("可离线"),"Cached IMAP hit duplicated or lost stable location");
         var parsed = await new MyMailBox.Mail.MimeReader().Parse(await store.Read(opened.LocalId));
         MailChecks.Check(opened.Text.Contains("可离线") && parsed.Parts!.Any(p => p.Name == "附件.txt"), "Cached MIME lost text or attachment");
         var reopened = new ProtocolMailService(store);

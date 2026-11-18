@@ -1,6 +1,6 @@
 # 000-mymailbox · MyMailBox 需求覆盖矩阵
 
-状态：完成 46；进行中 3；阻塞 1；未开始 58。PST ANSI 保真已修复并完成研究选型；32 已内置公共客户端注册并提供直接登录，待真实个人账户验收；35 EWS 认证仍为 401，EAS 带凭据 OPTIONS 已为 200/最高 16.1，待实际读写验收。入口：[任务索引](index.md)、[规格](spec.md)、[PST修复验收](../../docs/validation/2026-11-17-pst-ansi-fix.md)。
+状态：完成 47；进行中 3；阻塞 1；未开始 57。PST ANSI 保真已修复并完成研究选型；32 已内置公共客户端注册并提供直接登录，待真实个人账户验收；35 EWS 认证仍为 401，EAS 带凭据 OPTIONS 已为 200/最高 16.1，待实际读写验收。入口：[任务索引](index.md)、[规格](spec.md)、[PST修复验收](../../docs/validation/2026-11-17-pst-ansi-fix.md)。
 
 REQ 是原始用户需求及后续确认，SUP 为必要支撑，OPT 为尚未选入首版的扩展。每行列出具体实现/验证工单，不借总验收工单填充覆盖。进度列统计该行关联工单（含可选扩展），不是整条需求的验收结论；所有必做和已选条件范围完成前，不能宣称整条需求交付。
 
@@ -15,7 +15,7 @@ REQ 是原始用户需求及后续确认，SUP 为必要支撑，OPT 为尚未�
 | REQ-07 | 用户 6.2 必做 | PST 邮件与目录导入，保真、报告及恢复 | [13](issues/13-mime-baseline.md)、[48](issues/48-outlook-discovery.md)、[50](issues/50-pst-spike.md)、[51](issues/51-pst-import.md)、[52](issues/52-pst-fidelity.md)、[53](issues/53-import-resume.md)、[94](issues/94-extensibility-audit.md)、[97](issues/97-user-guides.md)、[101](issues/101-outlook-pst-adapter.md) | 完成 3；未开始 6 |
 | REQ-08 | 用户 6.2 条件项 | 评估并尽可能导入 Outlook 规则，清楚报告不支持项 | [54](issues/54-rules-import-spike.md)、[68](issues/68-rules-import.md) | 未开始 2 |
 | REQ-09 | 用户 6.3 | 多形式邮件导出及外部导出器 | [19](issues/19-backup.md)、[55](issues/55-eml-export.md)、[56](issues/56-archive-export.md)、[57](issues/57-readable-export.md)、[58](issues/58-bulk-export.md)、[94](issues/94-extensibility-audit.md)、[95](issues/95-settings-transfer.md)、[99](issues/99-mbox-maildir.md)、[102](issues/102-msg-pst-export.md) | 完成 5；未开始 4 |
-| REQ-10 | 用户 6.4 | 高级搜索、正文、发件人、To/Cc、日期及扩展搜索能力 | [59](issues/59-search-fields.md)、[60](issues/60-query-language.md)、[61](issues/61-fulltext.md)、[62](issues/62-search-builder.md)、[63](issues/63-search-cancel.md)、[64](issues/64-search-plugin.md)、[94](issues/94-extensibility-audit.md) | 未开始 7 |
+| REQ-10 | 用户 6.4 | 高级搜索、正文、发件人、To/Cc、日期及扩展搜索能力 | [59](issues/59-search-fields.md)、[60](issues/60-query-language.md)、[61](issues/61-fulltext.md)、[62](issues/62-search-builder.md)、[63](issues/63-search-cancel.md)、[64](issues/64-search-plugin.md)、[94](issues/94-extensibility-audit.md) | 完成 1；未开始 6 |
 | REQ-11 | 用户 6.5 | 收件规则、条件与动作扩展 | [60](issues/60-query-language.md)、[65](issues/65-receive-rules.md)、[66](issues/66-rule-stages.md)、[67](issues/67-rule-preview.md)、[79](issues/79-automation-sdk.md)、[85](issues/85-automatic-replies.md)、[94](issues/94-extensibility-audit.md)、[95](issues/95-settings-transfer.md) | 未开始 8 |
 | REQ-12 | 用户 6.6.1 | 日/间隔/周/月/第 N 周几/CRON 等调度 | [69](issues/69-reminder.md)、[70](issues/70-recurrence.md)、[71](issues/71-cron-timezone.md)、[72](issues/72-scheduler-recovery.md)、[75](issues/75-archive-task.md)、[77](issues/77-event-tasks.md)、[79](issues/79-automation-sdk.md)、[94](issues/94-extensibility-audit.md)、[96](issues/96-tray-lifetime.md) | 完成 4；未开始 5 |
 | REQ-13 | 用户 6.6.2 | 邮件存在、数量、空间等任务前置条件及 AND/OR/NOT | [60](issues/60-query-language.md)、[73](issues/73-task-preconditions.md)、[75](issues/75-archive-task.md)、[77](issues/77-event-tasks.md)、[79](issues/79-automation-sdk.md)、[94](issues/94-extensibility-audit.md) | 未开始 6 |
