@@ -20,7 +20,7 @@ internal static partial class ProtocolChecks
         var preset=(await mail.Presets()).Single();
         var settings=preset.ForAddress(account.Address);
         MailChecks.Check(preset.Id==id+"/imap-smtp" && settings.Incoming?.Port==993 && settings.Outgoing?.Port==465 &&
-            settings.Incoming.Tls==MailTls.Implicit && preset.Guidance.Contains("授权"),"Invalid provider setup");
+            settings.Incoming.Tls==MailTls.Implicit && preset.IdentifyClient==(id=="netease-mail") && preset.Guidance.Contains("授权"),"Invalid provider setup");
         await mail.Save(account.Id,settings,null,null);
         await Reject(()=>mail.Save(account.Id,settings with { Incoming=settings.Incoming! with { Host="changed.invalid" } },null,null),"不一致");
         Guid folder=Guid.NewGuid();
@@ -43,6 +43,21 @@ internal static partial class ProtocolChecks
         await mail.Save(account.Id,custom,"test-secret","test-secret");
         await Reject(()=>mail.Save(account.Id,custom with{Incoming=custom.Incoming! with{Host="second.invalid"}},null,null),"重新输入");
         MailChecks.Check((await mail.Settings(account.Id)).Incoming?.Host=="first.invalid","Failed preset change modified active endpoint");
+        if (preset.IdentifyClient)
+        {
+            foreach (bool advertised in new[]{true,false})
+            {
+                await using var server=new ProtocolFaultServer(imap:true){AdvertiseId=advertised};
+                var fixture=preset with{IncomingHost="127.0.0.1",IncomingPort=server.Port,OutgoingHost="127.0.0.1"};
+                var client=new ProtocolMailService(store,()=>[fixture]);
+                var initial=fixture.ForAddress(account.Address);
+                await client.Save(account.Id,initial with{Incoming=initial.Incoming! with{CertificateSha256=server.Pin}},"local-fixture","local-fixture");
+                await Reject(()=>client.Folders(account.Id),"授权密码");
+                MailChecks.Check(advertised ? server.Identification?.Contains("MyMailBox")==true &&
+                    !server.Identification.Contains(account.Address) && !server.Identification.Contains("local-fixture") :
+                    server.Identification==null,"Client identification ignored the negotiated capability or disclosed credentials");
+            }
+        }
         Console.WriteLine("PASS "+id+" ordinary plug-in, TLS defaults, explicit selection, removal/re-enable preserves settings, credential binding; vendor login not exercised");
     }
 }

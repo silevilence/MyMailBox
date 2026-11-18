@@ -128,7 +128,7 @@ public sealed partial class ProtocolMailService : IProtocolMailService, IImapSyn
         static bool Matches(MailEndpoint? endpoint,string host,int port) => endpoint is null ||
             (endpoint.Host.Equals(host,StringComparison.OrdinalIgnoreCase) && endpoint.Port==port && endpoint.Tls==MailTls.Implicit &&
              endpoint.Authentication==MailAuthentication.Password);
-        if (!Matches(settings.Incoming,preset.IncomingHost,993) || !Matches(settings.Outgoing,preset.OutgoingHost,465))
+        if (!Matches(settings.Incoming,preset.IncomingHost,preset.IncomingPort) || !Matches(settings.Outgoing,preset.OutgoingHost,preset.OutgoingPort))
             throw new InvalidDataException("已保存服务器与当前预设不一致，请重新应用预设或选择自定义服务器。");
         return preset;
     }
@@ -157,9 +157,17 @@ public sealed partial class ProtocolMailService : IProtocolMailService, IImapSyn
                     DateTime.TryParse(certificate.GetEffectiveDateString(), out var effective) && effective.ToUniversalTime() <= DateTime.UtcNow &&
                     DateTime.TryParse(certificate.GetExpirationDateString(), out var expiry) && expiry.ToUniversalTime() > DateTime.UtcNow;
             await client.ConnectAsync(endpoint.Host, endpoint.Port, endpoint.Tls == MailTls.Implicit ? SecureSocketOptions.SslOnConnect : SecureSocketOptions.StartTls, timeout.Token);
+            // RFC 2971 allows ID before or after authentication. Advertise the actual client only.
+            var imap = preset?.IdentifyClient == true ? client as ImapClient : null;
+            var identification = new ImapImplementation { Name = "MyMailBox",
+                Version = typeof(ProtocolMailService).Assembly.GetName().Version?.ToString(3) };
+            bool identified = imap?.Capabilities.HasFlag(ImapCapabilities.Id) == true;
+            if (identified) await imap!.IdentifyAsync(identification,timeout.Token);
             var secret = Encoding.UTF8.GetString(plain);
             if (endpoint.Authentication == MailAuthentication.OAuth2) await client.AuthenticateAsync(new SaslMechanismOAuth2(endpoint.User, secret), timeout.Token);
             else await client.AuthenticateAsync(endpoint.User, secret, timeout.Token);
+            if (!identified && imap?.Capabilities.HasFlag(ImapCapabilities.Id) == true)
+                await imap.IdentifyAsync(identification,timeout.Token);
             command.CommandText = "UPDATE accounts SET auth_state=$state WHERE id=$id AND enabled=1 AND removed=0";
             command.Parameters.AddWithValue("$state", outgoing ? "发信连接已验证" : "收信连接已验证"); command.ExecuteNonQuery();
         }
@@ -189,7 +197,11 @@ public sealed partial class ProtocolMailService : IProtocolMailService, IImapSyn
         }
         catch (ProtocolException) { throw new InvalidDataException("服务器连接中断或响应格式异常，请重新连接后重试。"); }
         catch (CommandException)
-        { throw new InvalidDataException("服务器请求失败，请检查服务器配置后重试。"); }
+        {
+            var settings = await Settings(id);
+            var preset = settings.PresetId is null ? null : _presets().FirstOrDefault(p=>p.Id==settings.PresetId);
+            throw new InvalidDataException(preset is null ? "服务器请求失败，请检查服务器配置后重试。" : "服务器拒绝了当前操作。"+preset.Guidance);
+        }
     }
     public Task<IReadOnlyList<RemoteFolder>> Folders(Guid account, CancellationToken cancellation = default) => ReadOperation<IReadOnlyList<RemoteFolder>>(account, async () =>
     {

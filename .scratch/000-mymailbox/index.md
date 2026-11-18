@@ -4,7 +4,7 @@ CI 修复验证：普通 push/PR 不再触发构建；修正 `runner.temp` 的�
 
 推送前复核：Exchange 验收地址及应用 ID 已从待推送历史移除。真实 ID 仅在本地忽略配置保留，Actions 从 `MYMAILBOX_GRAPH_CLIENT_ID` Secret 注入；普通用户仍直接登录，不填写 ID。真实服务地址由用户逐账户提供。
 
-日期：2026 年 11 月 18 日。**完成 74；进行中 3；阻塞 1；未开始 30。** 50 的 ANSI 中文及正文修复通过，研究选型完成；32 已内置发布者应用注册，普通用户直接登录，无需输入 Client ID，待个人账户真实登录/读取验收；35 的 EWS 认证仍失败，但 ActiveSync 带凭据 OPTIONS 已返回 200，声明最高协议 16.1，待部署、设备策略及测试目录读写验收。Exchange 产品须由用户逐账户填写服务器及身份，不绑定验收公司域名。证据见 [PST 修复](../../docs/validation/2026-11-17-pst-ansi-fix.md)、[Outlook.com 配置](../../docs/validation/outlook-com-setup.md)、[公司端点调查](../../docs/validation/2026-11-17-exchange-discovery.md)。
+日期：2026 年 11 月 18 日。**完成 74；进行中 4；阻塞 1；未开始 29。** 50 的 ANSI 中文及正文修复通过，研究选型完成；32 已内置发布者应用注册，普通用户直接登录，无需输入 Client ID，待个人账户真实登录/读取验收；35 的 EWS 认证仍失败，但 ActiveSync 带凭据 OPTIONS 已返回 200，声明最高协议 16.1，待部署、设备策略及测试目录读写验收。Exchange 产品须由用户逐账户填写服务器及身份，不绑定验收公司域名。证据见 [PST 修复](../../docs/validation/2026-11-17-pst-ansi-fix.md)、[Outlook.com 配置](../../docs/validation/outlook-com-setup.md)、[公司端点调查](../../docs/validation/2026-11-17-exchange-discovery.md)。
 
 - [000-mymailbox 开发规格与完成标准](spec.md)
 - [全部规格索引](../index.md)
@@ -102,7 +102,7 @@ flowchart TD
 | [27 用可替换地址建议完成收件人输入](issues/27-address-suggestions.md) | 必做 | [23](issues/23-composer.md)、[11](issues/11-accounts.md) | ready-for-agent | 完成 |
 | [28 安排稍后发送并取消尚未发送的邮件](issues/28-scheduled-send.md) | 必做 | [25](issues/25-outbox.md)、[23](issues/23-composer.md) | ready-for-agent | 完成 |
 | [29 通过 QQ 预设完成收发闭环](issues/29-qq.md) | 必做 | [21](issues/21-imap-sync.md)、[26](issues/26-reply-forward.md) | needs-info | 进行中 |
-| [30 通过 163 预设完成收发闭环](issues/30-netease.md) | 必做 | [21](issues/21-imap-sync.md)、[26](issues/26-reply-forward.md) | needs-info | 未开始 |
+| [30 通过 163 预设完成收发闭环](issues/30-netease.md) | 必做 | [21](issues/21-imap-sync.md)、[26](issues/26-reply-forward.md) | needs-info | 进行中 |
 | [31 通过 POP3 拉取邮件并控制服务器留存](issues/31-pop3.md) | 必做 | [11](issues/11-accounts.md)、[13](issues/13-mime-baseline.md)、[18](issues/18-storage-recovery.md) | ready-for-agent | 完成 |
 | [32 登录 Outlook.com 并阅读云端邮件](issues/32-graph-login.md) | 必做 | [11](issues/11-accounts.md)、[12](issues/12-selectors.md)、[13](issues/13-mime-baseline.md) | needs-info | 进行中 |
 | [33 通过 Graph 发送并处理邮件状态](issues/33-graph-send.md) | 必做 | [32](issues/32-graph-login.md)、[26](issues/26-reply-forward.md) | needs-info | 未开始 |

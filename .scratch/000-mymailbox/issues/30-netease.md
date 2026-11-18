@@ -2,7 +2,7 @@
 
 Spec: 000-mymailbox
 Status: needs-info
-Progress: not-started
+Progress: in-progress
 Type: task
 Scope: 必做
 Estimate: 2–3 人日
@@ -21,9 +21,9 @@ Blocked by: 21, 26
 
 ## Acceptance criteria
 
-- [ ] 协议开通、授权码及厂商拒绝信息转为可操作提示。
+- [x] 协议开通、授权码及厂商拒绝信息转为可操作提示。
 - [ ] 真实账户收发、中文目录、正文/附件和重连通过，不硬编码未经验证的私有行为。
-- [ ] 复用通用协议层并保持厂商预设可替换，不复制一整套同步引擎。
+- [x] 复用通用协议层并保持厂商预设可替换，不复制一整套同步引擎。
 
 ## Blocked by
 
@@ -38,7 +38,7 @@ Blocked by: 21, 26
 
 ## 验证与交付记录
 
-实施时记录演示步骤或检查命令、结果、适用环境和已知限制；目前未执行，所有验收项保持未勾选。若发现超出预计粒度，先拆为完整可验收子场景；环境不足时保留具体缺口，不标完成。
+2026-11-18：新增可独立启停的网易 163 普通预设，复用现有 IMAP/SMTP。预设填入隐式 TLS 参数，并提示开通客户端服务、生成授权密码和检查网页版安全限制。服务器声明 ID 扩展时发送 MyMailBox 自身名称/版本。netease-preset 覆盖预设生命周期、账户和缓存保留、连接绑定，并通过本机 TLS IMAP 端点验证只有服务端声明 ID 时才发送真实产品标识、认证拒绝会显示授权指引；实际厂商账户及客户端识别的线上响应尚未验证。参数见 [Thunderbird 自动配置](https://autoconfig.thunderbird.net/v1.1/163.com)，授权流程见 [网易邮箱帮助](https://help.mail.126.com/faqDetail.do?code=d7a5dc8471cd0c0e8b4b8f4f8e49998b374173cfe9171305fa1ce630d7f67ac2ed007f2b27412aae)。
 
 ## Comments
 

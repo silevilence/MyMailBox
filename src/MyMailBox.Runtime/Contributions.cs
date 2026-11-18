@@ -16,6 +16,7 @@ public sealed class Contributions(Action<Action>? dispatch = null) : IContributi
     public IDisposable AddProtocolPreset(ProtocolPreset preset)
     {
         if (string.IsNullOrWhiteSpace(preset.Id) || string.IsNullOrWhiteSpace(preset.Name) ||
+            preset.IncomingPort is < 1 or > 65535 || preset.OutgoingPort is < 1 or > 65535 ||
             Uri.CheckHostName(preset.IncomingHost) == UriHostNameType.Unknown || Uri.CheckHostName(preset.OutgoingHost) == UriHostNameType.Unknown)
             throw new InvalidDataException("预设缺少有效名称或服务器。");
         lock (_gate) _protocolPresets.Add(preset.Id,preset);

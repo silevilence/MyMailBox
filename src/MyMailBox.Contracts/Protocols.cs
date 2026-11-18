@@ -14,7 +14,9 @@ public sealed record ProtocolSettings(MailEndpoint? Incoming = null, MailEndpoin
 public sealed record ProtocolPreset(string Id, string Name, string IncomingHost, string OutgoingHost,
     string Guidance, bool IdentifyClient = false)
 {
-    public ProtocolSettings ForAddress(string address) => new(new(IncomingHost,993,address),new(OutgoingHost,465,address)) { PresetId = Id };
+    public int IncomingPort { get; init; } = 993;
+    public int OutgoingPort { get; init; } = 465;
+    public ProtocolSettings ForAddress(string address) => new(new(IncomingHost,IncomingPort,address),new(OutgoingHost,OutgoingPort,address)) { PresetId = Id };
 }
 public sealed record RemoteFolder(string Path, string Name, string Role, bool Selectable);
 public sealed record RemoteSummary(uint Uid, string Subject, string From, DateTimeOffset? Date, long Size, bool IsRead);

@@ -13,6 +13,9 @@ internal sealed class ProtocolFaultServer : IAsyncDisposable
     private readonly X509Certificate2 _certificate;
     private readonly Task _runner;
     private readonly bool _smtp;
+    private readonly bool _imap;
+    public bool AdvertiseId { get; set; } = true;
+    public string? Identification { get; private set; }
     public int Port => ((IPEndPoint)_listener.LocalEndpoint).Port;
     public string Pin => _certificate.GetCertHashString(HashAlgorithmName.SHA256);
     public bool Uids { get; set; } = true;
@@ -25,9 +28,9 @@ internal sealed class ProtocolFaultServer : IAsyncDisposable
     public int Deletes { get; private set; }
     public string? Received { get; private set; }
     private readonly List<(string Uid, byte[] Raw)> _mail = [];
-    public ProtocolFaultServer(bool smtp = false)
+    public ProtocolFaultServer(bool smtp = false,bool imap = false)
     {
-        _smtp = smtp;
+        _smtp = smtp;_imap = imap;
         using var key = RSA.Create(2048); var request = new CertificateRequest("CN=localhost", key, HashAlgorithmName.SHA256, RSASignaturePadding.Pkcs1);
         var san = new SubjectAlternativeNameBuilder(); san.AddDnsName("localhost"); san.AddIpAddress(IPAddress.Loopback); request.CertificateExtensions.Add(san.Build());
         using var certificate = request.CreateSelfSigned(DateTimeOffset.Now.AddMinutes(-1), DateTimeOffset.Now.AddDays(1));
@@ -45,10 +48,29 @@ internal sealed class ProtocolFaultServer : IAsyncDisposable
                 using var tls = new SslStream(tcp.GetStream()); await tls.AuthenticateAsServerAsync(_certificate);
                 using var reader = new StreamReader(tls, Encoding.UTF8, false, 4096, true);
                 using var writer = new StreamWriter(tls, new UTF8Encoding(false), 4096, true) { AutoFlush = true, NewLine = "\r\n" };
-                if (_smtp) await Smtp(reader, writer); else await Pop(reader, writer);
+                if (_imap) await Imap(reader,writer); else if (_smtp) await Smtp(reader, writer); else await Pop(reader, writer);
             }
             catch (Exception e) when (e is IOException or System.Security.Authentication.AuthenticationException or OperationCanceledException or SocketException) { }
             catch (ObjectDisposedException) when (_stop.IsCancellationRequested) { }
+        }
+    }
+    private async Task Imap(StreamReader reader, StreamWriter writer)
+    {
+        string capabilities = "IMAP4rev1" + (AdvertiseId ? " ID" : "");
+        await writer.WriteLineAsync("* OK [CAPABILITY "+capabilities+"] loopback IMAP");
+        while (await reader.ReadLineAsync(_stop.Token) is string line)
+        {
+            var parts = line.Split(' ',3);if (parts.Length < 2) return;
+            string tag=parts[0];
+            switch(parts[1].ToUpperInvariant())
+            {
+                case "CAPABILITY": await writer.WriteLineAsync("* CAPABILITY "+capabilities);break;
+                case "ID": Identification=line;await writer.WriteLineAsync("* ID NIL");break;
+                case "LOGIN": await writer.WriteLineAsync(tag+" NO Authentication rejected");return;
+                case "LOGOUT": await writer.WriteLineAsync("* BYE");return;
+                default: await writer.WriteLineAsync(tag+" BAD Unsupported command");continue;
+            }
+            await writer.WriteLineAsync(tag+" OK completed");
         }
     }
     private async Task Smtp(StreamReader reader, StreamWriter writer)

@@ -7,7 +7,7 @@ namespace MyMailBox.Builtins;
 public static class DefaultProfile
 {
     public static PluginConfiguration Core => new(1, [new("platform", "core.platform", "1.0.0")]);
-    public static PluginConfiguration Ordinary => new(1, [new("welcome", "welcome", "1.0.0"), new("prototype", "prototype", "1.0.0"), new("selector", "selector", "1.0.0"), new("local-mail", "local-mail", "1.0.0"), new("qq-mail", "qq-mail", "1.0.0"), new("accounts", "accounts", "1.0.0"), new("mail-selectors", "mail-selectors", "1.0.0"), new("reminders", "reminders", "1.0.0"), new("updates", "updates", "1.0.0")]);
+    public static PluginConfiguration Ordinary => new(1, [new("welcome", "welcome", "1.0.0"), new("prototype", "prototype", "1.0.0"), new("selector", "selector", "1.0.0"), new("local-mail", "local-mail", "1.0.0"), new("qq-mail", "qq-mail", "1.0.0"), new("netease-mail", "netease-mail", "1.0.0"), new("accounts", "accounts", "1.0.0"), new("mail-selectors", "mail-selectors", "1.0.0"), new("reminders", "reminders", "1.0.0"), new("updates", "updates", "1.0.0")]);
 
     public static PluginCatalog Catalog(string? workspace = null, IMailStore? mailStore = null, IMimeReader? mimeReader = null, Action<string>? openWorkspace = null, IMailPdfPrinter? printer = null, Action<string>? notification = null, Action<Updates.PreparedUpdate>? installUpdate = null, Func<IReadOnlyList<SearchExtension>>? searchExtensions = null,Func<IReadOnlyList<NotificationPresenter>>? presenters=null,Func<bool>? locked=null,Func<IReadOnlyList<AutomationExtension>>? automationExtensions=null)
     {
@@ -16,6 +16,8 @@ public static class DefaultProfile
             ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MyMailBox");
         AddPreset(catalog, "qq-mail", new("imap-smtp","QQ 邮箱","imap.qq.com","smtp.qq.com",
             "请在 QQ 邮箱网页版的设置中开启 IMAP/SMTP 服务，完成安全验证并生成授权码。收信与发信均填写该授权码；网页登录密码仅用于登录网页。授权失效时重新生成并更新两处凭据。"));
+        AddPreset(catalog, "netease-mail", new("imap-smtp","网易 163 邮箱","imap.163.com","smtp.163.com",
+            "请登录 163 邮箱网页版，在设置的 POP3/SMTP/IMAP 中开启客户端服务并生成客户端授权密码。填写完整邮箱地址和授权密码；遇到安全限制请检查网页登录提示和授权状态，再重新连接。", IdentifyClient:true));
         catalog.Add(new(new("updates", "1.0.0", 1, 1, PluginKind.Ordinary, "updates"), PluginOrigin.Builtin, "", (ctx, _) => UpdatePlugin.Apply(ctx, location, notification, install: installUpdate)));
         catalog.Add(new(new("reminders", "1.0.0", 1, 1, PluginKind.Ordinary, "reminders"), PluginOrigin.Builtin, "", (ctx, _) =>
         {

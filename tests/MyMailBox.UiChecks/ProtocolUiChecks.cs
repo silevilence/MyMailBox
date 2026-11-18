@@ -50,6 +50,18 @@ internal static class ProtocolUiChecks
         try
         {
             ui.Find("nav-diagnostics"); ui.Click("nav-accounts/protocols"); Status("已载入");
+            foreach (string provider in new[]{"QQ 邮箱","网易 163 邮箱"})
+            {
+                var choices = ui.Find("protocol-preset").AsComboBox();choices.Expand();
+                choices.Items.Single(i=>i.Text==provider).Select();choices.Collapse();ui.Click("protocol-apply-preset");
+                ui.Status("protocol-preset-guide","授权");ui.Status("protocol-status",provider);
+                if(ui.Find("incoming-port").AsTextBox().Text!="993" || ui.Find("outgoing-port").AsTextBox().Text!="465")
+                    throw new Exception("厂商 TLS 端口没有填入。");
+            }
+            // Reopen our saved loopback configuration; vendor presets were only previewed.
+            ui.Click("nav-accounts/manage");ui.Click("nav-accounts/protocols");Status("已载入");
+            if(ui.Find("incoming-host").AsTextBox().Text!="127.0.0.1")throw new Exception("预览厂商参数覆盖了连接配置。");
+            Console.WriteLine("PASS QQ/163 preset guidance and local-only preview through the desktop");
             ui.Text("incoming-port", "0"); ui.Click("protocol-save"); Status("端口");
             ui.Text("incoming-port", "3993"); ui.Click("protocol-save"); Status("配置已保存");
             ui.Click("nav-accounts/manage"); ui.Click("nav-accounts/protocols"); Status("已载入");
