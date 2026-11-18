@@ -21,6 +21,9 @@ internal static class ProtocolUiChecks
         var endpoint = new MailEndpoint("127.0.0.1", 3993, "alice@localhost", CertificateSha256: pin);
         service.Save(alice.Id, new(endpoint, endpoint with { Port = 3465 }), "local-alice", "local-alice").GetAwaiter().GetResult();
         service.Save(bob.Id, new(endpoint with { Port = 3995, User = "bob@localhost" }), "local-bob", null).GetAwaiter().GetResult();
+        var actionSource = service.Create(SqliteMailStore.LocalAccount,null,"界面动作来源").GetAwaiter().GetResult();
+        var sample = System.Text.Encoding.UTF8.GetBytes("From: fixture@example.test\r\nSubject: Local action\r\n\r\nFixture");
+        store.Import(actionSource,sample,new MyMailBox.Mail.MimeReader().Parse(sample).GetAwaiter().GetResult()).GetAwaiter().GetResult();
         var start = new ProcessStartInfo(Environment.GetEnvironmentVariable("MYMAILBOX_UI_EXE") ?? Path.Combine(repo, "artifacts/publish/MyMailBox.Desktop.exe")) { UseShellExecute = false };
         start.Environment["MYMAILBOX_HOME"] = workspace;
         using var automation = new UIA3Automation(); using var app = Application.Launch(start);
@@ -60,6 +63,12 @@ internal static class ProtocolUiChecks
             var messages = store.List(folder.Id, 0, 100).GetAwaiter().GetResult().Items;
             if (!messages.Any(m => m.Subject == "UI-真实测试-中文")) throw new Exception("UI POP did not persist SMTP message");
             ui.Click("nav-accounts/organize");
+            var orgFolders = ui.Find("org-folder").AsComboBox();
+            if (!SpinWait.SpinUntil(() => orgFolders.Items.Length > 0, 5000)) throw new Exception("Organization folders missing");
+            orgFolders.Expand(); orgFolders.Items.Single(i => i.Text.Contains("界面动作来源")).Select(); orgFolders.Collapse();
+            ui.Status("org-status", "第 1 页"); ui.Find("org-messages").AsListBox().Select(0);
+            ui.Expand("移动、复制与删除"); ui.Click("org-action-Trash"); ui.Status("org-status", "已移入垃圾箱");
+            ui.Click("org-undo"); ui.Status("org-status", "已撤销 1");
             var orgAccounts = ui.Find("org-account").AsComboBox();
             orgAccounts.Expand(); orgAccounts.Items.Single(item => item.Text == "Alice IMAP SMTP").Select(); orgAccounts.Collapse();
             ui.Click("org-refresh"); ui.Status("org-status", "第 1 页");

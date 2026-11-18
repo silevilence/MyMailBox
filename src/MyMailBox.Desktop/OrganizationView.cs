@@ -68,12 +68,13 @@ internal sealed partial class OrganizationView : UserControl, IDisposable
         var tagging = new WrapPanel();
         Action(tagging,"添加标签","org-add-label",() => Mark(MailMark.AddLabel));
         Action(tagging,"移除标签","org-remove-label",() => Mark(MailMark.RemoveLabel)); _panel.Children.Add(tagging);
+        if (_page.Actions is not null) AddMessageActions();
         AutomationProperties.SetAutomationId(_status,"org-status");
         _panel.Children.Add(_status);
         Content = new ScrollViewer { Content = _panel };
         _accounts.SelectionChanged += (_,_) =>
         {
-            _folders.ItemsSource = null; _list.Items.Clear(); _confirm = null; _more = false; _offset = 0;
+            ResetActions(); _destination.ItemsSource = null; _folders.ItemsSource = null; _list.Items.Clear(); _confirm = null; _more = false; _offset = 0;
             _scope.Text = _accounts.SelectedItem is not MailAccount a ? "" : a.Provider switch
             {
                 "imap" or "imap-smtp" => "已读和星标同步至服务器。标签仅在本地保存。",
@@ -129,6 +130,7 @@ internal sealed partial class OrganizationView : UserControl, IDisposable
     private async Task LoadFolders(Guid? selected)
     {
         var items = await _page.Organizer.Folders(Account.Id,_stop.Token);
+        _destination.ItemsSource = items; _destination.SelectedIndex = -1;
         _folders.ItemsSource = items;
         _folders.SelectedItem = items.FirstOrDefault(f => f.Id == selected) ?? items.FirstOrDefault(f => f.Role == "inbox") ?? items.FirstOrDefault();
         await LoadMessages(0);
@@ -140,6 +142,7 @@ internal sealed partial class OrganizationView : UserControl, IDisposable
     private async Task LoadMessages(int offset)
     {
         var page = Folder is { } folder ? await _page.Organizer.Messages(Account.Id,folder.Id,offset,25,_stop.Token) : new ManagedPage([],false);
+        _pendingDelete = null;
         _offset = offset; _more = page.HasMore;
         _list.Items.Clear();
         foreach (var m in page.Items) _list.Items.Add(new ListBoxItem { Tag = m, Content = Caption(m) });

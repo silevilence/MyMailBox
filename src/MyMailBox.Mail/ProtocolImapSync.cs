@@ -28,7 +28,7 @@ public sealed partial class ProtocolMailService
         {
             if (recentCount is < 1 or > 5000) throw new ArgumentOutOfRangeException(nameof(recentCount));
             var identity = await Account(account, AccountCapabilities.Receive | AccountCapabilities.Folders, cancellation);
-            using var client = new ImapClient();
+            using var client = _imapClients();
             var endpoint = await Connect(client, account, false, cancellation);
             var remote = await client.GetFolderAsync(path, cancellation);
             await remote.OpenAsync(FolderAccess.ReadOnly, cancellation);
@@ -76,7 +76,7 @@ public sealed partial class ProtocolMailService
         await ReadOperation(account, async () =>
         {
             await Account(account, AccountCapabilities.Receive | AccountCapabilities.Folders, cancellation);
-            using var client = new ImapClient();
+            using var client = _imapClients();
             await Connect(client, account, false, cancellation);
             var remote = await client.GetFolderAsync(path, cancellation);
             await remote.OpenAsync(FolderAccess.ReadOnly, cancellation);
@@ -108,7 +108,7 @@ public sealed partial class ProtocolMailService
                 return Reading(known, local);
             }
             if (!allowDownload) throw new InvalidDataException("正文尚未缓存，联网下载后可离线阅读。");
-            using var client = new ImapClient();
+            using var client = _imapClients();
             var endpoint = await Connect(client, account, false, cancellation);
             cache = new ImapCache(_store, account, endpoint);
             cache.LocalId(path, message);

@@ -4,7 +4,7 @@ CI 修复验证：普通 push/PR 不再触发构建；修正 `runner.temp` 的�
 
 推送前复核：Exchange 验收地址及应用 ID 已从待推送历史移除。真实 ID 仅在本地忽略配置保留，Actions 从 `MYMAILBOX_GRAPH_CLIENT_ID` Secret 注入；普通用户仍直接登录，不填写 ID。真实服务地址由用户逐账户提供。
 
-日期：2026 年 11 月 18 日。**完成 42；进行中 3；阻塞 1；未开始 62。** 50 的 ANSI 中文及正文修复通过，研究选型完成；32 已内置发布者应用注册，普通用户直接登录，无需输入 Client ID，待个人账户真实登录/读取验收；35 的 EWS 认证仍失败，但 ActiveSync 带凭据 OPTIONS 已返回 200，声明最高协议 16.1，待部署、设备策略及测试目录读写验收。Exchange 产品须由用户逐账户填写服务器及身份，不绑定验收公司域名。证据见 [PST 修复](../../docs/validation/2026-11-17-pst-ansi-fix.md)、[Outlook.com 配置](../../docs/validation/outlook-com-setup.md)、[公司端点调查](../../docs/validation/2026-11-17-exchange-discovery.md)。
+日期：2026 年 11 月 18 日。**完成 43；进行中 3；阻塞 1；未开始 61。** 50 的 ANSI 中文及正文修复通过，研究选型完成；32 已内置发布者应用注册，普通用户直接登录，无需输入 Client ID，待个人账户真实登录/读取验收；35 的 EWS 认证仍失败，但 ActiveSync 带凭据 OPTIONS 已返回 200，声明最高协议 16.1，待部署、设备策略及测试目录读写验收。Exchange 产品须由用户逐账户填写服务器及身份，不绑定验收公司域名。证据见 [PST 修复](../../docs/validation/2026-11-17-pst-ansi-fix.md)、[Outlook.com 配置](../../docs/validation/outlook-com-setup.md)、[公司端点调查](../../docs/validation/2026-11-17-exchange-discovery.md)。
 
 - [000-mymailbox 开发规格与完成标准](spec.md)
 - [全部规格索引](../index.md)
@@ -114,7 +114,7 @@ flowchart TD
 | [39 通过 Microsoft 365 组织账户完成收发](issues/39-exchange-online.md) | 条件路线：需要 Exchange Online 时 | [32](issues/32-graph-login.md)、[33](issues/33-graph-send.md)、[34](issues/34-graph-sync.md) | needs-info | 未开始 |
 | [40 自动接收多个账户并展示统一同步状态](issues/40-multi-sync.md) | 必做 | [21](issues/21-imap-sync.md)、[31](issues/31-pop3.md)、[06](issues/06-ui-contributions.md) | ready-for-agent | 完成 |
 | [41 管理目录及邮件标签已读星标](issues/41-folders-flags.md) | 必做 | [21](issues/21-imap-sync.md)、[12](issues/12-selectors.md) | ready-for-agent | 完成 |
-| [42 在同一邮箱内复制移动和删除邮件](issues/42-same-store-actions.md) | 必做 | [41](issues/41-folders-flags.md) | ready-for-agent | 未开始 |
+| [42 在同一邮箱内复制移动和删除邮件](issues/42-same-store-actions.md) | 必做 | [41](issues/41-folders-flags.md) | ready-for-agent | 完成 |
 | [43 创建本地邮箱并按目录保存归档](issues/43-local-archive.md) | 必做 | [18](issues/18-storage-recovery.md)、[12](issues/12-selectors.md) | ready-for-agent | 完成 |
 | [44 可靠地将云端邮件复制或移动到本地](issues/44-cross-store-move.md) | 必做 | [43](issues/43-local-archive.md)、[42](issues/42-same-store-actions.md) | ready-for-agent | 未开始 |
 | [45 恢复跨邮箱操作的每个中断点](issues/45-move-recovery.md) | 必做 | [44](issues/44-cross-store-move.md)、[08](issues/08-plugin-upgrade.md) | ready-for-agent | 未开始 |

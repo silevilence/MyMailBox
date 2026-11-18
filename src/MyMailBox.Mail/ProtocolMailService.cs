@@ -12,12 +12,16 @@ using MyMailBox.Contracts;
 namespace MyMailBox.Mail;
 
 /// <summary>Short-lived protocol sessions: no timers, implicit sends, or automatic retries.</summary>
-public sealed partial class ProtocolMailService : IProtocolMailService, IImapSyncService, IOutboxService, IMailOrganizer
+public sealed partial class ProtocolMailService : IProtocolMailService, IImapSyncService, IOutboxService, IMailOrganizer, IMailActionService
 {
     private readonly SqliteMailStore _store;
+    private readonly LocalMailActions _localActions;
     private readonly AccountService _accounts;
-    public ProtocolMailService(SqliteMailStore store)
+    private readonly Func<ImapClient> _imapClients;
+    public ProtocolMailService(SqliteMailStore store) : this(store, () => new ImapClient()) { }
+    public ProtocolMailService(SqliteMailStore store, Func<ImapClient> imapClients)
     {
+        _imapClients = imapClients;
         _store = store; _accounts = new(store);
         using var db = store.Open(); using var command = db.CreateCommand();
         command.CommandText = """
@@ -33,6 +37,8 @@ public sealed partial class ProtocolMailService : IProtocolMailService, IImapSyn
         _outbox = new(store);
         OrganizationStore.Initialize(store);
         _organization = new(store);
+        LocalMailActions.Initialize(store);
+        _localActions = new(store);
     }
     private async Task<MailAccount> Account(Guid id, AccountCapabilities required, CancellationToken token)
     {
@@ -138,7 +144,7 @@ public sealed partial class ProtocolMailService : IProtocolMailService, IImapSyn
     {
         var identity = await Account(account, AccountCapabilities.Receive | AccountCapabilities.Folders, cancellation);
         if (identity.Provider is not ("imap" or "imap-smtp")) throw new InvalidDataException("此账户不是 IMAP 账户。");
-        using var client = new ImapClient(); await Connect(client, account, false, cancellation);
+        using var client = _imapClients(); await Connect(client, account, false, cancellation);
         var folders = new List<IMailFolder> { client.Inbox };
         foreach (var ns in client.PersonalNamespaces) folders.AddRange(await client.GetFoldersAsync(ns, cancellationToken: cancellation));
         var result = folders.DistinctBy(f => f.FullName).Select(f => new RemoteFolder(f.FullName, f.Name, Role(f.Attributes), !f.Attributes.HasFlag(FolderAttributes.NoSelect))).ToArray();
@@ -149,7 +155,7 @@ public sealed partial class ProtocolMailService : IProtocolMailService, IImapSyn
     {
         await Account(account, AccountCapabilities.Receive | AccountCapabilities.Folders, cancellation);
         if (offset < 0 || limit is < 1 or > 200) throw new InvalidDataException("分页参数无效。");
-        using var client = new ImapClient(); await Connect(client, account, false, cancellation);
+        using var client = _imapClients(); await Connect(client, account, false, cancellation);
         var selected = await client.GetFolderAsync(folder, cancellation); await selected.OpenAsync(FolderAccess.ReadOnly, cancellation);
         var end = selected.Count - offset - 1;
         if (end < 0) return new RemoteMailPage([], offset, false, selected.UidValidity);

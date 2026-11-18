@@ -5,7 +5,10 @@ public sealed record ManagedFolder(Guid Id, string Name, string Path, bool CanRe
 public sealed record ManagedMessage(string Key, string Subject, bool Read, bool Starred, string[] Labels);
 public sealed record ManagedPage(IReadOnlyList<ManagedMessage> Items, bool HasMore);
 public sealed record MarkResult(string Key, bool Success, string Detail, ManagedMessage? Updated = null);
-public sealed record OrganizationPage(IAccountService Accounts, IMailOrganizer Organizer);
+public sealed record OrganizationPage(IAccountService Accounts, IMailOrganizer Organizer)
+{
+    public IMailActionService? Actions { get; init; }
+}
 
 public interface IMailOrganizer
 {

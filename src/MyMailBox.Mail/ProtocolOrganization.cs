@@ -23,7 +23,7 @@ public sealed partial class ProtocolMailService
     private Task<T> OnImap<T>(Guid account, Func<ImapClient,ImapCache,Task<T>> work, CancellationToken token) =>
         ReadOperation(account, async () =>
         {
-            using var client = new ImapClient();
+            using var client = _imapClients();
             var endpoint = await Connect(client, account, false, token);
             return await work(client, new ImapCache(_store, account, endpoint));
         });

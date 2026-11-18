@@ -30,7 +30,8 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
             Protocols = page.Protocols is { } protocols ? new(new ScopedAccounts(this, Target(protocols.Accounts)), new ScopedProtocols(this, Target(protocols.Service)))
                 { Outbox = protocols.Outbox is { } outbox ? new ScopedOutbox(this, Target(outbox)) : null,
                   ImapSync = protocols.ImapSync is { } sync ? new ScopedImapSync(this, Target(sync)) : null } : null,
-            Organization = page.Organization is { } org ? new(new ScopedAccounts(this, Target(org.Accounts)), new ScopedOrganizer(this, Target(org.Organizer))) : null,
+            Organization = page.Organization is { } org ? new(new ScopedAccounts(this, Target(org.Accounts)), new ScopedOrganizer(this, Target(org.Organizer)))
+                { Actions = org.Actions is { } actions ? new ScopedActions(this,Target(actions)) : null } : null,
             UnifiedInbox = page.UnifiedInbox is { } inbox ? new ScopedUnifiedInbox(this, Target(inbox)) : null,
             Graph = page.Graph is { } graph ? new(new ScopedAccounts(this, Target(graph.Accounts)), new ScopedGraph(this, Target(graph.Service))) : null,
             Selections = page.Selections is { } selections ? new ScopedSelections(this, Target(selections)) : null,
@@ -193,6 +194,14 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         public Task<GraphMessages> Messages(Guid account, string folder, string? next = null, CancellationToken cancellation = default) => scope.Run(t => service.Value.Messages(account, folder, next, t), cancellation);
         public Task<Guid> Download(Guid account, string message, CancellationToken cancellation = default) => scope.Run(t => service.Value.Download(account, message, t), cancellation);
     }
+    private sealed class ScopedActions(PluginScope scope, ServiceTarget<IMailActionService> service) : IMailActionService
+    {
+        public Task<IReadOnlyList<MailActionResult>> Apply(MailActionRequest request, CancellationToken token = default) =>
+            scope.Run(t => service.Value.Apply(request,t),token);
+        public async Task Undo(Guid operation, CancellationToken token = default) =>
+            await scope.Run(async t => { await service.Value.Undo(operation,t); return true; },token);
+    }
+
     private sealed class ScopedOrganizer(PluginScope scope, ServiceTarget<IMailOrganizer> service) : IMailOrganizer
     {
         public Task<IReadOnlyList<ManagedFolder>> Folders(Guid account, CancellationToken token = default) =>
