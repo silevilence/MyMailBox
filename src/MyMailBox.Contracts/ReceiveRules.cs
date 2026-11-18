@@ -7,8 +7,12 @@ public sealed record ReceiveRule(Guid Id, int Version, string Name, Guid? Accoun
 public sealed record RuleRun(string Id, string Event, Guid Rule, int Version, string Name, string State, string Detail);
 public sealed record RuleDashboard(IReadOnlyList<ReceiveRule> Rules, IReadOnlyList<RuleRun> Runs, IReadOnlyList<SearchScope> Scopes);
 public sealed record RuleActionLog(Guid Operation, int Ordinal, RuleActionKind Kind, string State, Guid Source, string Key, Guid? Destination, string? Target, Guid? Undo, string Detail);
+public sealed record RulePreview(string Scope,int Total,int Matches,int Unknown,int Exceptions,IReadOnlyList<string> Samples,IReadOnlyList<string> Effects,IReadOnlyList<string> Warnings);
 public interface IReceiveRules
 {
+    Task<RulePreview> Preview(ReceiveRule rule,CancellationToken token=default);
+    Task Undo(Guid operation,CancellationToken token=default);
+    Task Retry(string run,CancellationToken token=default);
     Task<IReadOnlyList<RuleActionLog>> Actions(string run,CancellationToken token = default);
     Task<RuleDashboard> Dashboard(CancellationToken token = default);
     Task<ReceiveRule> Save(ReceiveRule rule, CancellationToken token = default);

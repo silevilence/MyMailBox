@@ -23,6 +23,9 @@ internal static partial class SearchChecks
         c.CommandText = "SELECT count(*) FROM derived_search_value";
         MailChecks.Check((long)c.ExecuteScalar()! == 1, "Unrelated subject reached expensive extraction");
         MailChecks.Check(await service.EvaluateSaved(f.Hit.ToString(),saved.Id)==ConditionResult.True, "Indexed extension diverged in automation");
+        var rules=new ReceiveRuleService(f.Store,service,f.Protocols);
+        var preview=await rules.Preview(new(Guid.NewGuid(),0,"扩展预览",null,null,saved.Expression,"",[new(RuleActionKind.Star)],1,false,false,false));
+        MailChecks.Check(preview.Matches==1,"Read-only external planner changed semantics");
         await runtime.Stop(options.InstanceId);
         page = await service.Search(new([]){Condition=saved.Condition()});
         MailChecks.Check(page.UnavailableFields.Single()==field.Id && page.Items.Count==0 && (await service.Library()).Saved.Single()==saved &&

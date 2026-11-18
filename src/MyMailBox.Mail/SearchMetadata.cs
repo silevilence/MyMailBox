@@ -25,14 +25,16 @@ internal sealed class SearchMetadata(SqliteMailStore store)
         }
     }
 
-    internal void Prepare(CancellationToken token)
+    internal void Prepare(CancellationToken token,SqliteConnection? preview=null)
     {
-        using var db = store.Open();
+        using var owned=preview is null ? store.Open() : null;
+        var db=preview ?? owned!;
         using var find = db.CreateCommand(); find.Parameters.AddWithValue("$v", Version);
         find.CommandText = """
             SELECT m.id,m.sha256 FROM messages m LEFT JOIN search_meta x ON x.id=m.id
             WHERE x.id IS NULL OR x.hash<>m.sha256 OR x.version<>$v LIMIT 64
             """;
+        if (preview is not null) find.CommandText=find.CommandText.Replace("JOIN search_meta","JOIN preview_meta",StringComparison.Ordinal);
         while (true)
         {
             token.ThrowIfCancellationRequested();

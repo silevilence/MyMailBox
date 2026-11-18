@@ -232,6 +232,9 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
 
     private sealed class ScopedRules(PluginScope scope, ServiceTarget<IReceiveRules> service) : IReceiveRules
     {
+        public Task<RulePreview> Preview(ReceiveRule rule,CancellationToken token=default) => scope.Run(t=>service.Value.Preview(rule,t),token);
+        public async Task Undo(Guid op,CancellationToken token=default) => await scope.Run(async t=>{await service.Value.Undo(op,t);return true;},token);
+        public async Task Retry(string run,CancellationToken token=default) => await scope.Run(async t=>{await service.Value.Retry(run,t);return true;},token);
         public Task<IReadOnlyList<RuleActionLog>> Actions(string run,CancellationToken token=default) => scope.Run(t=>service.Value.Actions(run,t),token);
         public Task<RuleDashboard> Dashboard(CancellationToken token=default) => scope.Run(t=>service.Value.Dashboard(t),token);
         public Task<ReceiveRule> Save(ReceiveRule rule,CancellationToken token=default) => scope.Run(t=>service.Value.Save(rule,t),token);

@@ -22,20 +22,20 @@ public sealed partial class MailSearchService
         return cmd.ExecuteScalar() switch { long n => n == 0 ? ConditionResult.False : ConditionResult.True, _ => ConditionResult.Unknown };
     }, token);
 
-    private string Compile(SqliteConnection db, SqliteCommand cmd, ConditionTree tree, HashSet<string> unavailable, CancellationToken token, bool validateOnly=false, string? singleId=null, List<string>? highlights=null)
+    private string Compile(SqliteConnection db, SqliteCommand cmd, ConditionTree tree, HashSet<string> unavailable, CancellationToken token, bool validateOnly=false, string? singleId=null, List<string>? highlights=null,bool preview=false,int seed=0)
     {
         if (tree.Version != ConditionTree.CurrentVersion) throw new InvalidDataException("无法识别条件树版本。");
-        int count = 0;
+        int count = seed;
         string Visit(ConditionNode node, int depth)
         {
-            if (++count > 512 || depth > 40) throw new ConditionException(node.Position, "条件过于复杂。");
+            if (++count - seed > 512 || depth > 40) throw new ConditionException(node.Position, "条件过于复杂。");
             if (node.Logic == ConditionLogic.Predicate && node.Criterion is { } criterion && node.Children.Length == 0)
             {
                 if (criterion.Field.StartsWith("plugin.",StringComparison.Ordinal))
                 {
                     var extension = _extensions().SingleOrDefault(e => e.Id == criterion.Field && e.Operator == criterion.Operator && criterion.Match == SearchMatch.Extension);
                     if (extension is null) { unavailable.Add(criterion.Field); return "NULL"; }
-                    return validateOnly ? "NULL" : PrepareExtension(db, criterion, extension, count, token, singleId, highlights);
+                    return validateOnly ? "NULL" : PrepareExtension(db, criterion, extension, count, token, singleId, highlights,preview);
                 }
                 var field = BuiltinFields.SingleOrDefault(f => f.Id == criterion.Field);
                 if (field is null)
@@ -75,7 +75,7 @@ public sealed partial class MailSearchService
                     }
                     catch (RegexMatchTimeoutException) { return null; }
                 });
-                if (field.Id == "body" && mode == SearchMatch.Contains)
+                if (!preview && field.Id == "body" && mode == SearchMatch.Contains)
                     return BodySearchIndex.Contains(cmd, $"{fn}({column},{param})", criterion.Value, param + "grams");
                 return field.Id == "tag" ? $"CASE WHEN tag IS NOT NULL THEN EXISTS(SELECT 1 FROM json_each(tag) WHERE {fn}(value,{param})) END" : $"{fn}({column},{param})";
             }

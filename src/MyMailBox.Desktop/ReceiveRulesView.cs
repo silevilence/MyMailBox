@@ -43,10 +43,11 @@ internal sealed partial class ReceiveRulesView : UserControl, IDisposable
         Button(tools, "移除所选动作", "rule-remove-action", () => { if (_actions.SelectedIndex >= 0) _draft.RemoveAt(_actions.SelectedIndex); ShowActions(); return Task.CompletedTask; }); _panel.Children.Add(tools);
         Field("按顺序执行", _actions, "rule-actions");
         _panel.Children.Add(_enabled); _panel.Children.Add(_halt); _panel.Children.Add(_history);
-        var save = new WrapPanel(); Button(save, "保存规则", "rule-save", Save); Button(save, "刷新记录", "rule-refresh", () => Refresh(_editing?.Id)); _panel.Children.Add(save);
+        var save = new WrapPanel(); Button(save,"试运行当前草稿","rule-preview",Preview);
+        Button(save, "保存规则", "rule-save", Save); Button(save, "刷新记录", "rule-refresh", () => Refresh(_editing?.Id)); _panel.Children.Add(save);
         _runs.ItemTemplate = new FuncDataTemplate<RuleRun>((r, _) => new TextBlock { Text = r is null ? "" : $"{r.Name} v{r.Version} · {r.Detail}", TextWrapping = TextWrapping.Wrap });
         Field("最近执行记录", _runs, "rule-log");
-        _trace.ItemTemplate = new FuncDataTemplate<RuleActionLog>((a,_) => new TextBlock { Text=a is null ? "" : $"{a.Ordinal+1}. {ActionName(a.Kind)} · {a.Detail} · {a.Operation}", TextWrapping=TextWrapping.Wrap });
+        _trace.ItemTemplate = new FuncDataTemplate<RuleActionLog>((a,_) => new TextBlock { Text=a is null ? "" : $"{a.Ordinal+1}. {ActionName(a.Kind)} · {a.Detail} · {(a.Undo is not null && a.State=="done" ? "可撤销" : "无可用撤销")} · {a.Operation}", TextWrapping=TextWrapping.Wrap });
         Field("所选记录的动作",_trace,"rule-trace");
         _runs.SelectionChanged += async (_,_) => await Guard(async () =>
         {
@@ -54,6 +55,12 @@ internal sealed partial class ReceiveRulesView : UserControl, IDisposable
             var items = await service.Actions(run.Id,_stop.Token);
             if (_runs.SelectedItem is RuleRun selected && selected.Id==run.Id) _trace.ItemsSource=items;
         }); AutomationProperties.SetAutomationId(_status, "rule-status"); _panel.Children.Add(_status);
+        var recovery=new WrapPanel();
+        Button(recovery,"重新判断所选失败项","rule-retry",async()=>{if(_runs.SelectedItem is not RuleRun r)return;await _service.Retry(r.Id,_stop.Token);await Refresh(_editing?.Id);_status.Text="已安排重新判断。";});
+        var undo=new Button{Content="撤销所选本地移动",IsEnabled=false};AutomationProperties.SetAutomationId(undo,"rule-undo");recovery.Children.Add(undo);
+        _trace.SelectionChanged+=(_,_)=>undo.IsEnabled=_trace.SelectedItem is RuleActionLog {Undo:not null,State:"done"};
+        undo.Click+=async(_,_)=>await Guard(async()=>{if(_trace.SelectedItem is not RuleActionLog a)return;await _service.Undo(a.Operation,_stop.Token);await Refresh(_editing?.Id);_status.Text="已撤销本地移动。";});
+        _panel.Children.Add(recovery);
         Content = new ScrollViewer { Content = _panel }; AttachedToVisualTree += async (_, _) => await Guard(async () => { await Refresh(null); Edit(null); });
     }
     private void Field(string label, Control control, string id)
@@ -101,6 +108,12 @@ internal sealed partial class ReceiveRulesView : UserControl, IDisposable
         if (_scope.SelectedItem is not SearchScope scope) throw new InvalidDataException("请选择有效规则范围。");
         return new(_editing?.Id ?? Guid.NewGuid(), _editing?.Version ?? 0, _name.Text ?? "", scope.Account, scope.Folder, _condition.Text ?? "", _except.Text ?? "",
             _draft.ToArray(), (int)(_order.Value ?? 100), _enabled.IsChecked == true, _halt.IsChecked == true, _history.IsChecked == true);
+    }
+    private async Task Preview()
+    {
+        var preview=await _service.Preview(Draft(),_stop.Token);
+        _status.Text=$"{preview.Scope} · 共 {preview.Total} 封，命中 {preview.Matches} 封，例外 {preview.Exceptions} 封，未知 {preview.Unknown} 封。\n"+
+            string.Join(" → ",preview.Effects)+"\n"+string.Join("\n",preview.Warnings.Concat(preview.Samples));
     }
     private async Task Save()
     {

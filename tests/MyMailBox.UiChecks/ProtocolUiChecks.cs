@@ -95,6 +95,8 @@ internal static class ProtocolUiChecks
             ui.Find("search-results").AsListBox().Select(0); ui.Click("search-open");
             if (!SpinWait.SpinUntil(()=>ui.Find("search-body").AsTextBox().Text.Contains("Fixture"),5000)) throw new Exception("Search result not readable");
             ui.Click("search-locate"); ui.Click("search-back"); ui.Status("search-status","第 1 页");
+            ui.Click("nav-accounts/rules"); ui.Text("rule-name","界面试运行");ui.Text("rule-condition","subject:Local");
+            ui.Click("rule-add-action");ui.Click("rule-preview");ui.Status("rule-status","命中");
             ui.Click("nav-local-mail/inbox");
             Capture.Element(window).ToFile(Path.Combine(output, "04-local.png"));
             var process = Process.GetProcessById(app.ProcessId); window.Close();

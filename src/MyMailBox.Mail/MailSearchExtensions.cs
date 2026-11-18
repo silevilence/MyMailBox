@@ -9,7 +9,7 @@ namespace MyMailBox.Mail;
 public sealed partial class MailSearchService
 {
     private static string PrepareExtension(SqliteConnection db, FieldCriterion criterion, SearchExtension extension, int index,
-        CancellationToken token, string? singleId, List<string>? highlights)
+        CancellationToken token, string? singleId, List<string>? highlights,bool preview)
     {
         string input = extension.Input switch { SearchInput.Subject => "subject", SearchInput.From => "\"from\"", SearchInput.Headers => "header",
             SearchInput.Body => "body", _ => throw new InvalidDataException("未知扩展输入。") };
@@ -19,7 +19,7 @@ public sealed partial class MailSearchService
         db.CreateFunction<string?,bool?>(candidate, s => s is null ? null : string.IsNullOrEmpty(contains) || s.Contains(contains,StringComparison.OrdinalIgnoreCase));
         using var read = db.CreateCommand();
         read.CommandText = $"CREATE TEMP TABLE {table}(id TEXT PRIMARY KEY,matched INTEGER,highlight TEXT)"; read.ExecuteNonQuery();
-        read.CommandText = Documents + $"""
+        read.CommandText = (preview ? PreviewDocuments : Documents) + $"""
              SELECT docs.id,accountid,{input},v.source,v.value FROM docs
              LEFT JOIN derived_search_value v ON v.id=docs.id AND v.field=$field
              WHERE docs.id>$after AND {allowed}(accountid) AND {candidate}({input})
@@ -48,7 +48,7 @@ public sealed partial class MailSearchService
                 if (hashes.ContainsKey(item.Id) && item.Value is not null) ready.Add(new(item.Id, accounts[item.Id],item.Value));
             var matched = ready.Count == 0 ? [] : extension.Match(criterion.Value,ready,token).GetAwaiter().GetResult();
             token.ThrowIfCancellationRequested();
-            using var tx = db.BeginTransaction(); using var write = db.CreateCommand(); write.Transaction = tx;
+            using var tx = db.BeginTransaction(deferred:preview); using var write = db.CreateCommand(); write.Transaction = tx;
             foreach (var item in extracted)
             {
                 if (!hashes.TryGetValue(item.Id,out var hash)) continue;

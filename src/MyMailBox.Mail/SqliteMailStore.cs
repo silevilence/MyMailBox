@@ -49,9 +49,10 @@ public sealed class SqliteMailStore : IMailStore
         transaction.Commit();
     }
 
-    public SqliteConnection Open()
+    public SqliteConnection Open() => Open(false);
+    internal SqliteConnection Open(bool readOnly)
     {
-        var db = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = DatabasePath, ForeignKeys = true, Pooling = false }.ToString());
+        var db = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = DatabasePath, Mode=readOnly ? SqliteOpenMode.ReadOnly : SqliteOpenMode.ReadWriteCreate, ForeignKeys = true, Pooling = false }.ToString());
         db.Open(); return db;
     }
 

@@ -58,7 +58,7 @@ public sealed partial class ReceiveRuleService(SqliteMailStore store, MailSearch
         using var db = store.Open(); using var tx = db.BeginTransaction(); using var c = db.CreateCommand(); c.Transaction = tx;
         c.CommandText = """
             SELECT r.id,r.event,r.account,r.folder,r.item,r.definition FROM rule_run r WHERE r.state='pending'
-            AND NOT EXISTS(SELECT 1 FROM rule_run p WHERE p.event=r.event AND (p.priority,p.rule)<(r.priority,r.rule) AND p.state IN ('pending','running','waiting'))
+            AND NOT EXISTS(SELECT 1 FROM rule_run p WHERE p.event=r.event AND (p.priority,p.rule)<(r.priority,r.rule) AND p.state IN ('pending','running','waiting','paused','uncertain'))
             ORDER BY r.created,r.priority,r.rule LIMIT 1
             """;
         Work? work;
@@ -111,16 +111,20 @@ public sealed partial class ReceiveRuleService(SqliteMailStore store, MailSearch
         c.CommandText = "SELECT version FROM receive_rule WHERE id=$id AND enabled"; c.Parameters.AddWithValue("$id", work.Rule.Id.ToString());
         if (Convert.ToInt32(c.ExecuteScalar()) != work.Rule.Version) { Finish(work, "skipped", "规则已停用或改版，本次收件不采用新版本。"); return; }
         var messageId = Guid.TryParse(work.Item, out _) ? work.Item : work.Folder + "/" + work.Item;
+        var tree = Conditions(work.Rule);
+        if (Access(work,tree) is { } reason) { Finish(work,"paused",reason); return; }
         var journal = await Actions(work.Id,token);
         if (journal.Count == 0)
         {
-            var tree = Conditions(work.Rule);
             bool awaitingBody = NeedsBody(tree.Root) && MissingBody(work);
             var result = await search.Evaluate(messageId, tree, token);
             if (result == ConditionResult.Unknown && awaitingBody) { WaitForBody(work); return; }
             if (result != ConditionResult.True)
             {
-                Finish(work, result == ConditionResult.False ? "no-match" : "unknown", result == ConditionResult.False ? "条件或例外未命中。" : "条件数据或扩展不完整，未执行动作。", result == ConditionResult.Unknown && work.Rule.Stop);
+                string detail=result==ConditionResult.Unknown ? "条件所需字段缺失，未执行动作。" : "邮件不满足匹配条件。";
+                if (result==ConditionResult.False && !string.IsNullOrWhiteSpace(work.Rule.Exception) &&
+                    await search.Evaluate(messageId,ConditionTree.Parse(work.Rule.Exception),token)==ConditionResult.True) detail="被例外条件排除：" + work.Rule.Exception;
+                Finish(work, result == ConditionResult.False ? "no-match" : "unknown",detail, result == ConditionResult.Unknown && work.Rule.Stop);
                 return;
             }
         }

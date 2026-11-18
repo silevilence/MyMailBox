@@ -43,6 +43,7 @@ if (args.Length == 0 || args.Contains("search-index")) await SearchChecks.Index(
 if (args.Length == 0 || args.Contains("search-builder")) await SearchChecks.Builder();
 if (args.Length == 0 || args.Contains("search-extension")) await SearchChecks.Extension();
 if (args.Length == 0 || args.Contains("rule-stages")) await ReceiveRuleChecks.Stages();
+if (args.Length == 0 || args.Contains("rule-preview")) await ReceiveRuleChecks.Preview();
 if (args.Length == 0 || args.Contains("receive-rules")) await ReceiveRuleChecks.MainRules();
 if (args.Length == 0 || args.Contains("search-fields")) await SearchChecks.Fields();
 if (args.Contains("imap-conflicts")) await ConflictChecks.Run();
