@@ -13,7 +13,8 @@ public sealed partial class MailAutomationService
         var library=await Library(token);
         return await Task.Run(()=>_search.SelectTargets(plan,library,at??_clock.GetUtcNow(),null,token),token);
     }
-    public async Task<string?> Recheck(AutomationPlan plan,TargetSnapshot snapshot,TargetMail mail,CancellationToken token=default)
+    public Task<string?> Recheck(AutomationPlan plan,TargetSnapshot snapshot,TargetMail mail,CancellationToken token=default)=>RecheckCurrent(plan,snapshot,mail,false,token);
+    private async Task<string?> RecheckCurrent(AutomationPlan plan,TargetSnapshot snapshot,TargetMail mail,bool changedOwnFlags,CancellationToken token)
     {
         if(!snapshot.Items.Any(i=>i.Id==mail.Id && i.Stamp==mail.Stamp))return "邮件不在本次快照中。";
         if(mail.Validity.HasValue)
@@ -24,7 +25,7 @@ public sealed partial class MailAutomationService
         var check=await Task.Run(()=>_search.SelectTargets(plan,library,snapshot.At,mail.Id,token),token);
         var actual=check.Items.SingleOrDefault();
         if(actual is null)return "邮件已受保护、不再满足条件或已达到低水位。";
-        if(actual.Folder!=mail.Folder||actual.Validity!=mail.Validity||actual.Stamp!=mail.Stamp||mail.Hash is not null&&actual.Hash!=mail.Hash)
+        if(actual.Folder!=mail.Folder||actual.Validity!=mail.Validity||!changedOwnFlags&&actual.Stamp!=mail.Stamp||mail.Hash is not null&&actual.Hash!=mail.Hash)
             return "来源内容或状态已改变，请重新选择。";
         return null;
     }

@@ -11,7 +11,7 @@ public sealed partial class MailAutomationService
         SELECT r.id,r.plan,r.cause,r.state,r.detail,r.at,
         (SELECT count(*) FROM automation_item i WHERE i.run=r.id AND i.state='done'),
         (SELECT count(*) FROM automation_item i WHERE i.run=r.id AND i.state='skipped'),
-        (SELECT count(*) FROM automation_item i WHERE i.run=r.id AND i.state='failed') FROM automation_run r
+        (SELECT count(*) FROM automation_item i WHERE i.run=r.id AND i.state IN ('failed','partial')) FROM automation_run r
         """;
     private static AutomationRun ReadRun(SqliteDataReader r)=>new(Guid.Parse(r.GetString(0)),Guid.Parse(r.GetString(1)),r.GetString(2),r.GetString(3),r.GetString(4),
         r.GetInt32(6),r.GetInt32(7),r.GetInt32(8),DateTimeOffset.FromUnixTimeSeconds(r.GetInt64(5)));
@@ -33,7 +33,7 @@ public sealed partial class MailAutomationService
     public async Task<AutomationRun> Start(Guid plan,string cause,CancellationToken token=default)
     {
         var definition=(await Plans(token)).FirstOrDefault(p=>p.Id==plan)??throw new InvalidDataException("请先保存任务。");
-        if(!definition.Enabled||definition.Archive is null)throw new InvalidDataException("任务尚未启用或未配置动作。");
+        if(!definition.Enabled||(definition.Archive is null && definition.Actions.Length==0))throw new InvalidDataException("任务尚未启用或未配置动作。");
         using var db=_store.Open();using var c=db.CreateCommand();c.Parameters.AddWithValue("$p",plan.ToString());c.Parameters.AddWithValue("$cause",cause);
         if(Existing(c) is Guid known)return Run(known);
         var at=_clock.GetUtcNow();var gate=await Inspect(definition,false,token);
@@ -93,7 +93,8 @@ public sealed partial class MailAutomationService
             var mail=snap.Items[ordinal];c.Parameters.AddWithValue("$n",ordinal);
             try
             {
-                var (state,note)=await ArchiveItem(plan,snap,mail,op,dest,c,token);
+                var (state,note)=plan.Actions.Length>0?await ApplySteps(run,ordinal,plan,snap,mail,token):("done","");
+                if(state=="done" && plan.Archive is not null)(state,note)=await ArchiveItem(plan,snap,mail,op,dest,c,token);
                 c.CommandText="UPDATE automation_item SET state=$s,detail=$note WHERE run=$id AND ordinal=$n";
                 c.Parameters.AddWithValue("$s",state);c.Parameters.AddWithValue("$note",note);c.ExecuteNonQuery();
             }
@@ -106,7 +107,7 @@ public sealed partial class MailAutomationService
             }
         }
         c.CommandText="UPDATE automation_run SET state='done',detail='执行完成。' WHERE id=$id AND state='running' AND NOT EXISTS(SELECT 1 FROM automation_item WHERE run=$id AND state='pending')";
-        if(c.ExecuteNonQuery()==1){Outcome(plan.Id,true);_notify?.Invoke("邮件自动化已完成："+plan.Name);}
+        if(c.ExecuteNonQuery()==1){Outcome(plan.Id,Run(run).Failed==0);_notify?.Invoke("邮件自动化已完成："+plan.Name);}
         return Run(run);
     }
     private void Outcome(Guid plan,bool success)
@@ -120,7 +121,7 @@ public sealed partial class MailAutomationService
         if(mail.Sent is null)return("skipped","缺少发送日期，无法确定归档年月。");
         if(dest is null)
         {
-            string? reason=await Recheck(plan,snap,mail,token);if(reason is not null)return("skipped",reason);
+            string? reason=await RecheckCurrent(plan,snap,mail,plan.Actions.Length>0,token);if(reason is not null)return("skipped",reason);
             var folders=await _store.Folders(token);
             if(mail.Account==archive.Account)
             {
@@ -140,13 +141,13 @@ public sealed partial class MailAutomationService
         {
             using var db=_store.Open();using var receipt=db.CreateCommand();receipt.CommandText="SELECT count(*) FROM mail_move_undo WHERE id=$op AND message=$key";receipt.Parameters.AddWithValue("$op",op.ToString());receipt.Parameters.AddWithValue("$key",mail.Key);
             if((long)receipt.ExecuteScalar()!>0)return("done","已核实本地移动回执。");
-            if(await Recheck(plan,snap,mail,token) is {} changed)return("skipped",changed);
+            if(await RecheckCurrent(plan,snap,mail,plan.Actions.Length>0,token) is {} changed)return("skipped",changed);
             var row=(await _protocols.Apply(new MailActionRequest(mail.Account,mail.Folder,[mail.Key],MailAction.Move,dest){OperationId=op},token)).Single();
             if(!row.Success)throw new InvalidDataException(row.Detail);return("done",row.Detail);
         }
         var transfer=await _protocols.Plan(new(op,mail.Account,mail.Folder,mail.Key,dest.Value,true),token);
-        if(transfer.Phase=="planned" && await Recheck(plan,snap,mail,token) is {} stale)return("skipped",stale);
-        var completed=await _protocols.ContinueTransfer(op,null,t=>Recheck(plan,snap,mail,t),token);
+        if(transfer.Phase=="planned" && await RecheckCurrent(plan,snap,mail,plan.Actions.Length>0,token) is {} stale)return("skipped",stale);
+        var completed=await _protocols.ContinueTransfer(op,null,t=>RecheckCurrent(plan,snap,mail,plan.Actions.Length>0,t),token);
         return completed.Phase switch{"done"=>("done",completed.Detail),"canceled"=>("skipped",completed.Detail),_=>throw new InvalidDataException(completed.Detail)};
     }
     internal async Task Tick(CancellationToken token)

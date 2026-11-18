@@ -18,6 +18,8 @@ public sealed partial class MailAutomationService : IMailAutomation
             CREATE TABLE IF NOT EXISTS automation_run(id TEXT PRIMARY KEY,plan TEXT NOT NULL,cause TEXT NOT NULL,state TEXT NOT NULL,detail TEXT NOT NULL,at INTEGER NOT NULL,
                 definition TEXT NOT NULL,snapshot TEXT NOT NULL,UNIQUE(plan,cause));
             CREATE TABLE IF NOT EXISTS automation_item(run TEXT NOT NULL,ordinal INTEGER NOT NULL,op TEXT NOT NULL,destination TEXT,state TEXT NOT NULL,detail TEXT NOT NULL,PRIMARY KEY(run,ordinal));
+            CREATE TABLE IF NOT EXISTS automation_step(run TEXT NOT NULL,item INTEGER NOT NULL,step INTEGER NOT NULL,op TEXT NOT NULL,
+                kind INTEGER NOT NULL,state TEXT NOT NULL,attempts INTEGER NOT NULL,detail TEXT NOT NULL,PRIMARY KEY(run,item,step));
             CREATE TABLE IF NOT EXISTS automation_outcome(id TEXT PRIMARY KEY,success INTEGER NOT NULL,at INTEGER NOT NULL);
             """;c.ExecuteNonQuery();
     }
@@ -33,6 +35,7 @@ public sealed partial class MailAutomationService : IMailAutomation
         if(string.IsNullOrWhiteSpace(plan.Name)||plan.When.Hysteresis<0||plan.When.CooldownMinutes<0)throw new InvalidDataException("请填写任务名、非负迟滞和冷却时间。");
         await Inspect(plan,false,token);
         if(plan.Target is not null)await Select(plan,null,token);
+        await ValidateActions(plan,token);
         if(plan.Archive is {} archive)
         {
             if(plan.Target is null||archive.LocalMinute is <0 or >=1440)throw new InvalidDataException("归档任务需要目标集合和有效的每日时刻。");

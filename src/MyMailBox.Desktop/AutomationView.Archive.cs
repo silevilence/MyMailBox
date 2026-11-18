@@ -49,7 +49,9 @@ internal sealed partial class AutomationView
     {
         var runs=await _service.Runs(SavedId(),_stop.Token);_history.ItemsSource=runs;
         _history.SelectedItem=runs.FirstOrDefault(r=>r.Id==selected)??runs.FirstOrDefault();
-        _status.Text=_history.SelectedItem is AutomationRun run?RunLabel(run):"暂无执行记录。";
+        if(_history.SelectedItem is not AutomationRun run){_status.Text="暂无执行记录。";return;}
+        var steps=await _service.Steps(run.Id,_stop.Token);
+        _status.Text=RunLabel(run)+"\n"+string.Join("\n",steps.Take(100).Select(s=>$"邮件 {s.Item+1} / 步骤 {s.Step+1} · {ActionName(s.Kind)} · 尝试 {s.Attempts} 次 · {s.Detail}"));
     }
     private async Task Change(bool resume)
     {

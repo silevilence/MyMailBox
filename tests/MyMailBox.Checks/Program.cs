@@ -49,6 +49,7 @@ if (args.Length == 0 || args.Contains("task-targets")) await AutomationChecks.Ta
 if (args.Length == 0 || args.Contains("task-conditions")) await AutomationChecks.Conditions();
 if (args.Length == 0 || args.Contains("rule-stages")) await ReceiveRuleChecks.Stages();
 if (args.Length == 0 || args.Contains("rule-preview")) await ReceiveRuleChecks.Preview();
+if (args.Length == 0 || args.Contains("task-actions")) await AutomationChecks.Actions();
 if (args.Length == 0 || args.Contains("send-plan")) await ComposerChecks.SendPlans();
 if (args.Contains("send-plan-live")) await ComposerChecks.SendPlanLive();
 if (args.Length == 0 || args.Contains("address-book")) await ComposerChecks.Addresses();

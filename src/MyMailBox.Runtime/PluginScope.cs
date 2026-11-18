@@ -270,6 +270,8 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         public Task<AutomationPlan> Save(AutomationPlan plan,CancellationToken token=default)=>scope.Run(t=>service.Value.Save(plan,t),token);
         public Task<TargetSnapshot> Select(AutomationPlan plan,DateTimeOffset? at=null,CancellationToken token=default)=>scope.Run(t=>service.Value.Select(plan,at,t),token);
         public Task<string?> Recheck(AutomationPlan plan,TargetSnapshot snapshot,TargetMail mail,CancellationToken token=default)=>scope.Run(t=>service.Value.Recheck(plan,snapshot,mail,t),token);
+        public Task<ActionPreview> PreviewActions(AutomationPlan plan,CancellationToken token=default)=>scope.Run(t=>service.Value.PreviewActions(plan,t),token);
+        public Task<IReadOnlyList<TaskStepLog>> Steps(Guid run,CancellationToken token=default)=>scope.Run(t=>service.Value.Steps(run,t),token);
         public Task<AutomationRun> Start(Guid plan,string cause,CancellationToken token=default)=>scope.Run(t=>service.Value.Start(plan,cause,t),token);
         public Task<IReadOnlyList<AutomationRun>> Runs(Guid plan,CancellationToken token=default)=>scope.Run(t=>service.Value.Runs(plan,t),token);
         public Task<AutomationRun> Advance(Guid run,CancellationToken token=default)=>scope.Run(t=>service.Value.Advance(run,t),token);
