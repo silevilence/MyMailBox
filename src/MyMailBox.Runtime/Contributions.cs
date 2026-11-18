@@ -9,6 +9,13 @@ public sealed class Contributions(Action<Action>? dispatch = null) : IContributi
     private readonly Dictionary<string, Selector> _selectors = [];
     private readonly Dictionary<string, NativePage> _native = [];
     private readonly Dictionary<string, IMessageExporter> _exporters = [];
+    private readonly Dictionary<string,AddressProvider> _addresses=[];
+    public IReadOnlyList<AddressProvider> AddressProviders { get { lock(_gate) return _addresses.Values.ToArray(); } }
+    public IDisposable AddAddressProvider(AddressProvider provider)
+    {
+        lock(_gate) _addresses.Add(provider.Id,provider); Notify();
+        return new Cleanup(()=>{lock(_gate) _addresses.Remove(provider.Id);Notify();});
+    }
     private readonly Dictionary<string,ComposerEditor> _editors=[];
     public IReadOnlyList<ComposerEditor> Editors { get { lock(_gate) return _editors.Values.ToArray(); } }
     public event Func<string,Task>? BeforePluginStop;

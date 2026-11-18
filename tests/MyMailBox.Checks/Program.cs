@@ -45,6 +45,7 @@ if (args.Length == 0 || args.Contains("search-builder")) await SearchChecks.Buil
 if (args.Length == 0 || args.Contains("search-extension")) await SearchChecks.Extension();
 if (args.Length == 0 || args.Contains("rule-stages")) await ReceiveRuleChecks.Stages();
 if (args.Length == 0 || args.Contains("rule-preview")) await ReceiveRuleChecks.Preview();
+if (args.Length == 0 || args.Contains("address-book")) await ComposerChecks.Addresses();
 if (args.Length == 0 || args.Contains("replies")) await ComposerChecks.Replies();
 if (args.Length == 0 || args.Contains("compose-parts")) await ComposerChecks.Parts();
 if (args.Contains("compose-live")) await ComposerChecks.PartsLive();

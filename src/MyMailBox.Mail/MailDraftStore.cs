@@ -10,7 +10,7 @@ public sealed partial class MailDraftStore : IMailDrafts
     public MailDraftStore(SqliteMailStore store)
     {
         _store=store;using var db=store.Open();using var c=db.CreateCommand();
-        c.CommandText="CREATE TABLE IF NOT EXISTS compose_draft(id TEXT PRIMARY KEY,version INTEGER NOT NULL,account TEXT NOT NULL,content TEXT NOT NULL,submitted INTEGER NOT NULL DEFAULT 0,changed INTEGER NOT NULL)";c.ExecuteNonQuery();InitializeParts();
+        c.CommandText="CREATE TABLE IF NOT EXISTS compose_draft(id TEXT PRIMARY KEY,version INTEGER NOT NULL,account TEXT NOT NULL,content TEXT NOT NULL,submitted INTEGER NOT NULL DEFAULT 0,changed INTEGER NOT NULL)";c.ExecuteNonQuery();InitializeParts();AddressSchema(c);
     }
     public IReadOnlyList<MailDraft> List(Guid account)
     {

@@ -28,6 +28,10 @@ public interface IMailDrafts
 {
     Guid SourceAccount(string message);
     Task<MailDraft> Respond(ReplyIntent intent,Guid account,CancellationToken token=default);
+    RecipientFields Normalize(RecipientFields fields);
+    Task<IReadOnlyList<AddressChoice>> Suggest(Guid account,string text,CancellationToken token=default);
+    void Contact(Guid account,AddressChoice contact);
+    void Forget(Guid account,string? address);
     SendingProfile Profile(Guid account);
     void Configure(Guid account,SendingProfile profile);
     Task<ComposerPart> AddPart(Guid draft,Guid account,string name,Stream data,bool inline,CancellationToken token=default);

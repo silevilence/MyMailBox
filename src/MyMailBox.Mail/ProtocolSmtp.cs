@@ -28,15 +28,10 @@ public sealed partial class ProtocolMailService
         var from=message.FromIdentity ?? identity.Address;
         if(!profile.Aliases.Append(identity.Address).Contains(from,StringComparer.OrdinalIgnoreCase))throw new InvalidDataException("所选身份不属于当前发送账户。");
         mime.From.Add(MailboxAddress.Parse(from));
-        void Addresses(string value, InternetAddressList destination)
-        {
-            if (string.IsNullOrWhiteSpace(value)) return;
-            if (value.Contains('\r') || value.Contains('\n') || !InternetAddressList.TryParse(value, out var addresses) || addresses.Count == 0 || addresses.Any(a => a is not MailboxAddress) || addresses.Mailboxes.Any(a => !a.Address.Contains('@')))
-                throw new InvalidDataException("收件地址无效，请填写完整邮箱地址，多个地址用逗号分隔。");
-            destination.AddRange(addresses);
-        }
-        Addresses(message.To, mime.To); Addresses(message.Cc, mime.Cc);
-        var blind = new InternetAddressList(); Addresses(message.Bcc, blind);
+        var fields=_draftStore.Normalize(new(message.To,message.Cc,message.Bcc));
+        if(fields.To.Length>0)mime.To.AddRange(InternetAddressList.Parse(fields.To));
+        if(fields.Cc.Length>0)mime.Cc.AddRange(InternetAddressList.Parse(fields.Cc));
+        var blind=fields.Bcc.Length==0 ? new InternetAddressList() : InternetAddressList.Parse(fields.Bcc);
         var recipients = mime.To.Mailboxes.Concat(mime.Cc.Mailboxes).Concat(blind.Mailboxes).DistinctBy(a => a.Address, StringComparer.OrdinalIgnoreCase).ToArray();
         if (recipients.Length == 0) throw new InvalidDataException("请至少填写一位收件人。");
         if (message.Subject.Contains('\r') || message.Subject.Contains('\n')) throw new InvalidDataException("主题不能包含换行。");

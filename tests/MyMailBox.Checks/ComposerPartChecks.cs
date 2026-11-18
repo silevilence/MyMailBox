@@ -40,7 +40,8 @@ internal static partial class ComposerChecks
         var f=await FilesFixture();var d=f.Draft;
         string pin=File.ReadAllText(Path.Combine(PluginChecks.Repository,"artifacts/protocol-acceptance/certificate-sha256.txt")).Trim();
         var endpoint=new MailEndpoint("127.0.0.1",3465,"alice@localhost",CertificateSha256:pin);
-        await f.Service.Save(d.Account,new(endpoint with{Port=3993},endpoint),"local-alice","local-alice");await f.Service.Enqueue(d.Id,d.Account,d.Message());
+        f.Drafts.Configure(d.Account,new("",["alternate@localhost"]));
+        await f.Service.Save(d.Account,new(endpoint with{Port=3993},endpoint),"local-alice","local-alice");await f.Service.Enqueue(d.Id,d.Account,d.Message() with{FromIdentity="alternate@localhost"});
         var result=await f.Service.Deliver(d.Id);MailChecks.Check(result.State=="sent","SMTP MIME was not accepted: "+result.Message);
         using var reader=new ImapClient();reader.ServerCertificateValidationCallback=(_,cert,_,_)=>cert?.GetCertHashString(HashAlgorithmName.SHA256)==pin;
         await reader.ConnectAsync("127.0.0.1",3993,SecureSocketOptions.SslOnConnect);await reader.AuthenticateAsync("bob@localhost","local-bob");
@@ -48,6 +49,7 @@ internal static partial class ComposerChecks
         using var mail=await reader.Inbox.GetMessageAsync(ids.Single());using var data=new MemoryStream();
         mail.BodyParts.OfType<MimePart>().Single(p=>p.ContentId==d.Parts[1].Cid).Content!.DecodeTo(data);
         MailChecks.Check(mail.TextBody=="hello"&&mail.HtmlBody?.Contains("cid:"+d.Parts[1].Cid)==true&&Pixel.SequenceEqual(data.ToArray())&&mail.Attachments.Count()==1,"Receiving client lost multipart content");
+        MailChecks.Check(mail.From.Mailboxes.Single().Address=="alternate@localhost" && (await f.Drafts.Suggest(d.Account,"bob@")).Single().Address=="bob@localhost","Alternate identity or accepted address history lost");
         await reader.DisconnectAsync(true);Console.WriteLine("PASS independent IMAP recipient read exact CID image, attachment, HTML and plain alternatives after real SMTP delivery");
     }
 }

@@ -44,7 +44,7 @@ internal sealed partial class ComposerView : UserControl,IDisposable
         Field("该账户的草稿",_drafts,"compose-drafts");
         var draftTools=new WrapPanel();Button(draftTools,"打开所选草稿","compose-open",async()=>{await Flush();if(_drafts.SelectedItem is MailDraft d)Load(_page.Drafts.List(d.Account).Single(x=>x.Id==d.Id));});
         Button(draftTools,"新建草稿","compose-new",async()=>{await Flush();var a=Account();Load(MailDraft.New(a.Id,a.Address));});_form.Children.Add(draftTools);
-        Field("收件人 To",_to,"compose-to");Field("抄送 Cc",_cc,"compose-cc");Field("密送 Bcc",_bcc,"compose-bcc");Field("主题",_subject,"compose-subject");
+        Field("收件人 To",_to,"compose-to");Field("抄送 Cc",_cc,"compose-cc");Field("密送 Bcc",_bcc,"compose-bcc");AddAddresses();Field("主题",_subject,"compose-subject");
         Field("编辑器",_editors,"compose-editor");var formats=new WrapPanel();
         Button(formats,"编辑纯文本（保留富文本副本）","compose-plain",()=>Format(false));
         Button(formats,"打开富文本副本","compose-rich",()=>Format(true));
@@ -82,7 +82,7 @@ internal sealed partial class ComposerView : UserControl,IDisposable
     private void SetEditors()
     {
         var id=_editor?.Id;var all=new[]{Builtin}.Concat(_contributions.Editors).ToArray();
-        _editors.ItemsSource=all;_editor=all.FirstOrDefault(e=>e.Id==id) ?? Builtin;_editors.SelectedItem=_editor;
+        SetAddressProviders();_editors.ItemsSource=all;_editor=all.FirstOrDefault(e=>e.Id==id) ?? Builtin;_editors.SelectedItem=_editor;
         _templates.ItemsSource=_editor.Templates;_templates.SelectedIndex=_templates.ItemCount>0?0:-1;
     }
     private void EditorsChanged()
@@ -125,6 +125,7 @@ internal sealed partial class ComposerView : UserControl,IDisposable
     }
     private async Task SwitchAccount()
     {
+        _suggesting?.Cancel();_suggestions.IsVisible=false;_recipient=null;
         await Flush();if(_accounts.SelectedItem is not MailAccount a){_status.Text="请先配置可发送邮件的账户。";return;}
         if(_intent is not null){_status.Text="请确认替代发件账户。";return;}
         LoadProfile(a);ListDrafts(a.Id);Load((_drafts.SelectedItem as MailDraft) ?? MailDraft.New(a.Id,a.Address));
@@ -197,7 +198,7 @@ internal sealed partial class ComposerView : UserControl,IDisposable
     }
     public void Dispose()
     {
-        if(_disposed)return;_disposed=true;_contributions.Changed-=EditorsChanged;_contributions.BeforePluginStop-=BeforeStop;
+        if(_disposed)return;_disposed=true;_suggesting?.Cancel();_contributions.Changed-=EditorsChanged;_contributions.BeforePluginStop-=BeforeStop;
         _preparation?.Dispose();CloseRich();_stop.Cancel();_stop.Dispose();
     }
 }

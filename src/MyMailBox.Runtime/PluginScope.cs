@@ -59,6 +59,14 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         return Own(pages.AddUpdatePreparation(new(InstanceId + "/" + preparation.Id,
             async token => await Run(async t => { await save.Value(t); return true; }, token))));
     }
+    public IDisposable AddAddressProvider(AddressProvider provider)
+    {
+        var suggest=Target(provider.Suggest);
+        return Own(pages.AddAddressProvider(provider with {Id=InstanceId+"/"+provider.Id,Suggest=(a,text,token)=>
+        {
+            permissions.Require("contacts.suggest",a.ToString());return Run(t=>suggest.Value(a,text,t),token);
+        }}));
+    }
     public IDisposable AddEditor(ComposerEditor editor)
     {
         var open=Target(editor.Open);var spell=Target(editor.Spell);var signature=editor.Signature is {} sig ? Target(sig) : null;
@@ -243,6 +251,10 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
     {
         public Guid SourceAccount(string message)=>scope.Run(_=>Task.FromResult(service.Value.SourceAccount(message))).GetAwaiter().GetResult();
         public Task<MailDraft> Respond(ReplyIntent intent,Guid account,CancellationToken token=default)=>scope.Run(t=>service.Value.Respond(intent,account,t),token);
+        public RecipientFields Normalize(RecipientFields value)=>scope.Run(_=>Task.FromResult(service.Value.Normalize(value))).GetAwaiter().GetResult();
+        public Task<IReadOnlyList<AddressChoice>> Suggest(Guid a,string text,CancellationToken token=default)=>scope.Run(t=>service.Value.Suggest(a,text,t),token);
+        public void Contact(Guid a,AddressChoice choice)=>scope.Run(_=>{service.Value.Contact(a,choice);return Task.FromResult(true);}).GetAwaiter().GetResult();
+        public void Forget(Guid a,string? addr)=>scope.Run(_=>{service.Value.Forget(a,addr);return Task.FromResult(true);}).GetAwaiter().GetResult();
         public SendingProfile Profile(Guid account)=>scope.Run(_=>Task.FromResult(service.Value.Profile(account))).GetAwaiter().GetResult();
         public void Configure(Guid account,SendingProfile profile)=>scope.Run(_=>{service.Value.Configure(account,profile);return Task.FromResult(true);}).GetAwaiter().GetResult();
         public Task<ComposerPart> AddPart(Guid draft,Guid account,string name,Stream data,bool inline,CancellationToken token=default)=>scope.Run(t=>service.Value.AddPart(draft,account,name,data,inline,t),token);

@@ -148,3 +148,19 @@ public sealed class ExamplePlainEditor : IPlugin<PluginOptions>
             body=>body with{Rich=false},(text,token)=>Task.FromResult(text.Contains("teh",StringComparison.OrdinalIgnoreCase)?"建议将 teh 改为 the。":"示例词表未发现问题。")) { Signature=_=>"敬上" }));
     }
 }
+
+[Plugin("example-addresses")]
+[Inject("mailbox.host")]
+public sealed class ExampleAddressPlugin : IPlugin<PluginOptions>
+{
+    public void Load(Context context,PluginOptions options)
+    {
+        var host=context.Get<IPluginHost>("mailbox.host")!;
+        context.Effect(()=>host.AddAddressProvider(new("local","外部示例联系人",async (_,prefix,token)=>
+        {
+            await Task.Delay(20,token);
+            var item=new AddressChoice("采购联络","buyer@example.test",true);
+            return item.Name.Contains(prefix,StringComparison.OrdinalIgnoreCase)||item.Address.Contains(prefix,StringComparison.OrdinalIgnoreCase) ? new[]{item} : [];
+        })));
+    }
+}

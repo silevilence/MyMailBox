@@ -56,7 +56,7 @@ public sealed partial class ProtocolMailService
         try
         {
             var account = await Account(item.Account, AccountCapabilities.Send, cancellation);
-            if (!StringComparer.OrdinalIgnoreCase.Equals(account.Address, mime.From.Mailboxes.Single().Address))
+            if (!_draftStore.Profile(account.Id).Aliases.Append(account.Address).Contains(mime.From.Mailboxes.Single().Address,StringComparer.OrdinalIgnoreCase))
                 throw new InvalidDataException("发信身份已变更，请核对账户和已排队的邮件。");
             await Connect(client, item.Account, true, cancellation);
         }
@@ -82,6 +82,7 @@ public sealed partial class ProtocolMailService
         _outbox.Record(item, result);
         if (result.Accepted.Count > 0)
         {
+            _draftStore.Remember(item.Account,result.Accepted,mime);
             try { await SaveCopy(id, CancellationToken.None); }
             catch (Exception e) when (e is IOException or InvalidDataException or Microsoft.Data.Sqlite.SqliteException or FormatException)
             { /* Acceptance is durable. The copy_pending flag exposes a local-only retry. */ }
