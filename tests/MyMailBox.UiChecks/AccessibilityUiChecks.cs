@@ -6,6 +6,8 @@ using System.Runtime.InteropServices;
 internal static class AccessibilityUiChecks
 {
     [DllImport("user32.dll")]private static extern uint GetDpiForWindow(nint hwnd);
+    [DllImport("user32.dll", CharSet=CharSet.Unicode)] private static extern nint LoadKeyboardLayout(string name,uint flags);
+    [DllImport("user32.dll")] private static extern nint SendMessage(nint hwnd,uint message,nint wParam,nint lParam);
     public static void Run(Window window,Ui ui,Guid sender,string workspace)
     {
         void Activate(string id)
@@ -16,7 +18,12 @@ internal static class AccessibilityUiChecks
         }
         var original=window.BoundingRectangle;var dpi=GetDpiForWindow(window.Properties.NativeWindowHandle.Value);
         double scale=dpi/96d;
-        window.Focus();Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL,VirtualKeyShort.KEY_F);
+        window.Focus();
+        // These Latin keyboard fixtures exercise Return as a command, after text composition is complete.
+        var keyboard = LoadKeyboardLayout("00000409", 0);
+        if (keyboard == 0) throw new Exception("无法载入用于英文键盘验收的布局。");
+        SendMessage(window.Properties.NativeWindowHandle.Value, 0x0050, 0, keyboard);
+        Keyboard.TypeSimultaneously(VirtualKeyShort.CONTROL,VirtualKeyShort.KEY_F);
         var input=ui.Find("search-value").AsTextBox();if(!SpinWait.SpinUntil(()=>input.Properties.HasKeyboardFocus.Value,4000))throw new Exception("搜索快捷键未将焦点移入条件字段。");
         Keyboard.Type("absent-accessibility-fixture");Keyboard.Type(VirtualKeyShort.RETURN);ui.Status("search-status","没有匹配邮件");
         Keyboard.Type(VirtualKeyShort.ESCAPE);ui.Status("search-status","已取消");

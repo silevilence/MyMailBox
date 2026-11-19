@@ -97,7 +97,8 @@ internal sealed partial class MailSearchView : UserControl, IDisposable
         _value.KeyDown += async (_, e) => { if (e.Key == Key.Enter) { e.Handled = true; await Guard(RunInput); } };
         KeyDown+=(_,e)=>{if(e.Key==Key.Escape){InvalidateSearch("已取消搜索，可继续阅读当前结果。");e.Handled=true;}};
         _prev.IsEnabled = _next.IsEnabled = false; SetSelection();
-        _value.TextChanged += (_, _) => Changed(); _expression.TextChanged += (_, _) => Changed();
+        // Invalidate during editing so a queued text event cannot cancel the next Enter search.
+        _value.TextChanging += (_, _) => Changed(); _expression.TextChanging += (_, _) => Changed();
         _field.SelectionChanged += (_, _) => Changed(); _match.SelectionChanged += (_, _) => Changed(); _order.SelectionChanged += (_, _) => Changed();
         _scopes.SelectionChanged += (_, _) => Changed(); _boolValue.SelectionChanged += (_, _) => Changed();
         _dateValue.SelectedDateChanged += (_, _) => Changed(); _sizeValue.ValueChanged += (_, _) => Changed(); _server.IsCheckedChanged += (_, _) => Changed();

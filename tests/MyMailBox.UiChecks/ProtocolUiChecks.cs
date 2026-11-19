@@ -38,6 +38,13 @@ internal static class ProtocolUiChecks
             Archive=new(SqliteMailStore.LocalAccount,archiveRoot,false,540,"UTC")
         }).GetAwaiter().GetResult();
         var systemPlan=auto.Save(archive with{Id=Guid.NewGuid(),Version=0,Name="恢复事件",Archive=null,Actions=[new(TaskActionKind.Notify,Argument:"已收到恢复事件")],Triggers=[new("resume")]}).GetAwaiter().GetResult();
+        // A standalone run on a fresh local server needs a second IMAP page before exercising navigation.
+        var firstPage = service.Summaries(alice.Id, "INBOX", 0, 20).GetAwaiter().GetResult();
+        for (var i = firstPage.Items.Count; i < 20; i++)
+        {
+            var delivery = service.Send(alice.Id, new("alice@localhost", "", "", $"分页样本 {i + 1}", "界面分页检查")).GetAwaiter().GetResult();
+            if (delivery.State != "sent") throw new Exception("未能建立本机分页样本。");
+        }
         var seedSubject = "UIA-" + Guid.NewGuid().ToString("N");
         var seed = service.Send(alice.Id, new("alice@localhost","","",seedSubject,"真实 SMTP 界面同步样本")).GetAwaiter().GetResult();
         if (seed.State != "sent") throw new Exception("本机 SMTP 验收样本未投递。");
