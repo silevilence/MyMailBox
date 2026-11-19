@@ -2,7 +2,7 @@ using MyMailBox.Contracts;
 
 namespace MyMailBox.Runtime;
 
-public sealed partial class PluginScope(string instanceId, Contributions pages, EventHub events, PermissionPolicy permissions, HostOperations operations, Diagnostics? diagnostics, bool builtin = false) : IPluginHost, IDisposable
+public sealed partial class PluginScope(string instanceId, Contributions pages, EventHub events, PermissionPolicy permissions, HostOperations operations, Diagnostics? diagnostics, bool builtin = false, bool core = false) : IPluginHost, IDisposable
 {
     private readonly List<IDisposable> _owned = [];
     private readonly Dictionary<string, Func<CancellationToken, Task<string>>> _commands = [];
@@ -542,6 +542,7 @@ public sealed partial class PluginScope(string instanceId, Contributions pages, 
     }
     private sealed class ScopedUpdates(PluginScope scope, ServiceTarget<IUpdateService> service) : IUpdateService
     {
+        public IReadOnlyList<Choice> Sources => service.Value.Sources;
         public Task<UpdateSnapshot> Snapshot(CancellationToken cancellation = default) => scope.Run(t => service.Value.Snapshot(t), cancellation);
         public Task<UpdateCheck> Check(bool manual, CancellationToken cancellation = default) => scope.Run(t => service.Value.Check(manual, t), cancellation);
         public async Task Save(UpdateSettings settings, CancellationToken cancellation = default) => await scope.Run(async t => { await service.Value.Save(settings, t); return true; }, cancellation);

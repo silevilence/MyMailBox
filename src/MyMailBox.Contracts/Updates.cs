@@ -9,7 +9,10 @@ public sealed record UpdateCheck(UpdateCheckState State, string Message, DateTim
     public DateTimeOffset? RetryAfterUtc { get; init; }
     public bool Cached { get; init; }
 }
-public sealed record UpdateSettings(string Repository, UpdateChannel Channel = UpdateChannel.Stable, bool Background = false, int IntervalHours = 6, string? SkippedVersion = null);
+public sealed record UpdateSettings(string Repository, UpdateChannel Channel = UpdateChannel.Stable, bool Background = false, int IntervalHours = 6, string? SkippedVersion = null)
+{
+    public string SourceId { get; init; } = "github";
+}
 public sealed record UpdateSnapshot(string CurrentVersion, UpdateSettings Settings, UpdateCheck Last);
 public interface IUpdateSource
 {
@@ -18,6 +21,7 @@ public interface IUpdateSource
 }
 public interface IUpdateService
 {
+    IReadOnlyList<Choice> Sources => [new("github", "GitHub Releases")];
     Task<UpdateSnapshot> Snapshot(CancellationToken cancellation = default);
     Task Save(UpdateSettings settings, CancellationToken cancellation = default);
     Task<UpdateCheck> Check(bool manual, CancellationToken cancellation = default);

@@ -8,11 +8,15 @@ public sealed class UpdateService : IUpdateService, IDisposable
     private readonly string _path, _current;
     private readonly Func<string, IUpdateSource> _sources;
     private readonly TimeProvider _clock;
+    private readonly Func<IReadOnlyList<(Choice Choice, IUpdateSource Source)>> _extensions;
+    public IReadOnlyList<Choice> Sources => [new("github", "GitHub Releases"), .. _extensions().Select(x => x.Choice)];
     private readonly SemaphoreSlim _gate = new(1);
     private UpdateSnapshot _state;
     private IUpdateSource _source;
-    public UpdateService(string directory, string currentVersion, string repository, Func<string, IUpdateSource> sources, TimeProvider? clock = null)
+    public UpdateService(string directory, string currentVersion, string repository, Func<string, IUpdateSource> sources, TimeProvider? clock = null,
+        Func<IReadOnlyList<(Choice Choice, IUpdateSource Source)>>? extensions = null)
     {
+        _extensions = extensions ?? (() => []);
         Directory.CreateDirectory(directory); _path = Path.Combine(directory, "updates.json"); _current = currentVersion; _sources = sources; _clock = clock ?? TimeProvider.System;
         _state = new(currentVersion, new(repository), new(UpdateCheckState.NotChecked, "尚未检查更新。", DateTimeOffset.MinValue));
         if (File.Exists(_path))
@@ -29,19 +33,21 @@ public sealed class UpdateService : IUpdateService, IDisposable
     }
     private static void Validate(UpdateSettings settings)
     {
+        ArgumentException.ThrowIfNullOrWhiteSpace(settings.SourceId);
         GitHubReleaseSource.ValidateRepository(settings.Repository);
         if (!Enum.IsDefined(settings.Channel) || settings.IntervalHours is < 1 or > 168) throw new ArgumentException("检查间隔须为 1–168 小时。");
         if (settings.SkippedVersion is not null && ReleaseVersion.Parse(settings.SkippedVersion) is null) throw new ArgumentException("跳过版本无效。");
     }
     public async Task<UpdateSnapshot> Snapshot(CancellationToken cancellation = default)
-    { await _gate.WaitAsync(cancellation); try { return _state; } finally { _gate.Release(); } }
+    { await _gate.WaitAsync(cancellation); try { return SelectedSource() == null ? _state with { Last = MissingSource() } : _state; } finally { _gate.Release(); } }
     public async Task Save(UpdateSettings settings, CancellationToken cancellation = default)
     {
         Validate(settings); await _gate.WaitAsync(cancellation);
         try
         {
-            var source = _sources(settings.Repository);
-            var changed = source.Id != _source.Id || settings.Channel != _state.Settings.Channel;
+            var changedRepo = settings.Repository != _state.Settings.Repository;
+            var source = changedRepo ? _sources(settings.Repository) : _source;
+            var changed = changedRepo || settings.SourceId != _state.Settings.SourceId || settings.Channel != _state.Settings.Channel;
             _state = _state with { Settings = settings, Last = changed ? new(UpdateCheckState.NotChecked, "更新源或通道已改变，请重新检查。", DateTimeOffset.MinValue) : _state.Last };
             _source = source; Persist();
         }
@@ -52,11 +58,16 @@ public sealed class UpdateService : IUpdateService, IDisposable
         await _gate.WaitAsync(cancellation);
         try
         {
+            var source = SelectedSource();
+            if (source == null) return MissingSource();
             var now = _clock.GetUtcNow(); var last = _state.Last;
             var delay = manual ? TimeSpan.FromSeconds(30) : TimeSpan.FromHours(_state.Settings.IntervalHours);
             if ((!manual && !_state.Settings.Background) || last.RetryAfterUtc > now || now >= last.CheckedUtc && now - last.CheckedUtc < delay)
                 return last with { Cached = true, State = manual && last.State == UpdateCheckState.Skipped ? UpdateCheckState.Available : last.State };
-            var result = await _source.Check(_current, _state.Settings.Channel, cancellation);
+            UpdateCheck result;
+            try { result = await source.Check(_current, _state.Settings.Channel, cancellation); }
+            catch (Exception e) when (_state.Settings.SourceId != "github" && e is not OperationCanceledException)
+            { result = new(UpdateCheckState.Unavailable, "更新源调用失败，请检查插件是否启用及其更新检查权限。", now); }
             if (!manual && result.Release is { } release && release.Version == _state.Settings.SkippedVersion)
                 result = result with { State = UpdateCheckState.Skipped, Message = "已跳过 V" + release.Version + "；可手动检查重新查看。" };
             _state = _state with { Last = result }; Persist(); return result;
@@ -70,6 +81,9 @@ public sealed class UpdateService : IUpdateService, IDisposable
         try { _state = _state with { Settings = _state.Settings with { SkippedVersion = version } }; Persist(); }
         finally { _gate.Release(); }
     }
+    private IUpdateSource? SelectedSource() => _state.Settings.SourceId == "github" ? _source :
+        _extensions().FirstOrDefault(x => x.Choice.Id == _state.Settings.SourceId).Source;
+    private UpdateCheck MissingSource() => new(UpdateCheckState.Unavailable, "所选更新源未启用。请启用对应插件或更改更新源。", _clock.GetUtcNow());
     private void Persist()
     {
         var temp = _path + ".tmp"; File.WriteAllText(temp, JsonSerializer.Serialize(_state, new JsonSerializerOptions { WriteIndented = true })); File.Move(temp, _path, true);

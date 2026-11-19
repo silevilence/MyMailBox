@@ -17,6 +17,8 @@ public sealed class PluginOptions
 public interface IPluginHost : IContributions
 {
     string InstanceId { get; }
+    IReadOnlyList<(Choice Choice, IUpdateSource Source)> UpdateSources => [];
+    MailReader? MailBackend => null;
     IReadOnlyList<ProtocolPreset> ProtocolPresets => [];
     IReadOnlyList<MailImportReader> ImportReaders => [];
     IDisposable Command(string id, Func<CancellationToken, Task<string>> execute);

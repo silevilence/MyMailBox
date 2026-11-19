@@ -40,6 +40,8 @@ public interface IContributions
 {
     IDisposable Add(Page page);
     IDisposable AddSelector(Selector selector);
+    IDisposable AddUpdateSource(string name, IUpdateSource source) => throw new NotSupportedException("宿主不支持更新源。");
+    IDisposable AddMailBackend(IMailStore store, IMimeReader parser) => throw new NotSupportedException("宿主不支持核心邮件存储。");
     IDisposable AddMailboxProvider(IMailboxProvider provider) => throw new NotSupportedException("宿主不支持邮箱提供者。");
     IDisposable AddImportReader(MailImportReader reader) => throw new NotSupportedException("宿主尚不支持文件导入器。");
     IDisposable AddProtocolPreset(ProtocolPreset preset) => throw new NotSupportedException("宿主不支持协议预设。");

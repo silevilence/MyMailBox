@@ -6,6 +6,26 @@ public sealed class Contributions(Action<Action>? dispatch = null) : IContributi
 {
     private readonly Dictionary<string, Page> _pages = [];
     private readonly object _gate = new();
+    private readonly Dictionary<string, (Choice Choice, IUpdateSource Source)> _feeds = [];
+    private MailReader? _backend;
+    public IReadOnlyList<(Choice Choice, IUpdateSource Source)> UpdateSources { get { lock (_gate) return _feeds.Values.ToArray(); } }
+    public MailReader? MailBackend { get { lock (_gate) return _backend; } }
+    public IDisposable AddUpdateSource(string name, IUpdateSource source)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        lock (_gate) _feeds.Add(source.Id, (new(source.Id, name), source));
+        Notify();
+        return new Cleanup(() => { lock (_gate) _feeds.Remove(source.Id); Notify(); });
+    }
+    public IDisposable AddMailBackend(IMailStore store, IMimeReader parser)
+    {
+        lock (_gate)
+        {
+            if (_backend != null) throw new InvalidOperationException("只能启用一个核心邮件存储。");
+            _backend = new(store, parser);
+        }
+        return new Cleanup(() => { lock (_gate) _backend = null; });
+    }
     private readonly Dictionary<string, Selector> _selectors = [];
     private readonly Dictionary<string,ProtocolPreset> _protocolPresets = [];
     private readonly Dictionary<string, IMailboxProvider> _mailboxProviders = new(StringComparer.Ordinal);

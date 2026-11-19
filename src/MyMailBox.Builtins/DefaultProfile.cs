@@ -88,9 +88,10 @@ public static class DefaultProfile
         {
             var localStore = new Mail.SqliteMailStore(Path.Combine(location, "mail"));
             var remote = new Mail.RemoteContentService(localStore); ctx.Effect(() => remote);
-            var available = mailStore ?? new Mail.AvailableMailStore(localStore);
-            LocalMailPlugin.Apply(ctx, available, mimeReader ?? new Mail.MimeReader(), remote, printer);
             var exportHost = ctx.Get<IPluginHost>("mailbox.host")!;
+            var backend = exportHost.MailBackend;
+            var available = mailStore ?? backend?.Store ?? new Mail.AvailableMailStore(localStore);
+            LocalMailPlugin.Apply(ctx, available, mimeReader ?? backend?.Parser ?? new Mail.MimeReader(), remote, printer);
             ctx.Effect(() => exportHost.Add(new Page("export", "批量导出", "", [], [], (_, _) => Task.FromResult(""))
                 { Export = new(available, new Mail.SelectionService(localStore, new Mail.AccountService(localStore))) }));
             var localMailboxes = new Mail.LocalMailboxService(localStore, new Mail.AccountService(localStore), mimeReader ?? new Mail.MimeReader());

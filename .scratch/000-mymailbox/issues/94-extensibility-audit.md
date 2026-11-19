@@ -2,7 +2,7 @@
 
 Spec: 000-mymailbox
 Status: ready-for-agent
-Progress: not-started
+Progress: done
 Type: task
 Scope: 必做
 Estimate: 2–3 人日
@@ -21,9 +21,9 @@ Blocked by: 47, 53, 58, 64, 79, 88, 08
 
 ## Acceptance criteria
 
-- [ ] 覆盖账户/认证/收发/存储、导入导出、搜索、规则/调度/条件/动作、阅读编辑/选择器、通知和更新源。
-- [ ] 样例通过公开契约注册、配置、运行和卸载，无宿主专属类型判断；核心替换在重启后验收。
-- [ ] 契约有错误/取消/流式/能力/版本规范，明确可信边界与普通插件可卸载条件；不能只以存在接口宣称通过。
+- [x] 覆盖账户/认证/收发/存储、导入导出、搜索、规则/调度/条件/动作、阅读编辑/选择器、通知和更新源。
+- [x] 样例通过公开契约注册、配置、运行和卸载，无宿主专属类型判断；核心替换在重启后验收。
+- [x] 契约有错误/取消/流式/能力/版本规范，明确可信边界与普通插件可卸载条件；不能只以存在接口宣称通过。
 
 ## Blocked by
 
@@ -43,8 +43,10 @@ Blocked by: 47, 53, 58, 64, 79, 88, 08
 
 ## 验证与交付记录
 
-实施时记录演示步骤或检查命令、结果、适用环境和已知限制；目前未执行，所有验收项保持未勾选。若发现超出预计粒度，先拆为完整可验收子场景；环境不足时保留具体缺口，不标完成。
+本轮实施及验证见下方记录。
 
 ## Comments
 
 - 2026-11-16：用户确认任务拆分后创建，尚未开始开发。
+
+- 2026-11-19：公开 SDK 与可安装 ZIP 覆盖邮箱、收发、导入导出、搜索、自动化、编辑器、选择器、通知和更新源。extension-matrix 通过核心 EML 存储跨重启读写、切回 SQLite、标准更新页保存与停用、活动中心实际投递。另复验 mailbox-provider、import-plugin、export、bulk-export、search-extension、task-plugins、drafts、address-book、selectors、activity、update-checks。详见 docs/plugin-sdk.md。
