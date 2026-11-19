@@ -2,7 +2,8 @@ param(
     [string]$Outlook = 'C:\Program Files\Microsoft Office\root\Office16\OUTLOOK.EXE',
     [string]$Output = (Join-Path $PSScriptRoot '../artifacts/outlook-acceptance'),
     [int]$LargeMessages = 32,
-    [string]$RuleSourcePst
+    [string]$RuleSourcePst,
+    [string]$FormatSourcePst
 )
 $ErrorActionPreference = 'Stop'
 if (Get-Process OUTLOOK -ErrorAction SilentlyContinue) { throw 'Classic Outlook is already running. Preserve it; run this batch after it closes.' }
@@ -36,8 +37,20 @@ $process = $null; $app = $null; $session = $null; $verified = $false; $generated
 try {
     $process = Start-Process -FilePath $Outlook -ArgumentList @('/PIM',$profile) -PassThru -WindowStyle Hidden
     $deadline = [DateTime]::UtcNow.AddSeconds(50)
+    $tryAttach = [DateTime]::UtcNow.AddSeconds(6)
     do {
-        try { $app = [OutlookRunning]::Get() } catch { Start-Sleep -Milliseconds 500 }
+        try { $app = [OutlookRunning]::Get() } catch {
+            # A hidden Outlook window does not always register in the running object table.
+            if ([DateTime]::UtcNow -ge $tryAttach) {
+                $tryAttach = $deadline
+                $running = @(Get-Process OUTLOOK -ErrorAction SilentlyContinue)
+                $owned = Get-CimInstance Win32_Process -Filter ("ProcessId=" + $process.Id)
+                if ($running.Count -eq 1 -and $running[0].Id -eq $process.Id -and $owned.CommandLine -match [regex]::Escape('/PIM ' + $profile)) {
+                    try { $app = New-Object -ComObject Outlook.Application } catch { }
+                }
+            }
+            if ($null -eq $app) { Start-Sleep -Milliseconds 500 }
+        }
     } while ($null -eq $app -and [DateTime]::UtcNow -lt $deadline)
     if ($null -eq $app) { throw 'Outlook COM activation timed out; inspect first-run UI without opening a personal profile.' }
     $session = $app.Session
@@ -49,7 +62,9 @@ try {
     for ($i=1; $i -le $stores.Count; $i++) { $store=$stores.Item($i); $profileStores += $store.FilePath; Release-Com $store }
     Release-Com $stores
     [ordered]@{Profile=$profile;Accounts=$accountCount;Version=$app.Version;SessionType='OOM x64; accountless profile';AccountFields='DisplayName,AccountType,SmtpAddress,UserName,DeliveryStore (no populated account fixture)'} | ConvertTo-Json | Set-Content (Join-Path $Output 'oom-discovery.json') -Encoding utf8
-    if ($RuleSourcePst) {
+    if ($FormatSourcePst) {
+        & "$PSScriptRoot/check-outlook-format-fixture.ps1" -Session $session -Profile $profile -SourcePst $FormatSourcePst -Output $Output
+    } elseif ($RuleSourcePst) {
         & "$PSScriptRoot/check-outlook-rule-fixture.ps1" -Session $session -Profile $profile -SourcePst $RuleSourcePst -Output $Output
     } else {
         $attachment = Join-Path $Output 'attachment.txt'; [IO.File]::WriteAllText($attachment, 'MyMailBox attachment 中文 2026', [Text.UTF8Encoding]::new($false))
