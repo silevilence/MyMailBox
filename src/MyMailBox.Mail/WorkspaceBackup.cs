@@ -21,7 +21,18 @@ public sealed class WorkspaceBackup(string workspace, SqliteMailStore store) : I
             using (var source = store.Open())
             using (var target = new SqliteConnection(new SqliteConnectionStringBuilder { DataSource = snapshot, Pooling = false }.ToString()))
             {
-                target.Open(); source.BackupDatabase(target);
+                target.Open();
+                var waiting = System.Diagnostics.Stopwatch.StartNew();
+                while (true)
+                {
+                    cancellation.ThrowIfCancellationRequested();
+                    try { source.BackupDatabase(target); break; }
+                    catch (SqliteException e) when ((e.SqliteErrorCode & 0xff) is 5 or 6 && waiting.Elapsed < TimeSpan.FromSeconds(5))
+                    {
+                        // Online backup can return BUSY_RECOVERY while another connection opens the WAL.
+                        await Task.Delay(75, cancellation);
+                    }
+                }
                 using var command = target.CreateCommand();
                 // The backup is portable. Credential references must never claim authorization on another machine.
                 command.CommandText = "SELECT count(*) FROM sqlite_master WHERE type='table' AND name='accounts'";

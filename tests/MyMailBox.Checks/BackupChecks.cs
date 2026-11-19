@@ -39,8 +39,42 @@ internal static class BackupChecks
         using var canceled = new CancellationTokenSource(); canceled.Cancel();
         try { await backup.Create(Path.Combine(workspace, "canceled.mmbbackup"), canceled.Token); throw new Exception("Backup cancellation ignored"); } catch (OperationCanceledException) { }
         MailChecks.Check(!File.Exists(Path.Combine(workspace, "canceled.mmbbackup")), "Canceled backup published");
+        var contended = Path.Combine(workspace, "contended.mmbbackup");
+        using (var writer = store.Open())
+        using (var lockCommand = writer.CreateCommand())
+        {
+            lockCommand.CommandText = "PRAGMA journal_mode=DELETE; BEGIN EXCLUSIVE";
+            lockCommand.ExecuteNonQuery();
+            using var stop = new CancellationTokenSource();
+            var interrupted = backup.Create(contended, stop.Token);
+            await WaitForSnapshot();
+            stop.Cancel();
+            try { await interrupted; throw new Exception("Backup ignored cancellation while locked"); }
+            catch (OperationCanceledException) { }
+            MailChecks.Check(!File.Exists(contended), "Locked, canceled backup published a partial file");
+
+            var pending = backup.Create(contended);
+            await WaitForSnapshot();
+            await Task.Delay(150);
+            MailChecks.Check(!pending.IsCompleted, "Backup should wait for the held write lock");
+            lockCommand.CommandText = "COMMIT"; lockCommand.ExecuteNonQuery();
+            await pending;
+        }
+        using (var zip = ZipFile.OpenRead(contended))
+            MailChecks.Check(zip.GetEntry("manifest.json") is not null, "Backup failed to recover after the writer released its lock");
+
+        async Task WaitForSnapshot()
+        {
+            var end = DateTime.UtcNow.AddSeconds(5);
+            while (!Directory.EnumerateFiles(workspace, "contended.mmbbackup.partial-*.db").Any())
+            {
+                if (DateTime.UtcNow >= end) throw new Exception("Locked backup did not start");
+                await Task.Delay(10);
+            }
+        }
+
         await new StorageMaintenance(restoredStore, parser).Rebuild();
-        Console.WriteLine("PASS backup: live writes + SQLite online snapshot, original MIME/IDs/settings/plugin data, credential exclusion, conflicts, corruption, undeclared paths, cancel, rebuild");
+        Console.WriteLine("PASS backup: live writes + SQLite online snapshot, original MIME/IDs/settings/plugin data, credential exclusion, conflicts, corruption, undeclared paths, locked writer recovery and cancellation, rebuild");
     }
     private static async Task Reject(Func<Task<string>> action, string expected)
     {
