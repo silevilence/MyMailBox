@@ -77,6 +77,30 @@ public sealed class OutlookAccountImport(AccountService accounts, Func<string,Ca
         return new(source, name, email, provider, imap ?? pop, smtp);
     }
 
+    public static string DescribeFields(OutlookAccountPreview account)
+    {
+        var read = new List<string>();
+        var missing = new List<string>();
+        void Field(string label, bool present) => (present ? read : missing).Add(label);
+        Field("显示名", account.Name.Length > 0);
+        Field("邮箱地址", account.Address.Length > 0);
+        void Endpoint(string role, OutlookEndpoint? endpoint)
+        {
+            Field(role + "服务器", !string.IsNullOrEmpty(endpoint?.Host));
+            Field(role + "端口", endpoint?.Port != null);
+            Field(role + "登录名", !string.IsNullOrEmpty(endpoint?.User));
+            missing.Add(role + "加密方式");
+        }
+        if (account.Provider is "imap" or "imap-smtp" or "pop3") Endpoint("收件", account.Incoming);
+        if (account.Provider is "imap-smtp" or "smtp") Endpoint("发件", account.Outgoing);
+        var lines = new List<string> { "来源：" + account.Source };
+        if (read.Count > 0) lines.Add("已读取：" + string.Join("、", read));
+        if (missing.Count > 0) lines.Add("需补充或确认：" + string.Join("、", missing));
+        if (account.Provider == "") lines.Add("未提供支持的 Internet 协议配置，请在对应提供者页面添加。");
+        if (account.Provider == "pop3" && account.Outgoing != null) lines.Add("此 POP3 账户只接收邮件，读取到的 SMTP 配置可用于单独添加发件账户。");
+        return string.Join(Environment.NewLine, lines);
+    }
+
     public async Task<IReadOnlyList<MailAccount>> Matches(string provider, string address, CancellationToken token) =>
         (await accounts.List(token)).Where(a => a.Provider == provider && a.Address.Equals(address.Trim(), StringComparison.OrdinalIgnoreCase)).ToArray();
 

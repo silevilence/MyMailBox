@@ -48,3 +48,5 @@ Blocked by: 48, 11, 12
 - 2026-11-19：新增经典 Outlook 16 Internet 账户预览向导。仅在用户选择 Profile 后读取白名单字段，读取到的主机、端口、登录名可预填，TLS 和缺失项需核对，用户可编辑显示名及标签或显式映射到同地址、同类型账户。账户与协议设置在同一事务中创建，凭据需在现有协议页重新授权。outlook-import、accounts、protocols 定向通过。现有 Outlook 样本的 Accounts=0；注册表字段兼容性、有账户的真实读取和重新授权收发待验。
 
 - 11 月 19 日集中验收在 GreenMail 回环服务上使用导入服务创建 IMAP/SMTP 账户，从数据库重读其端点，补录测试凭据后完成实际收发及认证失败恢复。源 Profile 可发现字段及服务商授权仍需包含账户的 Outlook 测试环境。
+
+- 2026-11-19：账户预览逐字段列出来源、已读取值及需补充项，分开标注收发服务器、端口、身份、加密方式，并说明 POP3 的 SMTP 与未知提供者。outlook-import 通过缺字段、回执和重复映射。protocol-live 再次从导入账户通过 GreenMail TLS 收发并按原 ID 读取；经典 Outlook 有在线账户的实际 Profile 仍待验。

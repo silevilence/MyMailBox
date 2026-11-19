@@ -23,6 +23,9 @@ internal static class OutlookImportChecks
             return fields.GetValueOrDefault(key);
         })!;
         MailChecks.Check(preview.Address == "one@example.invalid" && preview.Provider == "imap-smtp" && preview.Incoming?.Port == 993, "Incorrect Outlook profile preview");
+        var report = OutlookAccountImport.DescribeFields(preview with { Name="", Incoming=preview.Incoming! with { Port=null } });
+        MailChecks.Check(report.Contains("来源：Test profile") && report.Contains("已读取：邮箱地址、收件服务器") &&
+            report.Contains("需补充或确认：显示名、收件端口、收件加密方式、发件加密方式"), "Field-by-field mapping report omitted source or missing settings");
         var edit = new AccountEdit(null, "导入名称", preview.Provider, preview.Address, Tags: ["迁移"]);
         var settings = new ProtocolSettings(new(preview.Incoming!.Host, 993, preview.Incoming.User), new(preview.Outgoing!.Host, 465, preview.Outgoing.User));
         using var cancelled = new CancellationTokenSource(); cancelled.Cancel();

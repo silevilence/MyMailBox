@@ -94,14 +94,13 @@ internal sealed class OutlookAccountsView : UserControl, IDisposable
     {
         _matches.ItemsSource = null;
         if (_accounts.SelectedItem is not OutlookAccountPreview a) { _fields.IsVisible = false; _source.Text = ""; return; }
-        _source.Text = $"来源：{a.Source}。读取到的字段已填入，空字段需补充。TLS 方式须与服务方核对。";
+        _source.Text = MyMailBox.Mail.OutlookAccountImport.DescribeFields(a);
         if (a.ImportedAccount != null) { _fields.IsVisible = false; _source.Text += " 已确认此项。可继续选择其他来源账户。"; return; }
         if (a.SourceChanged) _source.Text += " 来源配置已变化，请重新核对字段并确认映射。";
         _fields.IsVisible = a.Provider != "";
-        if (!_fields.IsVisible) { _source.Text += " 此提供者未提供可映射的 Internet 协议字段，请在对应提供者页面连接。"; return; }
+        if (!_fields.IsVisible) return;
         _name.Text = a.Name; _email.Text = a.Address; _tags.Text = "";
         _incoming.Fill(a.Incoming, a.Provider != "smtp"); _outgoing.Fill(a.Outgoing, a.Provider is "smtp" or "imap-smtp");
-        if (a.Provider == "pop3" && a.Outgoing != null) _source.Text += " POP3 仅导入收件配置，SMTP 发件需单独添加。";
     }
 
     private Button Button(StackPanel panel, string label, string id, Func<Task> action)
