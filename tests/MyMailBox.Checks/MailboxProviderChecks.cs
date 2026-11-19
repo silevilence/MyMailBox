@@ -52,7 +52,8 @@ internal static class MailboxProviderChecks
         var account = await accounts.Save(new(null,"外部邮箱",accounts.ProviderTypes.Single().Id,"fixture@example.invalid"));
         var a = new MailboxIdentity(account.Id,account.Address);
         var unavailable = pages.MailboxProviders.Single();
-        await PluginChecks.Reject(() => unavailable.Connect(a,default),"未授予权限");
+        try { await unavailable.Connect(a,default); throw new Exception("Missing grant allowed an external connection"); }
+        catch (InvalidOperationException e) when (MailboxFailure.Kind(e) == MailboxFailureKind.PluginPermission && e.InnerException == null) { }
         await runtime.Stop("mailbox"); await PluginChecks.Reject(() => unavailable.Connect(a,default),"停止接单");
         PluginChecks.Check((await accounts.List()).Any(m=>m.Id == account.Id && m.Provider=="mailbox/loopback"),"Unloading removed account");
         config = new PluginOptions { InstanceId = "mailbox", Grants = ["mail.read:"+a.Id,"mail.write:"+a.Id,"mail.send:"+a.Id] };

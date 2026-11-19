@@ -8,6 +8,7 @@ public sealed record DiagnosticEvent(DateTimeOffset Time, string Instance, strin
 public sealed class Diagnostics(string directory, int maximumBytes = 262144, int retainedFiles = 3)
 {
     private readonly object _gate = new();
+    public long MissedRecords { get; private set; }
     public string DirectoryPath { get; } = Path.GetFullPath(directory);
     public string Record(string instance, string operation, string outcome, string? errorCode = null)
     {
@@ -15,19 +16,24 @@ public sealed class Diagnostics(string directory, int maximumBytes = 262144, int
         var item = new DiagnosticEvent(DateTimeOffset.UtcNow, SafeId(instance), SafeId(operation), outcome, correlation, errorCode);
         lock (_gate)
         {
-            Directory.CreateDirectory(DirectoryPath);
-            var current = Path.Combine(DirectoryPath, "diagnostics.jsonl");
-            if (File.Exists(current) && new FileInfo(current).Length >= maximumBytes)
-            {
-                for (var i = retainedFiles - 1; i >= 1; i--)
-                {
-                    var source = i == 1 ? current : current + "." + (i - 1);
-                    if (File.Exists(source)) File.Move(source, current + "." + i, true);
-                }
-            }
-            File.AppendAllText(current, JsonSerializer.Serialize(item, new JsonSerializerOptions(ConfigurationFiles.Json) { WriteIndented = false }) + Environment.NewLine);
+            try { Append(item); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { MissedRecords++; }
         }
         return correlation;
+    }
+    private void Append(DiagnosticEvent item)
+    {
+        Directory.CreateDirectory(DirectoryPath);
+        var current = Path.Combine(DirectoryPath, "diagnostics.jsonl");
+        if (File.Exists(current) && new FileInfo(current).Length >= maximumBytes)
+        {
+            for (var i = retainedFiles - 1; i >= 1; i--)
+            {
+                var source = i == 1 ? current : current + "." + (i - 1);
+                if (File.Exists(source)) File.Move(source, current + "." + i, true);
+            }
+        }
+        File.AppendAllText(current, JsonSerializer.Serialize(item, new JsonSerializerOptions(ConfigurationFiles.Json) { WriteIndented = false }) + Environment.NewLine);
     }
     public string Export(string path)
     {

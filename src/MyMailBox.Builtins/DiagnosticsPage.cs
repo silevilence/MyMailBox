@@ -11,6 +11,7 @@ public static class DiagnosticsPage
             {
                 if (action == "export-diagnostics") return Task.FromResult("诊断已导出：" + diagnostics.Export(Path.Combine(workspace, "exports", "diagnostics-" + DateTime.UtcNow.ToString("yyyyMMddHHmmssfff") + ".json")));
                 var lines = config.Current.Instances.Select(p => $"{p.Id} → {p.Plugin}@{p.Version}\n声明：{string.Join(", ", catalog.Find(p).Manifest.Permissions ?? [])}\n授予：{string.Join(", ", p.Grants ?? [])}");
-                return Task.FromResult(string.Join("\n\n", lines) + "\n\n" + string.Join("\n", runtime.States.Select(p => p.Key + "：" + p.Value)) + (config.Error is null ? "" : "\n配置错误：" + config.Error));
+                var logStatus = diagnostics.MissedRecords > 0 ? $"本次运行有 {diagnostics.MissedRecords} 条诊断未能写入，请检查日志目录空间或占用。\n\n" : "";
+                return Task.FromResult(logStatus + string.Join("\n\n", lines) + "\n\n" + string.Join("\n", runtime.States.Select(p => p.Key + "：" + p.Value)) + (config.Error is null ? "" : "\n配置错误：" + config.Error));
             }));
 }

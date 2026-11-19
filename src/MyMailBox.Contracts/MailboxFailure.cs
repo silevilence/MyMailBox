@@ -1,6 +1,6 @@
 namespace MyMailBox.Contracts;
 
-public enum MailboxFailureKind { Offline, Authorization, Throttled, Policy, Storage, Unavailable }
+public enum MailboxFailureKind { Offline, Authorization, Throttled, Policy, Storage, Unavailable, PluginPermission }
 
 /// <summary>Classify an error for the receive queue while preserving its original exception type.</summary>
 public static class MailboxFailure

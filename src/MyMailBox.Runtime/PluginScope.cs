@@ -178,7 +178,15 @@ public sealed partial class PluginScope(string instanceId, Contributions pages, 
         try { return await operation(linked.Token); }
         // Do not let plugin exception types/stack traces escape into long-lived host Tasks.
         catch (OperationCanceledException) { throw new OperationCanceledException("Plugin operation canceled", linked.Token); }
-        catch (Exception error) { throw new InvalidOperationException(error.Message); }
+        catch (Exception error)
+        {
+            var failure = new InvalidOperationException(error.Message);
+            var kind = MailboxFailure.Kind(error);
+            if (kind == null && error is HttpRequestException or System.Net.Sockets.SocketException or TimeoutException)
+                kind = MailboxFailureKind.Offline;
+            if (kind.HasValue) MailboxFailure.Mark(failure, kind.Value, MailboxFailure.RetryAfter(error));
+            throw failure;
+        }
         finally
         {
             operation = null!;

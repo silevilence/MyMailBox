@@ -23,6 +23,13 @@ internal static class DiagnosticChecks
         for (var i = 0; i < 100; i++) log.Record("test", "sample", "success");
         var files = Directory.GetFiles(folder, "diagnostics.jsonl*");
         PluginChecks.Check(files.Length <= 3 && files.All(p => new FileInfo(p).Length < 1600), "Diagnostic rotation unbounded");
+        var locked = Path.Combine(folder, "diagnostics.jsonl");
+        var previousMisses = log.MissedRecords;
+        using (var reader = new FileStream(locked, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None))
+            await scope.Invoke("mail.read", "work");
+        PluginChecks.Check(log.MissedRecords > previousMisses && performed == 2, "A busy diagnostic log changed the outcome of an authorized action");
+        log.Record("test", "log-recovered", "success");
+        PluginChecks.Check(File.ReadAllText(locked).Contains("log-recovered"), "Logging did not recover after release");
         var complete = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
         operations.Register("network.request", (_, _) => complete.Task);
         using var networkScope = new PluginScope("network", new Contributions(), new EventHub(), new(["network.request"], ["network.request"]), operations, log);

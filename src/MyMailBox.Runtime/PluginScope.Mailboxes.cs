@@ -46,6 +46,7 @@ public sealed partial class PluginScope
             MailboxFeatures.Upload or MailboxFeatures.Move or MailboxFeatures.Mark => "mail.write",
             _ => "mail.read"
         };
-        permissions.Require(capability, account.ToString());
+        try { permissions.Require(capability, account.ToString()); }
+        catch (UnauthorizedAccessException e) { throw MailboxFailure.Mark(e, MailboxFailureKind.PluginPermission); }
     }
 }
