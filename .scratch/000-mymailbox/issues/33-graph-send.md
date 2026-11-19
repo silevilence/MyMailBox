@@ -2,7 +2,7 @@
 
 Spec: 000-mymailbox
 Status: needs-info
-Progress: not-started
+Progress: in-progress
 Type: task
 Scope: 必做
 Estimate: 2–3 人日
@@ -38,8 +38,10 @@ Blocked by: 32, 26
 
 ## 验证与交付记录
 
-实施时记录演示步骤或检查命令、结果、适用环境和已知限制；目前未执行，所有验收项保持未勾选。若发现超出预计粒度，先拆为完整可验收子场景；环境不足时保留具体缺口，不标完成。
+本轮实施及验证见下方记录。
 
 ## Comments
 
 - 2026-11-16：用户确认任务拆分后创建，尚未开始开发。
+
+- 2026-11-19：实现独立追加授权、共用写信和持久发件箱、带附件及回复头的 MIME 提交、云端草稿版本副本、已读标记及同邮箱移动。graph-write、graph、graph-delta、outbox、replies、compose-parts 定向通过。覆盖 Bcc、大小限制、202 受理、回执丢失禁止重发、移动后本地引用和断开授权。代码已接入产品，个人账户端到端验收单列待验。

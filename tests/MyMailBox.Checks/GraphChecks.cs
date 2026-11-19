@@ -101,8 +101,10 @@ internal static partial class GraphChecks
         throw new Exception("Expected Graph rejection: " + text);
     }
     private static HttpResponseMessage Json(string value) => new(HttpStatusCode.OK) { Content = new StringContent(value, Encoding.UTF8, "application/json") };
-    private sealed class Authorization(GraphTokenCache cache) : IGraphAuthorization
+    private sealed class Authorization(GraphTokenCache cache) : IGraphAuthorization, IGraphWriteAuthorization
     {
+        public Task<GraphGrant> AcquireWrite(Guid account, string clientId, string home, bool interactive, CancellationToken token) =>
+            Acquire(account, clientId, home, interactive, false, token);
         public string Username = "test@outlook.com"; public int Refreshes; public Exception? Failure; public string? LastClient; public bool CheckEmptyCache;
         public Task<GraphGrant> Acquire(Guid account, string clientId, string? homeAccountId, bool interactive, bool refresh, CancellationToken cancellation)
         {

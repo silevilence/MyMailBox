@@ -31,10 +31,20 @@ public sealed class GraphTokenCache(SqliteMailStore store)
     }
 }
 
-public sealed class GraphAuthorization(GraphTokenCache cache) : IGraphAuthorization
+public interface IGraphWriteAuthorization
+{
+    Task<GraphGrant> AcquireWrite(Guid account, string clientId, string homeAccountId, bool interactive, CancellationToken token);
+}
+
+public sealed class GraphAuthorization(GraphTokenCache cache) : IGraphAuthorization, IGraphWriteAuthorization
 {
     private static readonly string[] Scopes = ["https://graph.microsoft.com/Mail.Read"];
-    public async Task<GraphGrant> Acquire(Guid account, string clientId, string? homeAccountId, bool interactive, bool refresh, CancellationToken cancellation)
+    private static readonly string[] WriteScopes = ["https://graph.microsoft.com/Mail.ReadWrite", "https://graph.microsoft.com/Mail.Send"];
+    public Task<GraphGrant> AcquireWrite(Guid account, string clientId, string homeAccountId, bool interactive, CancellationToken token) =>
+        AcquireScopes(account, clientId, homeAccountId, interactive, false, WriteScopes, token);
+    public Task<GraphGrant> Acquire(Guid account, string clientId, string? homeAccountId, bool interactive, bool refresh, CancellationToken cancellation) =>
+        AcquireScopes(account, clientId, homeAccountId, interactive, refresh, Scopes, cancellation);
+    private async Task<GraphGrant> AcquireScopes(Guid account, string clientId, string? homeAccountId, bool interactive, bool refresh, string[] scopes, CancellationToken cancellation)
     {
         // Consumers prevents accidentally validating an organizational account in task 32.
         var app = PublicClientApplicationBuilder.Create(clientId)
@@ -56,12 +66,12 @@ public sealed class GraphAuthorization(GraphTokenCache cache) : IGraphAuthorizat
         });
         AuthenticationResult result;
         if (interactive)
-            result = await app.AcquireTokenInteractive(Scopes).WithUseEmbeddedWebView(false).WithPrompt(Prompt.SelectAccount).ExecuteAsync(cancellation);
+            result = await app.AcquireTokenInteractive(scopes).WithUseEmbeddedWebView(false).WithPrompt(Prompt.SelectAccount).ExecuteAsync(cancellation);
         else
         {
             var known = (await app.GetAccountsAsync()).SingleOrDefault(a => a.HomeAccountId.Identifier == homeAccountId);
             if (known is null) throw new InvalidDataException("需要重新授权，请点击登录微软账户。");
-            result = await app.AcquireTokenSilent(Scopes, known).WithForceRefresh(refresh).ExecuteAsync(cancellation);
+            result = await app.AcquireTokenSilent(scopes, known).WithForceRefresh(refresh).ExecuteAsync(cancellation);
         }
         return new(result.AccessToken, result.Account.HomeAccountId.Identifier, result.Account.Username);
     }

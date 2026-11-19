@@ -82,6 +82,8 @@ public sealed class AccountService : IAccountService
             else if (!restoring) throw new InvalidDataException("账户不存在，请重新选择。");
         }
         if (existing is not null && existing.Provider != edit.Provider) throw new InvalidDataException("账户类型创建后不可更改；请新建对应类型账户。");
+        if (existing?.Provider == "outlook-com" && existing.Address.Equals(edit.Address.Trim(), StringComparison.OrdinalIgnoreCase))
+            capabilities |= existing.Capabilities & AccountCapabilities.Send;
         var id = edit.Id ?? Guid.NewGuid();
         var reference = existing?.CredentialReference;
         var authentication = edit.Provider == "local" ? "无需登录" : existing?.AuthenticationState ?? "需要授权 · 请配置服务器";

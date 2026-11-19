@@ -25,38 +25,13 @@ public sealed partial class ProtocolMailService
     public Task<SendPlan?> GetSendPlan(Guid id,CancellationToken token=default) => Task.Run(()=>_outbox.Plan(id),token);
     private async Task Queue(Guid id,Guid account,TextMail message,SendPlan? plan,CancellationToken cancellation,string? automatic=null)
     {
-        var identity = await Account(account, AccountCapabilities.Send, cancellation);
-        using var mime = new MimeMessage();
-        var profile=_draftStore.Profile(account);
-        var from=message.FromIdentity ?? identity.Address;
-        if(!profile.Aliases.Append(identity.Address).Contains(from,StringComparer.OrdinalIgnoreCase))throw new InvalidDataException("所选身份不属于当前发送账户。");
-        mime.From.Add(MailboxAddress.Parse(from));
-        var fields=_draftStore.Normalize(new(message.To,message.Cc,message.Bcc));
-        if(fields.To.Length>0)mime.To.AddRange(InternetAddressList.Parse(fields.To));
-        if(fields.Cc.Length>0)mime.Cc.AddRange(InternetAddressList.Parse(fields.Cc));
-        var blind=fields.Bcc.Length==0 ? new InternetAddressList() : InternetAddressList.Parse(fields.Bcc);
-        var recipients = mime.To.Mailboxes.Concat(mime.Cc.Mailboxes).Concat(blind.Mailboxes).DistinctBy(a => a.Address, StringComparer.OrdinalIgnoreCase).ToArray();
-        if (recipients.Length == 0) throw new InvalidDataException("请至少填写一位收件人。");
-        if (message.Subject.Contains('\r') || message.Subject.Contains('\n')) throw new InvalidDataException("主题不能包含换行。");
-        mime.Subject = message.Subject; mime.Body = _draftStore.Body(account,message,cancellation);
-        if(message.InReplyTo is {Length:>0} parent)mime.InReplyTo=parent;
-        foreach(var reference in message.References.Distinct(StringComparer.Ordinal))mime.References.Add(reference);
-        if (automatic is not null)
-        {
-            mime.Headers.Add("Auto-Submitted", automatic);
-            mime.Headers.Add("X-MyMailBox-Automation", id.ToString("D"));
-            mime.Headers.Add("X-Auto-Response-Suppress","All");
-        }
-        mime.Date = DateTimeOffset.Now; mime.MessageId = MimeKit.Utils.MimeUtils.GenerateMessageId();
-        using var stream = new MemoryStream();
-        await mime.WriteToAsync(stream, cancellation);
-        if (stream.Length > profile.MaxBytes) throw new InvalidDataException($"编码后的整封邮件超过当前账户上限 {profile.MaxBytes:N0} 字节。");
+        var identity = await SendingAccount(account, cancellation);
+        var (raw, addresses) = await _draftStore.Outgoing(id, identity, message, automatic, false, cancellation);
         var requestHash = Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
             automatic is null ? System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new { identity.Address, message }) :
             System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(new { identity.Address, message, automatic })));
-        var addresses=recipients.Select(r=>r.Address).ToArray();
-        if(plan is null)_outbox.Enqueue(id,account,mime.Subject,stream.ToArray(),addresses,requestHash);
-        else _outbox.Schedule(id,account,mime.Subject,stream.ToArray(),addresses,requestHash,plan);
+        if(plan is null)_outbox.Enqueue(id,account,message.Subject,raw,addresses,requestHash);
+        else _outbox.Schedule(id,account,message.Subject,raw,addresses,requestHash,plan);
     }
 
     private static async Task<SendOutcome> Submit(SendingClient client, MimeMessage mime, string[] remaining, CancellationToken cancellation)

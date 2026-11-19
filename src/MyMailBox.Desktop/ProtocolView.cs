@@ -108,7 +108,12 @@ public sealed partial class ProtocolView : UserControl, IDisposable
     private async Task LoadAccounts()
     {
         var previous = _selected?.Id;
-        var accounts = (await _page.Accounts.List(Token)).Where(a => a.Enabled && a.Provider is "imap" or "imap-smtp" or "smtp" or "pop3").ToArray();
+        var all = await _page.Accounts.List(Token);
+        var senders = all.Where(a => a.Capabilities.HasFlag(AccountCapabilities.Send) || a.Provider == "outlook-com").ToArray();
+        _outboxAccounts.ItemsSource = senders;
+        _outboxAccounts.SelectedItem = senders.FirstOrDefault(a => a.Id == previous) ?? senders.FirstOrDefault();
+        await LoadOutbox(0);
+        var accounts = all.Where(a => a.Enabled && a.Provider is "imap" or "imap-smtp" or "smtp" or "pop3").ToArray();
         if (_disposed) return;
         _accounts.ItemsSource = accounts; _accounts.SelectedItem = accounts.FirstOrDefault(a => a.Id == previous) ?? accounts.FirstOrDefault();
         await SelectAccount();
@@ -144,6 +149,8 @@ public sealed partial class ProtocolView : UserControl, IDisposable
             _syncView = new(sync, id, _page.OfflineMarks,_respond); _syncTab.Content = _syncView; _syncTab.IsEnabled = true;
             _syncView.SetFolders(paths);
         }
+        if (_selected.Capabilities.HasFlag(AccountCapabilities.Send))
+            _outboxAccounts.SelectedItem = (_outboxAccounts.ItemsSource as IEnumerable<MailAccount>)?.FirstOrDefault(a => a.Id == _selected.Id);
         await LoadOutbox(0);
         _status.Text = "已载入连接配置。密码留空保留已有凭据；选择操作后才会联网。";
     }

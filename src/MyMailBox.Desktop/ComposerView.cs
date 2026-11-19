@@ -21,6 +21,7 @@ internal sealed partial class ComposerView : UserControl,IDisposable
     private readonly TextBlock _identity=new(),_status=new(){TextWrapping=TextWrapping.Wrap};
     private readonly ContentControl _richHost=new();
     private RichComposeView? _rich;
+    private readonly StackPanel _cloudDraft = new();
     private MailDraft? _draft;
     private ReplyIntent? _intent;
     private readonly StackPanel _alternate=new();
@@ -44,6 +45,18 @@ internal sealed partial class ComposerView : UserControl,IDisposable
         Field("该账户的草稿",_drafts,"compose-drafts");
         var draftTools=new WrapPanel();Button(draftTools,"打开所选草稿","compose-open",async()=>{await Flush();if(_drafts.SelectedItem is MailDraft d)Load(_page.Drafts.List(d.Account).Single(x=>x.Id==d.Id));});
         Button(draftTools,"新建草稿","compose-new",async()=>{await Flush();var a=Account();Load(MailDraft.New(a.Id,a.Address));});_form.Children.Add(draftTools);
+        if (page.Graph is { } graph)
+        {
+            Button(_cloudDraft, "将当前版本另存为云端草稿", "compose-graph-draft", async () =>
+            {
+                await Flush();
+                var draft = _draft ?? throw new InvalidDataException("请先填写并保存草稿。");
+                await graph.SaveDraft(draft, _stop.Token);
+                _status.Text = "当前版本已保存到微软草稿目录。本地草稿可继续编辑。";
+            });
+            _cloudDraft.IsVisible = false;
+            _form.Children.Add(_cloudDraft);
+        }
         Field("收件人 To",_to,"compose-to");Field("抄送 Cc",_cc,"compose-cc");Field("密送 Bcc",_bcc,"compose-bcc");AddAddresses();Field("主题",_subject,"compose-subject");
         Field("编辑器",_editors,"compose-editor");var formats=new WrapPanel();
         Button(formats,"编辑纯文本（保留富文本副本）","compose-plain",()=>Format(false));
@@ -141,6 +154,7 @@ internal sealed partial class ComposerView : UserControl,IDisposable
     }
     private void Load(MailDraft d)
     {
+        _cloudDraft.IsVisible = _page.Graph != null && (_accounts.SelectedItem as MailAccount)?.Provider == "outlook-com";
         _binding=true;try{
             CloseRich();_draft=d;_to.Text=d.To;_cc.Text=d.Cc;_bcc.Text=d.Bcc;_subject.Text=d.Subject;_plain.Text=d.Body.Plain;_identity.Text="发件身份："+d.Identity;_from.SelectedItem=d.Identity;_files.ItemsSource=d.Parts;_quote.IsVisible=d.Quote is not null;_quoteText.Text=d.Quote is {} q ? q.Heading+"\n"+q.Text : "";_include.IsChecked=d.Quote?.Included==true;
             _plain.IsVisible=!d.Body.Rich; if(d.Body.Rich)OpenRich(d);_status.Text=d.Version>0?"已恢复草稿。":"新草稿。";if(_planId!=d.Id)_=ReadPlan(d.Id);

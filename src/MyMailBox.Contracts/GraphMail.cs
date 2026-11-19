@@ -1,6 +1,6 @@
 namespace MyMailBox.Contracts;
 
-public sealed record GraphSettings(bool SignedIn = false);
+public sealed record GraphSettings(bool SignedIn = false) { public bool CanWrite { get; init; } }
 public sealed record GraphFolder(string Id, string Name, int ChildCount);
 public sealed record GraphSummary(string Id, string Subject, string From, DateTimeOffset? Date, bool IsRead, bool HasAttachments);
 public sealed record GraphFolders(IReadOnlyList<GraphFolder> Items, string? Next);
@@ -8,6 +8,14 @@ public sealed record GraphMessages(IReadOnlyList<GraphSummary> Items, string? Ne
 public sealed record GraphPage(IAccountService Accounts, IGraphMailService Service)
 {
     public IGraphFolderSync? Sync { get; init; }
+    public IGraphWrites? Writes { get; init; }
+}
+public interface IGraphWrites
+{
+    Task Enable(Guid account, CancellationToken token);
+    Task MarkRead(Guid account, string message, bool read, CancellationToken token);
+    Task<string> Move(Guid account, string message, string destination, CancellationToken token);
+    Task<string> SaveDraft(MailDraft draft, CancellationToken token);
 }
 public sealed record GraphSyncScope(string Id, string Name, DateTimeOffset? LastSuccess, int Messages);
 public sealed record GraphOfflinePage(IReadOnlyList<GraphSummary> Items, bool More);

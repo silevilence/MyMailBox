@@ -45,12 +45,14 @@ public static class DefaultProfile
             var host = ctx.Get<IPluginHost>("mailbox.host")!;
             var store = new Mail.SqliteMailStore(Path.Combine(location, "mail"));
             var accounts = new Mail.AccountService(store);
-            var protocols = new Mail.ProtocolMailService(store, () => host.ProtocolPresets);
+            var graph = new Mail.GraphMailService(store);
+            ctx.Effect(() => graph);
+            var protocols = new Mail.ProtocolMailService(store, () => host.ProtocolPresets) { Graph = graph };
             ctx.Effect(() => host.Add(new Page("outlook-import", "导入 Outlook 账户", "", [], [], (_, _) => Task.FromResult(""))
                 { OutlookAccounts = new Mail.OutlookAccountImport(accounts) }));
             var search = new Mail.MailSearchService(store, protocols, searchExtensions);
             ctx.Effect(() => host.Add(new Page("search", "搜索邮件", "", [], [], (_, _) => Task.FromResult("")) { Search = search }));
-            ctx.Effect(() => host.Add(new Page("compose", "写邮件与草稿", "", [], [], (_, _) => Task.FromResult("")) { Composer = new(accounts,new Mail.MailDraftStore(store),protocols) }));
+            ctx.Effect(() => host.Add(new Page("compose", "写邮件与草稿", "", [], [], (_, _) => Task.FromResult("")) { Composer = new(accounts,new Mail.MailDraftStore(store),protocols) { Graph = graph } }));
             var activity=new Mail.ActivityCenter(store);
             var automation=new Mail.MailAutomationService(store,search,protocols,notify:activity.RecordError,activityNotices:true,extensions:automationExtensions);
             ctx.Effect(()=>new Mail.AutomationRunner(automation,activity.RecordError));
@@ -63,9 +65,7 @@ public static class DefaultProfile
             ctx.Effect(() => host.Add(new Page("organize", "目录与标记", "", [], [], (_, _) => Task.FromResult("")) { Organization = new(accounts, protocols) { Actions = protocols, Transfers = protocols } }));
             ctx.Effect(() => new Mail.ReceiveRunner(inbox, activity.RecordError));
             ctx.Effect(() => new Mail.OutboxRunner(protocols, activity.RecordError));
-            var graph = new Mail.GraphMailService(new Mail.SqliteMailStore(Path.Combine(location, "mail")));
-            ctx.Effect(() => graph);
-            ctx.Effect(() => host.Add(new Page("graph", "Outlook.com 邮件", "", [], [], (_, _) => Task.FromResult("")) { Graph = new(accounts, graph) { Sync = graph } }));
+            ctx.Effect(() => host.Add(new Page("graph", "Outlook.com 邮件", "", [], [], (_, _) => Task.FromResult("")) { Graph = new(accounts, graph) { Sync = graph, Writes = graph } }));
             ctx.Effect(() => host.Add(new Page("manage", "账户管理", "", [], [], (_, _) => Task.FromResult(""), Accounts: accounts)));
             ctx.Effect(() => host.Add(new Page("protocols", "邮箱连接与收发", "", [], [], (_, _) => Task.FromResult(""))
                 { Protocols = new(accounts, protocols) { ImapSync = protocols, Outbox = protocols, OfflineMarks = protocols } }));

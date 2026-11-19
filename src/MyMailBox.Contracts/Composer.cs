@@ -40,7 +40,10 @@ public interface IMailDrafts
     MailDraft Save(MailDraft draft);
     void Submitted(Guid draft,int version);
 }
-public sealed record ComposerPage(IAccountService Accounts,IMailDrafts Drafts,IOutboxService Outbox);
+public sealed record ComposerPage(IAccountService Accounts,IMailDrafts Drafts,IOutboxService Outbox)
+{
+    public IGraphWrites? Graph { get; init; }
+}
 public sealed record EditorTemplate(string Name,string Text);
 public sealed record ComposerEditor(string Id,string Name,bool SupportsRich,IReadOnlyList<EditorTemplate> Templates,
     Func<DraftBody,DraftBody> Open,Func<string,CancellationToken,Task<string>> Spell)

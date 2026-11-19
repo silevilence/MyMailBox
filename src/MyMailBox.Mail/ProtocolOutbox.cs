@@ -52,14 +52,26 @@ public sealed partial class ProtocolMailService
         _outbox.ActivateDue(id);
         var item = _outbox.Get(id);
         if (item.State != "pending") return Outcome(item);
-        using var mime = await MimeMessage.LoadAsync(new MemoryStream(_outbox.Raw(id), false), cancellation);
+        var raw = _outbox.Raw(id);
+        using var mime = await MimeMessage.LoadAsync(new MemoryStream(raw, false), cancellation);
+        SendOutcome result;
         using var client = new SendingClient();
         try
         {
-            var account = await Account(item.Account, AccountCapabilities.Send, cancellation);
+            var account = await SendingAccount(item.Account, cancellation);
             if (!_draftStore.Profile(account.Id).Aliases.Append(account.Address).Contains(mime.From.Mailboxes.Single().Address,StringComparer.OrdinalIgnoreCase))
                 throw new InvalidDataException("发信身份已变更，请核对账户和已排队的邮件。");
-            await Connect(client, item.Account, true, cancellation);
+            if (account.Provider == "outlook-com")
+            {
+                result = await Graph!.SendQueued(account.Id, raw, item.Remaining, () => _outbox.Claim(id), cancellation);
+            }
+            else
+            {
+                await Connect(client, item.Account, true, cancellation);
+                cancellation.ThrowIfCancellationRequested();
+                if (!_outbox.Claim(id)) return Outcome(_outbox.Get(id));
+                result = await Submit(client, mime, item.Remaining, cancellation);
+            }
         }
         catch (AuthenticationException)
         {
@@ -77,9 +89,6 @@ public sealed partial class ProtocolMailService
             _outbox.BeforeSubmissionFailure(id, true, "未连接到发信服务器，邮件仍在发件箱。一分钟后重试，也可以取消。");
             return Outcome(_outbox.Get(id));
         }
-        cancellation.ThrowIfCancellationRequested();
-        if (!_outbox.Claim(id)) return Outcome(_outbox.Get(id));
-        var result = await Submit(client, mime, item.Remaining, cancellation);
         _outbox.Record(item, result);
         if (result.Accepted.Count > 0)
         {

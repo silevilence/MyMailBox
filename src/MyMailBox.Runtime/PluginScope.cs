@@ -31,7 +31,7 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
                 { OfflineMarks = protocols.OfflineMarks is { } marks ? new ScopedOfflineMarks(this,Target(marks)) : null,
                   Outbox = protocols.Outbox is { } outbox ? new ScopedOutbox(this, Target(outbox)) : null,
                   ImapSync = protocols.ImapSync is { } sync ? new ScopedImapSync(this, Target(sync)) : null } : null,
-            Composer = page.Composer is { } compose ? new(new ScopedAccounts(this, Target(compose.Accounts)),new ScopedDrafts(this,Target(compose.Drafts)),new ScopedOutbox(this,Target(compose.Outbox))) : null,
+            Composer = page.Composer is { } compose ? new(new ScopedAccounts(this, Target(compose.Accounts)),new ScopedDrafts(this,Target(compose.Drafts)),new ScopedOutbox(this,Target(compose.Outbox))) { Graph = compose.Graph is { } composeGraph ? new ScopedGraphWrites(this, Target(composeGraph)) : null } : null,
             Activity=page.Activity is {} activity?new(new ScopedActivity(this,Target(activity.Center)),new ScopedAccounts(this,Target(activity.Accounts))):null,
             Automation=page.Automation is {} auto ? new ScopedAutomation(this,Target(auto)) : null,
             Rules = page.Rules is { } rules ? new ScopedRules(this,Target(rules)) : null,
@@ -41,7 +41,7 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
                   Actions = org.Actions is { } actions ? new ScopedActions(this,Target(actions)) : null } : null,
             UnifiedInbox = page.UnifiedInbox is { } inbox ? new ScopedUnifiedInbox(this, Target(inbox)) : null,
             Graph = page.Graph is { } graph ? new(new ScopedAccounts(this, Target(graph.Accounts)), new ScopedGraph(this, Target(graph.Service)))
-                { Sync = graph.Sync is { } graphSync ? new ScopedGraphSync(this, Target(graphSync)) : null } : null,
+                { Writes = graph.Writes is { } writes ? new ScopedGraphWrites(this, Target(writes)) : null, Sync = graph.Sync is { } graphSync ? new ScopedGraphSync(this, Target(graphSync)) : null } : null,
             Selections = page.Selections is { } selections ? new ScopedSelections(this, Target(selections)) : null,
             Export = page.Export is { } export ? new(new ScopedMailStore(this, Target(export.Store)), new ScopedSelections(this, Target(export.Selections))) : null,
             LocalMailboxes = page.LocalMailboxes is { } local ? new ScopedLocalMailboxes(this, Target(local)) : null,
@@ -263,6 +263,13 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         public async Task Remove(Guid id, CancellationToken cancellation = default) => await scope.Run(async t => { await accounts.Value.Remove(id, t); return true; }, cancellation);
     }
 
+    private sealed class ScopedGraphWrites(PluginScope scope, ServiceTarget<IGraphWrites> service) : IGraphWrites
+    {
+        public async Task Enable(Guid account, CancellationToken token) => await scope.Run(async t => { await service.Value.Enable(account, t); return true; }, token);
+        public async Task MarkRead(Guid account, string message, bool read, CancellationToken token) => await scope.Run(async t => { await service.Value.MarkRead(account, message, read, t); return true; }, token);
+        public Task<string> Move(Guid account, string message, string destination, CancellationToken token) => scope.Run(t => service.Value.Move(account, message, destination, t), token);
+        public Task<string> SaveDraft(MailDraft draft, CancellationToken token) => scope.Run(t => service.Value.SaveDraft(draft, t), token);
+    }
     private sealed class ScopedGraphSync(PluginScope scope, ServiceTarget<IGraphFolderSync> service) : IGraphFolderSync
     {
         public Task<GraphSyncScope> Sync(Guid account, GraphFolder folder, CancellationToken token) => scope.Run(t => service.Value.Sync(account, folder, t), token);

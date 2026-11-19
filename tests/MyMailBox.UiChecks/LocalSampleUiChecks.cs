@@ -13,6 +13,7 @@ internal static class LocalSampleUiChecks
         using (var graph = new GraphMailService(store, new SampleAuthorization(store, account.Address), http))
         {
             graph.SignIn(account.Id).GetAwaiter().GetResult();
+            graph.Enable(account.Id, default).GetAwaiter().GetResult();
             graph.Sync(account.Id, new("SampleInbox", "离线样本", 0), default).GetAwaiter().GetResult();
         }
         ui.Click("nav-accounts/graph"); ui.Status("graph-status", "已登录");
@@ -20,6 +21,9 @@ internal static class LocalSampleUiChecks
         ui.Click("graph-offline-next"); ui.Status("graph-status", "第 2 页，共 1 条摘要");
         ui.ListContains("graph-offline-messages", "离线邮件");
         ui.Click("graph-offline-prev"); ui.Status("graph-status", "第 1 页，共 25 条摘要");
+        ui.Click("graph-pick-move"); ui.Status("graph-status", "请选择邮件");
+        ui.Click("nav-accounts/compose"); ui.Find("compose-graph-draft");
+        ui.Click("nav-accounts/graph"); ui.Status("graph-status", "已登录");
         ui.Click("graph-disconnect"); ui.Status("graph-status", "已清除");
 
         var file = Path.Combine(output, "original.eml");
@@ -36,8 +40,10 @@ internal static class LocalSampleUiChecks
         Console.WriteLine("PASS published UI: two offline Graph pages and external EML package schema/preview/import/replay with exact MIME");
     }
 
-    private sealed class SampleAuthorization(SqliteMailStore store, string address) : IGraphAuthorization
+    private sealed class SampleAuthorization(SqliteMailStore store, string address) : IGraphAuthorization, IGraphWriteAuthorization
     {
+        public Task<GraphGrant> AcquireWrite(Guid account, string clientId, string home, bool interactive, CancellationToken token) =>
+            Acquire(account, clientId, home, interactive, false, token);
         public Task<GraphGrant> Acquire(Guid account, string clientId, string? homeAccountId, bool interactive, bool refresh, CancellationToken cancellation)
         {
             new GraphTokenCache(store).Save(account, [1]);

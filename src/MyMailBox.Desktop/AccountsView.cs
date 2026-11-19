@@ -13,7 +13,7 @@ public sealed class AccountsView : UserControl, IDisposable
     private readonly IAccountService _service;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly ComboBox _accounts = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
-    private readonly ComboBox _provider = new() { ItemsSource = new[] { "本地邮箱", "IMAP + SMTP", "IMAP（仅收）", "SMTP（仅发）", "POP3（仅收）", "Outlook.com（个人账户，只读）" }, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly ComboBox _provider = new() { ItemsSource = new[] { "本地邮箱", "IMAP + SMTP", "IMAP（仅收）", "SMTP（仅发）", "POP3（仅收）", "Outlook.com（个人账户）" }, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
     private static readonly string[] Providers = ["local", "imap-smtp", "imap", "smtp", "pop3", "outlook-com"];
     private readonly TextBox _name = new(), _address = new(), _alias = new(), _tags = new(), _color = new() { Text = "#2563EB" }, _notes = new() { AcceptsReturn = true, MinHeight = 64 }, _order = new() { Text = "0" }, _credential = new() { PasswordChar = '●' };
     private readonly CheckBox _enabled = new() { Content = "启用此账户", IsChecked = true }, _receive = new() { Content = "接收", IsChecked = true }, _send = new() { Content = "发送", IsChecked = true };
@@ -83,10 +83,11 @@ public sealed class AccountsView : UserControl, IDisposable
     private void UpdateCapabilities()
     {
         var provider = Providers[Math.Max(0, _provider.SelectedIndex)]; var local = provider == "local";
-        _address.IsEnabled = _credential.IsEnabled = !local;
+        _address.IsEnabled = !local;
+        _credential.IsEnabled = !local && provider != "outlook-com";
         _receive.IsEnabled = _send.IsEnabled = provider == "imap-smtp";
-        if (provider != "imap-smtp") { _receive.IsChecked = provider is "imap" or "pop3" or "outlook-com"; _send.IsChecked = provider == "smtp"; }
-        _capability.Text = local ? "本地账户用于保存和整理邮件，不支持联网收发。" : provider == "outlook-com" ? "个人微软账户只读接入，到“Outlook.com 邮件”使用浏览器授权，不填写邮箱密码。" : provider == "smtp" ? "SMTP 仅发送，不支持收取邮件。" : provider is "imap" or "pop3" ? "此类型仅接收；发送需要单独的 SMTP 账户。" : "可单独关闭收取或发送；在“邮箱连接与收发”配置各自的服务器和凭据。";
+        if (provider != "imap-smtp") { _receive.IsChecked = provider is "imap" or "pop3" or "outlook-com"; _send.IsChecked = provider == "smtp" || provider == "outlook-com" && (_accounts.SelectedItem as MailAccount)?.Capabilities.HasFlag(AccountCapabilities.Send) == true; }
+        _capability.Text = local ? "本地账户用于保存和整理邮件，不支持联网收发。" : provider == "outlook-com" ? "在“Outlook.com 邮件”登录个人账户。发送与整理需另外授权。" : provider == "smtp" ? "SMTP 仅发送，不支持收取邮件。" : provider is "imap" or "pop3" ? "此类型仅接收；发送需要单独的 SMTP 账户。" : "可单独关闭收取或发送；在“邮箱连接与收发”配置各自的服务器和凭据。";
     }
     private async Task Save()
     {

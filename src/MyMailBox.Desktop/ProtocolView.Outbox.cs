@@ -8,6 +8,7 @@ namespace MyMailBox.Desktop;
 
 public sealed partial class ProtocolView
 {
+    private readonly ComboBox _outboxAccounts = new();
     private readonly ListBox _outboxList = new() { MinHeight = 120, MaxHeight = 240 };
     private readonly TextBlock _outboxDetail = new() { TextWrapping = TextWrapping.Wrap };
     private Button? _retryMail, _cancelMail, _copyMail, _olderMail, _newerMail;
@@ -18,6 +19,9 @@ public sealed partial class ProtocolView
     {
         if (_page.Outbox is null) return;
         var panel = new StackPanel { Spacing = 8 };
+        _outboxAccounts.ItemTemplate = new FuncDataTemplate<MailAccount>((a, _) => new TextBlock { Text = a?.Name + " · " + a?.Address });
+        Add(panel, "发件账户", _outboxAccounts, "outbox-account");
+        _outboxAccounts.SelectionChanged += async (_, _) => { if (!_busy) await Run(() => LoadOutbox(0)); };
         _outboxList.ItemTemplate = new FuncDataTemplate<OutboxItem>((m, _) => new TextBlock
         {
             Text = m is null ? "" : $"{StateName(m.State)} · {m.Subject}\n{m.Created.LocalDateTime:g}" + (m.CopyPending ? " · 副本待保存" : ""),
@@ -81,9 +85,9 @@ public sealed partial class ProtocolView
 
     private async Task LoadOutbox(int offset)
     {
-        if (_page.Outbox is null || _selected is null) return;
+        if (_page.Outbox is null || _outboxAccounts.SelectedItem is not MailAccount sender) { _outboxList.ItemsSource = null; return; }
         var old = (_outboxList.SelectedItem as OutboxItem)?.Id;
-        var items = await _page.Outbox.List(_selected.Id, offset, 21, Token);
+        var items = await _page.Outbox.List(sender.Id, offset, 21, Token);
         if (_disposed) return;
         var page = items.Take(20).ToArray();
         _outboxList.ItemsSource = page;
