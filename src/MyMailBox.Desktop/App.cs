@@ -82,7 +82,7 @@ public sealed class App : Application
                     if (MyMailBox.Updates.UpdateHandoff.ReadState(workspace)?.State == "awaiting-startup") _ = new MyMailBox.Mail.SqliteMailStore(Path.Combine(workspace, "mail"));
                     MyMailBox.Updates.UpdateHandoff.MarkStartup(workspace, applicationVersion, core.Error is null && hotConfiguration?.Error is null, core.Error ?? hotConfiguration?.Error);
                     var upgrade = MyMailBox.Updates.UpdateHandoff.ReadState(workspace);
-                    if (upgrade?.State == "failed") pages.Notice = upgrade.Message + "\n恢复备份：" + upgrade.Backup;
+                    if (upgrade?.State is "failed" or "waiting-for-exit" or "installing") pages.Notice = upgrade.Message + "\n恢复备份：" + upgrade.Backup;
                 }
                 catch (Exception error)
                 {

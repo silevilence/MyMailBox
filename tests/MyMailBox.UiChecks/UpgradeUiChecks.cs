@@ -37,6 +37,18 @@ internal static class UpgradeUiChecks
         var rules = new ReceiveRuleService(store,new(store,mail),mail);
         var rule = rules.Save(new(Guid.NewGuid(),0,"升级规则",SqliteMailStore.LocalAccount,SqliteMailStore.Inbox,
             "subject:sample","subject:private",[new(RuleActionKind.Move, Destination:archive)],2,true,true,false)).GetAwaiter().GetResult();
+        var tasks = new MailAutomationService(store, new(store, mail), mail);
+        var taskTarget = await mail.Create(SqliteMailStore.LocalAccount, null, "升级任务副本");
+        var plan = await tasks.Save(new AutomationPlan(Guid.NewGuid(), 0, "升级前已执行的复制任务",
+            new(SqliteMailStore.LocalAccount, SqliteMailStore.Inbox, "", "exists=1", 0, 0), true)
+        {
+            Target = new(SqliteMailStore.LocalAccount, SqliteMailStore.Inbox, false, "", null, null, 0, 0, true, "", SearchOrder.Oldest, 20, 0, null),
+            Actions = [new(TaskActionKind.Copy, taskTarget)]
+        });
+        var execution = await tasks.Start(plan.Id, "manual/upgrade-fixture");
+        execution = await tasks.Advance(execution.Id);
+        if (execution.State != "done" || (await store.List(taskTarget, 0, 10)).Items.Count != 1)
+            throw new Exception("升级前未能建立已执行的自动化回执。");
         var custom = Path.Combine(workspace, "plugin-data", "user-settings.txt"); Directory.CreateDirectory(Path.GetDirectoryName(custom)!); File.WriteAllText(custom, "用户配置保留");
         Ed25519.KeyPairFromSeed(out var publicBytes, out var privateBytes, RandomNumberGenerator.GetBytes(32));
         var key = Convert.ToBase64String(publicBytes);
@@ -70,6 +82,13 @@ internal static class UpgradeUiChecks
             if (!File.Exists(state.Backup) || !new SqliteMailStore(Path.Combine(workspace, "mail")).Read(messageId).GetAwaiter().GetResult().SequenceEqual(raw) || File.ReadAllText(custom) != "用户配置保留") throw new Exception("Upgrade failed to preserve data/backup");
             var reopened = new SqliteMailStore(Path.Combine(workspace,"mail"));
             var newMail = new ProtocolMailService(reopened);
+            var resumedTasks = new MailAutomationService(reopened, new(reopened, newMail), newMail);
+            var retainedPlan = (await resumedTasks.Plans()).Single(p => p.Id == plan.Id);
+            var retainedRun = (await resumedTasks.Runs(plan.Id)).Single();
+            await resumedTasks.Advance(retainedRun.Id);
+            if (retainedPlan.Actions.Single().Destination != taskTarget || retainedRun.Id != execution.Id || retainedRun.State != "done" ||
+                (await reopened.List(taskTarget, 0, 10)).Items.Count != 1)
+                throw new Exception("升级后自动化引用变化、丢失执行记录或重复复制邮件。");
             var retained = new ReceiveRuleService(reopened,new(reopened,newMail),newMail).Dashboard().GetAwaiter().GetResult().Rules.Single(r => r.Id == rule.Id);
             var draft = new MailDraftStore(reopened).List(sender.Id).Single(d => d.Subject == "升级前正在编辑的草稿");
             if (draft.To != "reader@example.test" || !draft.Body.Plain.Contains("保留编写中的正文") ||
@@ -80,7 +99,7 @@ internal static class UpgradeUiChecks
             if (newMail.List(sender.Id,0,20).GetAwaiter().GetResult().Single(m => m.Id == uncertain).State != "unknown" ||
                 newMail.Deliver(uncertain).GetAwaiter().GetResult().State != "unknown" || smtp.Submissions != 1)
                 throw new Exception("已提交但缺少确认的邮件被重放或丢失。");
-            File.WriteAllText(Path.Combine(output, "upgrade-result.txt"), "PASS signed actual NSIS 0.1.0 -> 0.1.1, app shutdown, helper verification, automatic backup, restart acknowledgement and mail, identity, archived MIME, live draft, receive rule, plugin data and no duplicate SMTP submission after restart\n" + JsonSerializer.Serialize(state));
+            File.WriteAllText(Path.Combine(output, "upgrade-result.txt"), "PASS signed actual NSIS 0.1.0 -> 0.1.1, app shutdown, helper verification, automatic backup, restart acknowledgement and mail, identity, archived MIME, live draft, receive rule, completed automation copy+run receipts, plugin data and no duplicate SMTP submission after restart\n" + JsonSerializer.Serialize(state));
             Console.WriteLine("PASS actual NSIS upgrade through desktop install action and helper; preserved draft/account/rule/archive/plugin data and backup, verified no replay after a real lost SMTP acknowledgement");
         }
         finally

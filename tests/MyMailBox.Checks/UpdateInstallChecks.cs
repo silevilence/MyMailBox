@@ -45,6 +45,14 @@ internal static class UpdateInstallChecks
         var job = new UpdateJob(queued!, root, workspace, Path.Combine(root, "backup.zip"), int.MaxValue, DateTime.MinValue);
         Check(await UpdateHandoff.Execute(job, key) == 1, "helper independently rejects damaged installer");
         Check(UpdateHandoff.ReadState(workspace)?.State == "failed" && await File.ReadAllTextAsync(data) == "用户数据不可删除", "diagnostics and user data survive failed handoff");
+        UpdateHandoff.WriteState(job, "installing", "当前助手仍在工作"); UpdateHandoff.MarkStartup(workspace, "0.1.0", true);
+        Check(UpdateHandoff.ReadState(workspace)?.State == "installing", "Running helper was incorrectly declared interrupted");
+        var stateFile = Path.Combine(workspace, "updates", "upgrade-state.json");
+        var interrupted = UpdateHandoff.ReadState(workspace)! with { Writer = new(int.MaxValue, DateTime.UnixEpoch) };
+        await File.WriteAllTextAsync(stateFile, System.Text.Json.JsonSerializer.Serialize(interrupted));
+        UpdateHandoff.MarkStartup(workspace, "0.1.0", true);
+        Check(UpdateHandoff.ReadState(workspace) is { State: "failed" } stopped && stopped.Message.Contains("中断") && stopped.Backup == job.Backup &&
+            await File.ReadAllTextAsync(data) == "用户数据不可删除", "Abandoned handoff lost its backup or showed a successful update");
         UpdateHandoff.WriteState(job, "awaiting-startup", "pending"); UpdateHandoff.MarkStartup(workspace, "0.2.0", false, "模拟迁移失败");
         Check(UpdateHandoff.ReadState(workspace) is { State: "failed" } failed && failed.Message.Contains("不自动回滚数据库") && failed.Backup == job.Backup, "migration failure has explicit independent restore path");
         UpdateHandoff.WriteState(job, "awaiting-startup", "pending"); UpdateHandoff.MarkStartup(workspace, "0.1.0", true);

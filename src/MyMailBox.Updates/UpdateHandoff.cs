@@ -4,7 +4,22 @@ using System.Text.Json;
 namespace MyMailBox.Updates;
 
 public sealed record UpdateJob(PreparedUpdate Package, string InstallDirectory, string Workspace, string Backup, int ParentId, DateTime ParentStartedUtc);
-public sealed record UpgradeState(string Version, string State, string Message, string Backup, DateTimeOffset ChangedUtc);
+public sealed record UpgradeProcess(int Id, DateTime StartedUtc)
+{
+    public static UpgradeProcess Identify(Process p) => new(p.Id, p.StartTime.ToUniversalTime());
+    public bool Running()
+    {
+        try { using var process = Process.GetProcessById(Id); return !process.HasExited && process.StartTime.ToUniversalTime() == StartedUtc; }
+        catch (ArgumentException) { return false; }
+        catch (InvalidOperationException) { return false; }
+        catch (System.ComponentModel.Win32Exception) { return true; }
+    }
+}
+public sealed record UpgradeState(string Version, string State, string Message, string Backup, DateTimeOffset ChangedUtc)
+{
+    public UpgradeProcess? Writer { get; init; }
+    public UpgradeProcess? Installer { get; init; }
+}
 
 public static class UpdateHandoff
 {
@@ -23,13 +38,16 @@ public static class UpdateHandoff
         var path = Path.Combine(work, "job.json"); File.WriteAllText(path, JsonSerializer.Serialize(job));
         WriteState(job, "waiting-for-exit", "已保存和备份，等待主程序退出后安装。");
         var start = new ProcessStartInfo(Path.Combine(work, "MyMailBox.UpdateHost.exe")) { UseShellExecute = false, CreateNoWindow = true, WindowStyle = ProcessWindowStyle.Hidden };
-        start.ArgumentList.Add(path); using var helper = Process.Start(start) ?? throw new IOException("无法启动更新助手。");
+        start.ArgumentList.Add(path);
+        try { using var helper = Process.Start(start) ?? throw new IOException("无法启动更新助手。"); }
+        catch { WriteState(job, "failed", "更新助手未能启动。当前安装和独立备份保留，请重新检查更新。"); throw; }
     }
     public static async Task<int> Execute(UpdateJob job, string publicKey, CancellationToken cancellation = default)
     {
         try
         {
             // The helper runs outside the application directory, so the installer can replace every application DLL.
+            WriteState(job, "waiting-for-exit", "更新助手已启动，正在等待主程序退出。");
             Process? parent = null;
             try { parent = Process.GetProcessById(job.ParentId); if (parent.StartTime.ToUniversalTime() != job.ParentStartedUtc) { parent.Dispose(); parent = null; } }
             catch (ArgumentException) { }
@@ -44,6 +62,11 @@ public static class UpdateHandoff
             var start = new ProcessStartInfo(job.Package.File, "/S /D=" + Path.TrimEndingDirectorySeparator(job.InstallDirectory))
             { UseShellExecute = false, CreateNoWindow = true, WindowStyle = ProcessWindowStyle.Hidden };
             using var installer = Process.Start(start) ?? throw new IOException("无法启动安装器。");
+            if (!installer.HasExited)
+            {
+                try { WriteState(job, "installing", "正在安装已验证的更新。工作空间和备份保留。", UpgradeProcess.Identify(installer)); }
+                catch (InvalidOperationException) when (installer.HasExited) { }
+            }
             await installer.WaitForExitAsync(cancellation).WaitAsync(TimeSpan.FromMinutes(15), cancellation);
             if (installer.ExitCode != 0) throw new IOException("安装器退出码：" + installer.ExitCode);
             var executable = Path.Combine(job.InstallDirectory, "MyMailBox.Desktop.exe");
@@ -68,12 +91,23 @@ public static class UpdateHandoff
     }
     public static void MarkStartup(string workspace, string currentVersion, bool success, string? error = null)
     {
-        var state = ReadState(workspace); if (state?.State != "awaiting-startup") return;
+        var state = ReadState(workspace);
+        if (state is { State: "waiting-for-exit" or "installing", Writer: { } writer } && !writer.Running() && state.Installer?.Running() != true)
+        {
+            WriteState(workspace, state with { State = "failed", Message = "上次更新中断。请核对当前安装版本，需要恢复时使用独立备份并恢复到新目录。", ChangedUtc = DateTimeOffset.UtcNow });
+            return;
+        }
+        if (state?.State != "awaiting-startup") return;
         if (NuGet.Versioning.VersionComparer.VersionRelease.Compare(ReleaseVersion.Parse(state.Version), ReleaseVersion.Parse(currentVersion)) != 0)
         { success = false; error = "启动的应用版本与更新目标不一致。"; }
         WriteState(workspace, state with { State = success ? "completed" : "failed", Message = success ? "新版本已启动，核心配置和本地工作空间检查通过。" : "新版本启动或迁移失败：" + error + "。请从独立备份恢复到新工作空间；不自动回滚数据库。", ChangedUtc = DateTimeOffset.UtcNow });
     }
-    public static void WriteState(UpdateJob job, string state, string message) => WriteState(job.Workspace, new(job.Package.Version, state, message, job.Backup, DateTimeOffset.UtcNow));
+    public static void WriteState(UpdateJob job, string state, string message, UpgradeProcess? installer = null)
+    {
+        using var process = Process.GetCurrentProcess();
+        WriteState(job.Workspace, new(job.Package.Version, state, message, job.Backup, DateTimeOffset.UtcNow)
+            { Writer = UpgradeProcess.Identify(process), Installer = installer });
+    }
     private static void WriteState(string workspace, UpgradeState state)
     {
         var path = Path.Combine(workspace, "updates", "upgrade-state.json"); Directory.CreateDirectory(Path.GetDirectoryName(path)!);
