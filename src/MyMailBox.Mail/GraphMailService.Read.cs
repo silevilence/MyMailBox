@@ -17,7 +17,7 @@ public sealed partial class GraphMailService
             throw new InvalidDataException("微软返回了不属于当前目录的分页链接，已停止请求。");
         return uri;
     }
-    public Task<GraphFolders> Folders(Guid account, string? parent = null, string? next = null, CancellationToken cancellation = default) => Run(async () =>
+    public Task<GraphFolders> Folders(Guid account, string? parent = null, string? next = null, CancellationToken cancellation = default) => Run(account, async () =>
     {
         var route = Root + (parent is null ? "mailFolders" : "mailFolders/" + Id(parent) + "/childFolders");
         using var data = await Json(account, next ?? route + "?$top=50&$select=id,displayName,childFolderCount", new Uri(route).AbsolutePath, cancellation);
@@ -26,7 +26,7 @@ public sealed partial class GraphMailService
     }, cancellation);
     public Task<GraphMessages> Messages(Guid account, string folder, string? next = null, CancellationToken cancellation = default) =>
         Messages(account,folder,next,25,cancellation);
-    internal Task<GraphMessages> Messages(Guid account, string folder, string? next, int limit, CancellationToken cancellation) => Run(async () =>
+    internal Task<GraphMessages> Messages(Guid account, string folder, string? next, int limit, CancellationToken cancellation) => Run(account, async () =>
     {
         var route = Root + "mailFolders/" + Id(folder) + "/messages";
         if (limit is < 1 or > 200) throw new ArgumentOutOfRangeException(nameof(limit));
@@ -41,36 +41,34 @@ public sealed partial class GraphMailService
         ? (email.TryGetProperty("address", out var address) ? address.GetString() ?? "" : "") : "";
     private static string? Next(JsonDocument document, string path) => document.RootElement.TryGetProperty("@odata.nextLink", out var next) && next.GetString() is { Length: > 0 } value ? ValidatePage(value, path).AbsoluteUri : null;
     private async Task<JsonDocument> Json(Guid account, string url, string path, CancellationToken token) => JsonDocument.Parse(await Get(account, ValidatePage(url, path), 4 * 1024 * 1024, token));
-    private async Task<byte[]> Get(Guid account, Uri uri, int maxBytes, CancellationToken token, bool delta = false)
+    private async Task<byte[]> Get(Guid account, Uri uri, int maxBytes, CancellationToken token, bool delta = false, int? pageSize = null)
     {
         var identity = await Account(account, token); var config = Configuration(account);
-        if (config.Home is null) throw new InvalidDataException("尚未连接微软账户，请先登录授权。");
+        if (config.Home is null) throw MailboxFailure.Mark(new InvalidDataException("尚未连接微软账户，请先登录授权。"), MailboxFailureKind.Authorization);
         var sync = new GraphDeltaStore(_store, account, config.Home);
         sync.CheckCooldown();
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token); timeout.CancelAfter(TimeSpan.FromSeconds(30));
         for (var attempt = 0; attempt < 2; attempt++)
         {
             var grant = await _auth.Acquire(account, config.Client, config.Home, false, attempt > 0, timeout.Token);
-            if (grant.HomeAccountId != config.Home || !grant.Username.Equals(identity.Address, StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("授权身份不匹配，请重新登录当前账户。");
+            if (grant.HomeAccountId != config.Home || !grant.Username.Equals(identity.Address, StringComparison.OrdinalIgnoreCase)) throw MailboxFailure.Mark(new InvalidDataException("授权身份不匹配，请重新登录当前账户。"), MailboxFailureKind.Authorization);
             using var request = new HttpRequestMessage(HttpMethod.Get, uri);
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", grant.AccessToken);
             request.Headers.TryAddWithoutValidation("Prefer", "IdType=\"ImmutableId\"");
+            if (pageSize is > 0) request.Headers.TryAddWithoutValidation("Prefer", "odata.maxpagesize=" + Math.Min(pageSize.Value, 100));
             using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
             if (delta && await Expired(response, timeout.Token)) throw new DeltaExpired();
             if (delta && response.StatusCode == HttpStatusCode.NotFound) throw new DeltaFolderMissing();
             if (response.StatusCode == HttpStatusCode.Unauthorized && attempt == 0) continue;
-            if (response.StatusCode == HttpStatusCode.Unauthorized) throw new InvalidDataException("微软授权已失效，请重新登录授权。");
-            if (response.StatusCode == HttpStatusCode.Forbidden) throw new InvalidDataException("没有读取权限；请检查应用的 Mail.Read 委托权限并重新授权。");
+            if (response.StatusCode == HttpStatusCode.Unauthorized) throw MailboxFailure.Mark(new InvalidDataException("微软授权已失效，请重新登录授权。"), MailboxFailureKind.Authorization);
+            if (response.StatusCode == HttpStatusCode.Forbidden) throw MailboxFailure.Mark(new InvalidDataException("没有读取权限；请检查应用的 Mail.Read 委托权限并重新授权。"), MailboxFailureKind.Authorization);
             if (response.StatusCode == HttpStatusCode.NotFound) throw new InvalidDataException("远程邮件或目录已不存在，请刷新列表。");
             if (response.StatusCode == HttpStatusCode.TooManyRequests)
             {
                 var retry = response.Headers.RetryAfter;
-                if (retry != null || delta)
-                {
-                    var until = retry?.Date ?? DateTimeOffset.UtcNow.Add(retry?.Delta ?? TimeSpan.FromSeconds(30));
-                    sync.Cooldown(until);
-                }
-                throw new InvalidDataException("微软服务正在限流，请稍后重试。");
+                var until = retry?.Date ?? DateTimeOffset.UtcNow.Add(retry?.Delta ?? TimeSpan.FromSeconds(30));
+                if (retry != null || delta) sync.Cooldown(until);
+                throw MailboxFailure.Mark(new InvalidDataException("微软服务正在限流，请稍后重试。"), MailboxFailureKind.Throttled, until);
             }
             if (!response.IsSuccessStatusCode) throw new InvalidDataException("微软邮件请求失败，请稍后重试；没有更改云端邮件。");
             if (response.Content.Headers.ContentLength > maxBytes) throw new InvalidDataException("远程内容超过本次读取大小限制。");
@@ -85,7 +83,7 @@ public sealed partial class GraphMailService
         }
         throw new InvalidOperationException("Unreachable Graph retry state.");
     }
-    public Task<Guid> Download(Guid account, string message, CancellationToken cancellation = default) => Run(async () =>
+    public Task<Guid> Download(Guid account, string message, CancellationToken cancellation = default) => Run(account, async () =>
     {
         await Account(account, cancellation); var config = Configuration(account);
         if (config.Home is null) throw new InvalidDataException("尚未连接微软账户，请先登录授权。");

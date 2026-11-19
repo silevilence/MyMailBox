@@ -16,7 +16,7 @@ public sealed partial class GraphMailService : IGraphMailService, IGraphFolderSy
     private readonly HttpClient _http;
     private readonly bool _ownsHttp;
     private readonly string _clientId;
-    private readonly SemaphoreSlim _gate = new(1);
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<Guid, SemaphoreSlim> _gates = new();
     public GraphMailService(SqliteMailStore store, IGraphAuthorization? authorization = null, HttpClient? http = null, string? clientId = null)
     {
         clientId ??= GraphApplication.ClientId;
@@ -74,7 +74,7 @@ public sealed partial class GraphMailService : IGraphMailService, IGraphFolderSy
         command.Parameters.AddWithValue("$client", _clientId); command.Parameters.AddWithValue("$cache", Guid.NewGuid().ToString());
         cancellation.ThrowIfCancellationRequested(); command.ExecuteNonQuery(); tx.Commit();
     }
-    public Task SignIn(Guid account, CancellationToken cancellation = default) => Run(async () =>
+    public Task SignIn(Guid account, CancellationToken cancellation = default) => Run(account, async () =>
     {
         if (_clientId.Length == 0) throw new InvalidDataException("此版本尚未配置微软登录，请联系应用维护者。");
         var identity = await Account(account, cancellation); ConfigureAccount(account, cancellation); var config = Configuration(account);
@@ -88,7 +88,7 @@ public sealed partial class GraphMailService : IGraphMailService, IGraphFolderSy
         command.CommandText = "UPDATE graph_settings SET home_id=$home WHERE account_id=$id AND EXISTS(SELECT 1 FROM accounts WHERE id=$id AND enabled=1 AND removed=0); UPDATE accounts SET auth_state='微软只读授权已完成' WHERE id=$id AND enabled=1 AND removed=0";
         command.Parameters.AddWithValue("$id", account.ToString()); command.Parameters.AddWithValue("$home", grant.HomeAccountId); cancellation.ThrowIfCancellationRequested(); command.ExecuteNonQuery();
     }, cancellation);
-    public Task Disconnect(Guid account, CancellationToken cancellation = default) => Run(async () => { await Account(account, cancellation); Forget(account); }, cancellation);
+    public Task Disconnect(Guid account, CancellationToken cancellation = default) => Run(account, async () => { await Account(account, cancellation); Forget(account); }, cancellation);
     private void Forget(Guid account)
     {
         using var db = _store.Open(); using var command = db.CreateCommand();
@@ -96,19 +96,20 @@ public sealed partial class GraphMailService : IGraphMailService, IGraphFolderSy
         command.Parameters.AddWithValue("$send", (int)AccountCapabilities.Send);
         command.Parameters.AddWithValue("$id", account.ToString()); command.ExecuteNonQuery();
     }
-    private async Task Run(Func<Task> operation, CancellationToken token) => await Run(async () => { await operation(); return true; }, token);
-    private async Task<T> Run<T>(Func<Task<T>> operation, CancellationToken token)
+    private async Task Run(Guid account, Func<Task> operation, CancellationToken token) => await Run(account, async () => { await operation(); return true; }, token);
+    private async Task<T> Run<T>(Guid account, Func<Task<T>> operation, CancellationToken token)
     {
-        await _gate.WaitAsync(token);
+        var gate = _gates.GetOrAdd(account, _ => new(1));
+        await gate.WaitAsync(token);
         try { return await operation(); }
         catch (GraphWriteFailure e) { throw new InvalidDataException(e.Message, e); }
-        catch (MsalUiRequiredException) { throw new InvalidDataException("微软授权已过期或被撤销，请重新登录授权。"); }
+        catch (MsalUiRequiredException) { throw MailboxFailure.Mark(new InvalidDataException("微软授权已过期或被撤销，请重新登录授权。"), MailboxFailureKind.Authorization); }
         catch (MsalClientException e) when (e.ErrorCode == "authentication_canceled") { throw new InvalidDataException("已取消微软登录，可以重新尝试。"); }
         catch (MsalException) { throw new InvalidDataException("微软授权未完成，请检查应用注册、个人账户支持及网络，然后重试。"); }
-        catch (HttpRequestException) { throw new InvalidDataException("无法连接微软邮件服务，请检查网络后重试。"); }
-        catch (OperationCanceledException) when (!token.IsCancellationRequested) { throw new InvalidDataException("微软连接或登录超时，可以重试。"); }
+        catch (HttpRequestException) { throw MailboxFailure.Mark(new InvalidDataException("无法连接微软邮件服务，请检查网络后重试。"), MailboxFailureKind.Offline); }
+        catch (OperationCanceledException) when (!token.IsCancellationRequested) { throw MailboxFailure.Mark(new InvalidDataException("微软连接或登录超时，可以重试。"), MailboxFailureKind.Offline); }
         catch (JsonException) { throw new InvalidDataException("微软邮件服务响应格式无效，请稍后重试。"); }
-        finally { _gate.Release(); }
+        finally { gate.Release(); }
     }
-    public void Dispose() { if (_ownsHttp) _http.Dispose(); _gate.Dispose(); }
+    public void Dispose() { if (_ownsHttp) _http.Dispose(); foreach (var gate in _gates.Values) gate.Dispose(); }
 }

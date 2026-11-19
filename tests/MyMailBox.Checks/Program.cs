@@ -53,6 +53,7 @@ if (args.Length == 0 || args.Contains("qq-preset")) await ProtocolChecks.Preset(
 if (args.Length == 0 || args.Contains("protocols")) await ProtocolChecks.Run();
 if (args.Length == 0 || args.Contains("graph")) await GraphChecks.Run();
 if (args.Length == 0 || args.Contains("graph-write")) await GraphChecks.Writes();
+if (args.Length == 0 || args.Contains("provider-faults")) await GraphChecks.InboxFaults();
 if (args.Length == 0 || args.Contains("graph-delta")) await GraphChecks.Delta();
 if (args.Length == 0 || args.Contains("outbox")) await ProtocolChecks.Outbox();
 if (args.Length == 0 || args.Contains("extension-matrix")) await ExtensionMatrixChecks.Run();

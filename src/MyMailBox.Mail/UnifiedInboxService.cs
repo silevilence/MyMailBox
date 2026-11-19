@@ -26,8 +26,8 @@ public sealed class UnifiedInboxService : IUnifiedInbox
         command.ExecuteNonQuery();
     }
 
-    private IReceiveProvider? Provider(MailAccount account) => account.Enabled && account.Capabilities.HasFlag(AccountCapabilities.Receive)
-        ? _providers.FirstOrDefault(p => p.Supports(account)) : null;
+    private IReceiveProvider? Provider(MailAccount account, bool cached = false) => account.Enabled && account.Capabilities.HasFlag(AccountCapabilities.Receive)
+        ? _providers.FirstOrDefault(p => cached ? p.CanReadCache(account) : p.Supports(account)) : null;
 
     private SqliteCommand Command(SqliteConnection db, string sql, params (string Name, object Value)[] parameters)
     {
@@ -36,10 +36,10 @@ public sealed class UnifiedInboxService : IUnifiedInbox
         return command;
     }
 
-    private async Task<(MailAccount Account, IReceiveProvider Provider)> Resolve(Guid id, CancellationToken token)
+    private async Task<(MailAccount Account, IReceiveProvider Provider)> Resolve(Guid id, CancellationToken token, bool cached = false)
     {
         var account = (await _accounts.List(token)).FirstOrDefault(a => a.Id == id);
-        if (account is null || Provider(account) is not { } provider) throw new InvalidDataException("账户已停用、移除或尚无可用的接收提供者。");
+        if (account is null || Provider(account, cached) is not { } provider) throw new InvalidDataException("账户已停用、移除或尚无可用的接收提供者。");
         return (account, provider);
     }
 
@@ -87,7 +87,7 @@ public sealed class UnifiedInboxService : IUnifiedInbox
         using var cmd = Command(db, """
             INSERT INTO receive_jobs(account,requested,state) VALUES($id,1,'queued')
             ON CONFLICT(account) DO UPDATE SET requested=1,due=0,state='queued',detail='',revision=revision+1
-            WHERE state NOT IN ('running','queued')
+            WHERE state NOT IN ('running','queued') AND (state<>'limited' OR due<=unixepoch())
             """, ("id", account.ToString()));
         cmd.ExecuteNonQuery();
     }
@@ -98,7 +98,7 @@ public sealed class UnifiedInboxService : IUnifiedInbox
         var merged = new List<InboxMessage>();
         foreach (var identity in await _accounts.List(token))
         {
-            if ((account is null || identity.Id == account) && Provider(identity) is { } provider)
+            if ((account is null || identity.Id == account) && Provider(identity, cached: true) is { } provider)
                 merged.AddRange(await provider.Inbox(identity, before, limit + 1, token));
         }
         var rows = merged.OrderByDescending(m => m.Position.UnixMilliseconds).ThenByDescending(m => m.Position.Key, StringComparer.Ordinal)
@@ -108,7 +108,7 @@ public sealed class UnifiedInboxService : IUnifiedInbox
 
     public async Task<string> Open(Guid account, string key, CancellationToken token = default)
     {
-        var (identity, provider) = await Resolve(account, token);
+        var (identity, provider) = await Resolve(account, token, cached: true);
         return await provider.Open(identity, key, token);
     }
 
@@ -151,27 +151,37 @@ public sealed class UnifiedInboxService : IUnifiedInbox
             Finish(id, revision, "ready", "收件箱已更新。", true);
         }
         catch (OperationCanceledException) when (operation.IsCancellationRequested) { }
-        catch (Exception e) when (e is System.Net.Sockets.SocketException or TimeoutException || e.Data.Contains("receive-offline"))
+        catch (Exception e)
         {
-            Finish(id, revision, "offline", "无法连接服务器。离线副本可继续阅读，网络恢复后可以立即刷新。", false);
-        }
-        catch (Exception)
-        {
-            var accounts = await _accounts.List(token);
-            var expired = accounts.FirstOrDefault(a => a.Id == id)?.AuthenticationState.Contains("授权失败") == true;
-            Finish(id, revision, expired ? "auth" : "failed",
-                expired ? "授权失败或已过期。请更新凭据后刷新。" : "接收失败。请检查网络、服务器配置和本地存储后刷新。", false);
+            var kind = MailboxFailure.Kind(e);
+            if (kind == null && (e is System.Net.Sockets.SocketException or HttpRequestException or TimeoutException or OperationCanceledException || e.Data.Contains("receive-offline")))
+                kind = MailboxFailureKind.Offline;
+            if (e is SqliteException { SqliteErrorCode: 13 }) kind = MailboxFailureKind.Storage;
+            if (kind == null && (await _accounts.List(token)).FirstOrDefault(a => a.Id == id)?.AuthenticationState.Contains("授权失败") == true)
+                kind = MailboxFailureKind.Authorization;
+            var (state, detail) = kind switch
+            {
+                MailboxFailureKind.Offline => ("offline", "无法连接服务器。离线副本可继续阅读，网络恢复后可以立即刷新。"),
+                MailboxFailureKind.Authorization => ("auth", "授权失败或已过期。请在此账户的连接页面重新授权后刷新。"),
+                MailboxFailureKind.Throttled => ("limited", "服务方暂时限制请求，请在等待期结束后刷新。"),
+                MailboxFailureKind.Policy => ("policy", "组织策略阻止接收。请联系管理员确认设备准入和账户权限。"),
+                MailboxFailureKind.Storage => ("storage", "工作空间磁盘空间不足。请释放空间后刷新，将从已提交的进度继续。"),
+                _ => ("failed", "接收失败。请检查提供者插件、服务器配置和本地存储后刷新。")
+            };
+            var retry = MailboxFailure.RetryAfter(e);
+            if (retry.HasValue) detail += $" 可重试时间：{retry.Value.ToLocalTime():yyyy-MM-dd HH:mm:ss}。";
+            Finish(id, revision, state, detail, false, retry);
         }
         finally { _active.TryRemove(id, out _); }
     }
 
-    private void Finish(Guid id, int revision, string state, string detail, bool success)
+    private void Finish(Guid id, int revision, string state, string detail, bool success, DateTimeOffset? retry = null)
     {
         using var db = _store.Open();
         using var tx=db.BeginTransaction();using var cmd = Command(db, """
-            UPDATE receive_jobs SET state=$state,detail=$detail,requested=0,due=unixepoch()+300,
+            UPDATE receive_jobs SET state=$state,detail=$detail,requested=0,due=$due,
                 last_ok=CASE WHEN $ok THEN unixepoch() ELSE last_ok END WHERE account=$id AND revision=$revision
-            """, ("id", id.ToString()), ("revision", revision), ("state", state), ("detail", detail), ("ok", success));
+            """, ("id", id.ToString()), ("revision", revision), ("state", state), ("detail", detail), ("ok", success), ("due", (retry ?? DateTimeOffset.UtcNow.AddMinutes(5)).ToUnixTimeSeconds()));
         cmd.Transaction=tx;
         if(cmd.ExecuteNonQuery()==1)ActivityCenter.Add(cmd,"receive/"+Guid.NewGuid(),success?"sync":"error",id.ToString(),success?"收件箱已同步":"收件未完成",detail,"account",id.ToString());
         tx.Commit();

@@ -27,6 +27,7 @@ public sealed class MailboxReceiveProvider : IReceiveProvider
     private IMailboxProvider? Find(MailAccount account) => (account.Provider.Contains('/') || account.Provider=="exchange-eas") ?
         _providers().SingleOrDefault(p => p.Type.Id == account.Provider && p.Type.Features.HasFlag(MailboxFeatures.Delta)) : null;
     public bool Supports(MailAccount account) => Find(account) != null;
+    public bool CanReadCache(MailAccount account) => account.Provider.Contains('/') || account.Provider == "exchange-eas";
     private static MailboxIdentity Identity(MailAccount a) => new(a.Id,a.Address);
     private static SqliteCommand Command(SqliteConnection db,MailAccount a,string sql)
     {

@@ -9,6 +9,7 @@ public sealed record ReceiveStatus(Guid Account, string Name, bool Available, bo
 public interface IReceiveProvider
 {
     bool Supports(MailAccount account);
+    bool CanReadCache(MailAccount account) => Supports(account);
     Task Receive(MailAccount account, int range, CancellationToken token);
     Task<IReadOnlyList<InboxMessage>> Inbox(MailAccount account, InboxPosition? before, int limit, CancellationToken token);
     Task<string> Open(MailAccount account, string key, CancellationToken token);

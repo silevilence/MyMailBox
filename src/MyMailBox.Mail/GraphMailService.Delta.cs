@@ -20,7 +20,10 @@ public sealed partial class GraphMailService
     public async Task<GraphOfflinePage> Cached(Guid account, string folder, int offset, CancellationToken token) =>
         (await Delta(account, token)).Cached(folder, offset);
 
-    public Task<GraphSyncScope> Sync(Guid account, GraphFolder folder, CancellationToken token) => Run(async () =>
+    public Task<GraphSyncScope> Sync(Guid account, GraphFolder folder, CancellationToken token) =>
+        SyncPages(account, folder, null, token);
+
+    internal Task<GraphSyncScope> SyncPages(Guid account, GraphFolder folder, int? remaining, CancellationToken token) => Run(account, async () =>
     {
         var store = await Delta(account, token);
         var state = store.Begin(folder);
@@ -34,7 +37,7 @@ public sealed partial class GraphMailService
             var uri = DeltaLink(state.Link ?? initial, folder.Id);
             if (!visited.Add(uri.AbsoluteUri)) throw new InvalidDataException("微软重复返回同一分页链接，已暂停同步。");
             byte[] raw;
-            try { raw = await Get(account, uri, 4 * 1024 * 1024, token, delta: true); }
+            try { raw = await Get(account, uri, 4 * 1024 * 1024, token, delta: true, pageSize: remaining); }
             catch (DeltaExpired)
             {
                 if (reset || state.Link == null) throw new InvalidDataException("微软未能建立新的同步游标，保留已有邮件。");
@@ -54,8 +57,10 @@ public sealed partial class GraphMailService
             if (link == null) throw new InvalidDataException("微软未返回有效的增量进度。");
             var checkedLink = DeltaLink(link, folder.Id).AbsoluteUri;
             if (!final && visited.Contains(checkedLink)) throw new InvalidDataException("微软重复返回同一分页链接，已暂停同步。");
-            state = store.Apply(folder.Id, state, root.GetProperty("value"), checkedLink, final, token);
-            if (final) return store.Scopes().Single(s => s.Id == folder.Id);
+            var items = root.GetProperty("value");
+            state = store.Apply(folder.Id, state, items, checkedLink, final, token);
+            remaining -= items.GetArrayLength();
+            if (final || remaining <= 0) return store.Scopes().Single(s => s.Id == folder.Id);
         }
     }, token);
 

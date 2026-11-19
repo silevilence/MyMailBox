@@ -11,6 +11,7 @@ internal sealed class GraphDeltaStore(SqliteMailStore store, Guid account, strin
     {
         using var cmd = db.CreateCommand();
         cmd.CommandText = """
+            CREATE TABLE IF NOT EXISTS graph_inboxes(account TEXT NOT NULL,home TEXT NOT NULL,folder TEXT NOT NULL,PRIMARY KEY(account,home));
             CREATE TABLE IF NOT EXISTS graph_scopes(account TEXT NOT NULL,home TEXT NOT NULL,folder TEXT NOT NULL,name TEXT NOT NULL,
                 cursor TEXT,generation INTEGER NOT NULL,rebuilding INTEGER NOT NULL,last_success TEXT,PRIMARY KEY(account,home,folder));
             CREATE TABLE IF NOT EXISTS graph_items(account TEXT NOT NULL,home TEXT NOT NULL,folder TEXT NOT NULL,id TEXT NOT NULL,
@@ -140,7 +141,7 @@ internal sealed class GraphDeltaStore(SqliteMailStore store, Guid account, strin
         using var db = store.Open(); using var cmd = Command(db);
         cmd.CommandText = "SELECT until_utc FROM graph_cooldown WHERE account=$a AND home=$h";
         if (cmd.ExecuteScalar() is long seconds && DateTimeOffset.FromUnixTimeSeconds(seconds) is var until && until > DateTimeOffset.UtcNow)
-            throw new InvalidDataException($"微软服务正在限流，请在 {until.ToLocalTime():HH:mm:ss} 后重试。");
+            throw MailboxFailure.Mark(new InvalidDataException($"微软服务正在限流，请在 {until.ToLocalTime():HH:mm:ss} 后重试。"), MailboxFailureKind.Throttled, until);
     }
     internal void Cooldown(DateTimeOffset until)
     {

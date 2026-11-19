@@ -119,10 +119,11 @@ public sealed partial class ExchangeMailbox : IMailboxProvider,IExchangeSetup,ID
     private async Task CheckHttp(Guid id,HttpResponseMessage response,CancellationToken t)
     {
         if(response.IsSuccessStatusCode)return;
-        if(response.StatusCode==HttpStatusCode.Unauthorized){await _accounts.AuthenticationFailed(id,t);throw new Refused("Exchange 身份验证失败，请更新凭据。");}
-        if((int)response.StatusCode is 403 or 449)throw new Refused("Exchange 设备或组织策略阻止了操作，请联系管理员核对设备准入。");
+        if(response.StatusCode==HttpStatusCode.Unauthorized){await _accounts.AuthenticationFailed(id,t);throw MailboxFailure.Mark(new Refused("Exchange 身份验证失败，请更新凭据。"), MailboxFailureKind.Authorization);}
+        if((int)response.StatusCode is 403 or 449)throw MailboxFailure.Mark(new Refused("Exchange 设备或组织策略阻止了操作，请联系管理员核对设备准入。"), MailboxFailureKind.Policy);
         if((int)response.StatusCode is >=300 and <400 or 451)throw new InvalidDataException("服务器要求重定向，请管理员确认新地址后新建连接。");
-        if((int)response.StatusCode is 429 or 503)throw new InvalidDataException("Exchange 暂时限流或不可用，请稍后重试。");
+        if((int)response.StatusCode is 429 or 503)throw MailboxFailure.Mark(new InvalidDataException("Exchange 暂时限流或不可用，请稍后重试。"), MailboxFailureKind.Throttled,
+            response.Headers.RetryAfter?.Date ?? DateTimeOffset.UtcNow.Add(response.Headers.RetryAfter?.Delta ?? TimeSpan.FromMinutes(5)));
         throw new InvalidDataException($"Exchange 返回 HTTP {(int)response.StatusCode}。");
     }
     private async Task<EasNode?> Post(Guid id,string command,EasNode body,CancellationToken t,bool write=false)
@@ -148,7 +149,7 @@ public sealed partial class ExchangeMailbox : IMailboxProvider,IExchangeSetup,ID
     private static void Status(EasNode n,Tag tag,string expected="1")
     {
         var code=n.Value(tag);if(code==expected)return;
-        if(code is "140" or "141" or "142" or "143" or "144")throw new InvalidDataException("Exchange 要求设备策略，请联系管理员核对准入。");
+        if(code is "140" or "141" or "142" or "143" or "144")throw MailboxFailure.Mark(new InvalidDataException("Exchange 要求设备策略，请联系管理员核对准入。"), MailboxFailureKind.Policy);
         throw new InvalidDataException("Exchange 操作未完成，协议状态 "+(int.TryParse(code,out var value)?value.ToString():"无效")+"。");
     }
     public Task Connect(MailboxIdentity a,CancellationToken t)=>Check(a.Id,t);

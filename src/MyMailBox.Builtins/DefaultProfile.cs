@@ -73,7 +73,7 @@ public static class DefaultProfile
                 ctx.Effect(()=>host.Add(new Page("templates","配置模板迁移","",[],[],(_,_)=>Task.FromResult("")) { Templates=templates }));
             }
             ctx.Effect(() => new Mail.ReceiveRuleRunner(rules,activity.RecordError));
-            var inbox = new Mail.UnifiedInboxService(store, accounts, new Mail.ProtocolReceiveProvider(store, protocols),
+            var inbox = new Mail.UnifiedInboxService(store, accounts, new Mail.ProtocolReceiveProvider(store, protocols), new Mail.GraphReceiveProvider(store, graph),
                 new Mail.MailboxReceiveProvider(store, mailboxProviders ?? (() => [])));
             ctx.Effect(() => host.Add(new Page("inbox", "统一收件箱", "", [], [], (_, _) => Task.FromResult("")) { UnifiedInbox = inbox }));
             ctx.Effect(() => host.Add(new Page("organize", "目录与标记", "", [], [], (_, _) => Task.FromResult("")) { Organization = new(accounts, protocols) { Actions = protocols, Transfers = protocols } }));

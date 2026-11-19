@@ -16,7 +16,7 @@ public sealed partial class GraphMailService
             throw new InvalidDataException("本应用的 Graph 单次提交上限为 4 MiB（含 MIME 和 Base64 编码）。请缩小附件。");
     }
 
-    public Task Enable(Guid account, CancellationToken token) => Run(async () =>
+    public Task Enable(Guid account, CancellationToken token) => Run(account, async () =>
     {
         var grant = await WriteGrant(account, true, token);
         using var db = _store.Open();
@@ -83,7 +83,7 @@ public sealed partial class GraphMailService
 
     private static StringContent MimeContent(byte[] raw) => new(Convert.ToBase64String(raw), Encoding.ASCII, "text/plain");
 
-    internal Task<SendOutcome> SendQueued(Guid account, byte[] raw, string[] recipients, Func<bool> claim, CancellationToken token) => Run(async () =>
+    internal Task<SendOutcome> SendQueued(Guid account, byte[] raw, string[] recipients, Func<bool> claim, CancellationToken token) => Run(account, async () =>
     {
         CheckMimeSize(raw.Length);
         var grant = await WriteGrant(account, false, token);
@@ -100,7 +100,7 @@ public sealed partial class GraphMailService
         return new SendOutcome("unknown", "提交后未取得明确回执，请先核对已发送邮件。系统不会自动重发。", [], []);
     }, token);
 
-    public Task MarkRead(Guid account, string message, bool read, CancellationToken token) => Run(async () =>
+    public Task MarkRead(Guid account, string message, bool read, CancellationToken token) => Run(account, async () =>
     {
         var grant = await WriteGrant(account, false, token);
         using var response = await RequestWrite(account, grant, HttpMethod.Patch, "messages/" + Id(message), JsonContent.Create(new { isRead = read }), token);
@@ -111,7 +111,7 @@ public sealed partial class GraphMailService
         cmd.ExecuteNonQuery();
     }, token);
 
-    public Task<string> Move(Guid account, string message, string destination, CancellationToken token) => Run(async () =>
+    public Task<string> Move(Guid account, string message, string destination, CancellationToken token) => Run(account, async () =>
     {
         if (string.IsNullOrWhiteSpace(destination)) throw new InvalidDataException("请选择本账户的目标目录。");
         var grant = await WriteGrant(account, false, token);
@@ -133,7 +133,7 @@ public sealed partial class GraphMailService
         return moved;
     }, token);
 
-    public Task<string> SaveDraft(MailDraft draft, CancellationToken token) => Run(async () =>
+    public Task<string> SaveDraft(MailDraft draft, CancellationToken token) => Run(draft.Account, async () =>
     {
         var grant = await WriteGrant(draft.Account, false, token);
         var drafts = new MailDraftStore(_store);

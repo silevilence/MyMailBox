@@ -124,6 +124,7 @@ internal sealed class UnifiedInboxView : UserControl, IDisposable
             var state = r.State switch
             {
                 "running" => "接收中", "queued" => "已排队", "offline" => "离线", "auth" => "需要重新授权",
+                "limited" => "服务限流", "policy" => "需要管理员确认", "storage" => "存储空间不足",
                 "ready" => "接收完成", "failed" => "接收失败", "unavailable" => "不可接收", _ => "已暂停"
             };
             return $"{r.Name} · {state} · 最近成功 {r.LastSuccess?.LocalDateTime.ToString("g") ?? "无"}　{r.Detail}";

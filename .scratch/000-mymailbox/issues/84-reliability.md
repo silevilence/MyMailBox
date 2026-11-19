@@ -2,7 +2,7 @@
 
 Spec: 000-mymailbox
 Status: needs-info
-Progress: not-started
+Progress: in-progress
 Type: task
 Scope: 必做
 Estimate: 2–3 人日
@@ -46,8 +46,10 @@ Blocked by: 47, 78, 46, 35, 29, 30, 34, 33
 
 ## 验证与交付记录
 
-实施时记录演示步骤或检查命令、结果、适用环境和已知限制；目前未执行，所有验收项保持未勾选。若发现超出预计粒度，先拆为完整可验收子场景；环境不足时保留具体缺口，不标完成。
+本轮实施及验证见下方记录。
 
 ## Comments
 
 - 2026-11-16：用户确认任务拆分后创建，尚未开始开发。
+
+- 2026-11-19：统一收件箱已接入 Outlook.com 的已授权收件箱、分页游标、同日期翻页、原文离线阅读和回复转发。provider-faults 真实运行接收队列，验证离线、重新授权、Retry-After 和 SQLite FULL 时邮件与游标回滚；multi-sync、mailbox-provider 验证多账户隔离、停用与缓存。protocol-live、protocol-faults、imap-sync、imap-conflicts 本次使用现有 GreenMail 和本机故障服务器通过，exchange-eas 验证协议替身。仍缺 QQ/163/个人 Graph 和公司 Exchange 的授权服务端记录。

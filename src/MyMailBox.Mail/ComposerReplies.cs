@@ -8,6 +8,7 @@ public sealed partial class MailDraftStore
     private (Guid Account,Guid? Id) Source(string message)
     {
         using var db=_store.Open();using var c=db.CreateCommand();
+        if (message.StartsWith("graph/", StringComparison.Ordinal)) return GraphReceiveProvider.ReplySource(db, message);
         string item;
         if(Guid.TryParse(message,out var local))item=local.ToString();
         else
