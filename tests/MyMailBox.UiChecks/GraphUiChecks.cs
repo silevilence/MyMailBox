@@ -44,7 +44,7 @@ internal static class GraphUiChecks
             ui.Click("graph-read"); ui.Status("graph-status", "请选择目录");
             ui.Click("graph-download"); ui.Status("graph-status", "请选择邮件");
             ui.Click("graph-sync"); ui.Status("graph-status", "请先选择云端目录");
-            ui.Click("graph-offline"); ui.Status("graph-status", "请先同步一个云端目录");
+            ui.Click("graph-offline"); ui.Status("graph-cache-status", "请先同步一个云端目录");
             ui.Click("graph-disconnect"); ui.Status("graph-status", "已清除");
             window.Focus(); Capture.Element(window).ToFile(Path.Combine(output, "graph-settings.png"));
             ui.Click("nav-accounts/protocols"); ui.Status("protocol-status", "账户");

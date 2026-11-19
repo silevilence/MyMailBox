@@ -4,7 +4,7 @@
     <ProjectReference Include="../MyMailBox.Builtins/MyMailBox.Builtins.csproj" />
     <PackageReference Include="Avalonia.Desktop" Version="12.1.1" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.1" />
-    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3179.45" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3179.45" PrivateAssets="build;buildTransitive;contentFiles;analyzers" />
   </ItemGroup>
   <Target Name="UseOnlyWebView2Core" BeforeTargets="ResolveAssemblyReferences">
     <ItemGroup>

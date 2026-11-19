@@ -14,6 +14,8 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        if (args.Length == 2 && args[0] == "graph-recovery-window") { GraphRecoveryWindow.Show(args[1]); return; }
+        if (args.Length == 2 && args[0] == "graph-recovery") { GraphRecoveryWindow.Verify(args[1]); return; }
         Console.OutputEncoding = System.Text.Encoding.UTF8;
         System.Windows.Forms.Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
         if (args.Length==2 && args[0]=="performance"){PerformanceUiChecks.Run(int.Parse(args[1]));return;}

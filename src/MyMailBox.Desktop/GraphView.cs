@@ -21,6 +21,7 @@ public sealed class GraphView : UserControl, IDisposable
     private List<GraphFolder> _folderItems = [];
     private readonly ComboBox _syncScopes = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly ListBox _offline = new() { Height = 150 };
+    private readonly TextBlock _offlineStatus = new() { TextWrapping = TextWrapping.Wrap };
     private int _offlineOffset;
     private bool _offlineMore;
     private GraphSummary? _moving;
@@ -84,20 +85,23 @@ public sealed class GraphView : UserControl, IDisposable
             panel.Children.Add(Button("增量同步选中目录的摘要", "graph-sync", async t =>
             {
                 var folder = _folders.SelectedItem as GraphFolder ?? throw new InvalidDataException("请先选择云端目录。");
-                _status.Text = $"正在同步 {folder.Name}，可取消并在下次继续。";
-                var scope = await sync.Sync(Account, folder, t);
-                await LoadScopes(sync, scope.Id, t);
-                _status.Text = $"{scope.Name} 同步完成，共 {scope.Messages} 封，{scope.LastSuccess?.ToLocalTime():g}。";
+                await SyncFolder(sync, folder, t);
             }));
             _syncScopes.ItemTemplate = new FuncDataTemplate<GraphSyncScope>((s, _) => new TextBlock { Text = s == null ? "" : $"{s.Name} · {s.Messages} 封 · 上次成功 {s.LastSuccess?.ToLocalTime().ToString("g") ?? "尚未完成"}" });
             Add(panel, "已同步的目录", _syncScopes, "graph-offline-scope");
             _offline.ItemTemplate = _messages.ItemTemplate;
             Add(panel, "本地摘要", _offline, "graph-offline-messages");
             var cached = Row(); panel.Children.Add(cached);
-            _syncScopes.SelectionChanged += (_, _) => { _offlineOffset = 0; _offlineMore = false; _offline.ItemsSource = null; };
-            cached.Children.Add(Button("查看本地摘要", "graph-offline", t => LoadOffline(sync, 0, t)));
-            cached.Children.Add(Button("上一页摘要", "graph-offline-prev", t => LoadOffline(sync, Math.Max(0, _offlineOffset - 25), t)));
-            cached.Children.Add(Button("下一页摘要", "graph-offline-next", t => LoadOffline(sync, _offlineMore ? _offlineOffset + 25 : _offlineOffset, t)));
+            _syncScopes.SelectionChanged += (_, _) => { _offlineOffset = 0; _offlineMore = false; _offline.ItemsSource = null; _offlineStatus.Text = ""; };
+            AutomationProperties.SetAutomationId(_offlineStatus, "graph-cache-status"); panel.Children.Add(_offlineStatus);
+            cached.Children.Add(Button("继续同步此目录", "graph-resume-scope", async t =>
+            {
+                var selected = _syncScopes.SelectedItem as GraphSyncScope ?? throw new InvalidDataException("请先选择已同步的目录。");
+                await SyncFolder(sync, new GraphFolder(selected.Id, selected.Name, 0), t);
+            }));
+            cached.Children.Add(CacheButton("查看本地摘要", "graph-offline", t => LoadOffline(sync, 0, t)));
+            cached.Children.Add(CacheButton("上一页摘要", "graph-offline-prev", t => LoadOffline(sync, Math.Max(0, _offlineOffset - 25), t)));
+            cached.Children.Add(CacheButton("下一页摘要", "graph-offline-next", t => LoadOffline(sync, _offlineMore ? _offlineOffset + 25 : _offlineOffset, t)));
             cached.Children.Add(Button("保存选中邮件供离线阅读", "graph-offline-download", async t =>
             {
                 if (_offline.SelectedItem is not GraphSummary message) throw new InvalidDataException("请选择一封本地摘要。");
@@ -122,6 +126,28 @@ public sealed class GraphView : UserControl, IDisposable
     {
         var button = new Button { Content = title, Margin = new Avalonia.Thickness(0, 0, 8, 6) }; AutomationProperties.SetAutomationId(button, id); button.Click += async (_, _) => await Run(action); _controls.Add(button); return button;
     }
+    private Button CacheButton(string title, string id, Func<CancellationToken, Task> action)
+    {
+        var button = new Button { Content = title, Margin = new Avalonia.Thickness(0, 0, 8, 6) };
+        AutomationProperties.SetAutomationId(button, id);
+        button.Click += async (_, _) =>
+        {
+            try { await action(_lifetime.Token); }
+            catch (OperationCanceledException) when (_disposed) { }
+            catch (Exception e) { if (!_disposed) _offlineStatus.Text = e is InvalidDataException ? e.Message : "本地摘要读取失败，请检查工作空间。"; }
+        };
+        return button;
+    }
+    private async Task SyncFolder(IGraphFolderSync sync, GraphFolder folder, CancellationToken token)
+    {
+        _status.Text = $"正在同步 {folder.Name}，可取消并在下次继续。";
+        var scope = await sync.Sync(Account, folder, token);
+        bool reading = (_syncScopes.SelectedItem as GraphSyncScope)?.Id == scope.Id && _offline.ItemsSource != null;
+        int offset = _offlineOffset;
+        await LoadScopes(sync, scope.Id, token);
+        if (reading) await LoadOffline(sync, Math.Min(offset, Math.Max(0, scope.Messages - 1) / 25 * 25), token);
+        _status.Text = $"{scope.Name} 同步完成，共 {scope.Messages} 封，{scope.LastSuccess?.ToLocalTime():g}。";
+    }
     private async Task LoadSettings(CancellationToken token)
     {
         ClearLists();
@@ -140,9 +166,11 @@ public sealed class GraphView : UserControl, IDisposable
     private async Task LoadOffline(IGraphFolderSync sync, int offset, CancellationToken token)
     {
         if (_syncScopes.SelectedItem is not GraphSyncScope scope) throw new InvalidDataException("请先同步一个云端目录。");
-        var page = await sync.Cached(Account, scope.Id, offset, token);
+        var account = Account;
+        var page = await sync.Cached(account, scope.Id, offset, token);
+        if (_disposed || (_accounts.SelectedItem as MailAccount)?.Id != account || (_syncScopes.SelectedItem as GraphSyncScope)?.Id != scope.Id) return;
         _offlineOffset = offset; _offlineMore = page.More; _offline.ItemsSource = page.Items; _offline.SelectedIndex = page.Items.Count > 0 ? 0 : -1;
-        _status.Text = $"{scope.Name} · 本地第 {offset / 25 + 1} 页，共 {page.Items.Count} 条摘要。";
+        _offlineStatus.Text = $"{scope.Name} · 本地第 {offset / 25 + 1} 页，共 {page.Items.Count} 条摘要。上次成功同步 {scope.LastSuccess?.ToLocalTime().ToString("g") ?? "尚未完成"}。";
     }
     private GraphSummary SelectedMessage() => _messages.SelectedItem as GraphSummary ?? throw new InvalidDataException("请选择邮件。");
     private void ClearLists() { _moving = null; _writeActions.IsVisible = false; _syncScopes.ItemsSource = null; _offline.ItemsSource = null; _folders.ItemsSource = null; _messages.ItemsSource = null; _folderItems = []; _parent = null; _parents.Clear(); _folderNext = null; _messageNext = null; _messageCurrent = null; _messageBack.Clear(); }

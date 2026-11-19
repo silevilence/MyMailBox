@@ -17,10 +17,11 @@ internal static class LocalSampleUiChecks
             graph.Sync(account.Id, new("SampleInbox", "离线样本", 0), default).GetAwaiter().GetResult();
         }
         ui.Click("nav-accounts/graph"); ui.Status("graph-status", "已登录");
-        ui.Click("graph-offline"); ui.Status("graph-status", "第 1 页，共 25 条摘要");
-        ui.Click("graph-offline-next"); ui.Status("graph-status", "第 2 页，共 1 条摘要");
+        ui.Click("graph-offline"); ui.Status("graph-cache-status", "第 1 页，共 25 条摘要");
+        ui.Click("graph-offline-next"); ui.Status("graph-cache-status", "第 2 页，共 1 条摘要");
         ui.ListContains("graph-offline-messages", "离线邮件");
-        ui.Click("graph-offline-prev"); ui.Status("graph-status", "第 1 页，共 25 条摘要");
+        ui.Status("graph-cache-status", "上次成功同步");
+        ui.Click("graph-offline-prev"); ui.Status("graph-cache-status", "第 1 页，共 25 条摘要");
         ui.Click("graph-pick-move"); ui.Status("graph-status", "请选择邮件");
         ui.Click("nav-accounts/compose"); ui.Find("compose-graph-draft");
         ui.Click("nav-accounts/graph"); ui.Status("graph-status", "已登录");
@@ -80,7 +81,7 @@ internal static class LocalSampleUiChecks
         Console.WriteLine("PASS published UI: Graph offline and write access, external EML import/replay, account creation, loopback compose/send/read/search/mark/move/upload/quota/delta, ActiveSync validation, update source, rule conversion and portable templates");
     }
 
-    private sealed class SampleAuthorization(SqliteMailStore store, string address) : IGraphAuthorization, IGraphWriteAuthorization
+    internal sealed class SampleAuthorization(SqliteMailStore store, string address) : IGraphAuthorization, IGraphWriteAuthorization
     {
         public Task<GraphGrant> AcquireWrite(Guid account, string clientId, string home, bool interactive, CancellationToken token) =>
             Acquire(account, clientId, home, interactive, false, token);

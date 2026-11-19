@@ -3,6 +3,6 @@
   <ItemGroup>
     <PackageReference Include="FlaUI.UIA3" Version="5.0.0" />
     <Compile Include="../MyMailBox.Checks/ProtocolFaultServer.cs" Link="Fixtures/ProtocolFaultServer.cs" />
-    <ProjectReference Include="../../src/MyMailBox.Builtins/MyMailBox.Builtins.csproj" />
+    <ProjectReference Include="../../src/MyMailBox.Desktop/MyMailBox.Desktop.csproj" />
   </ItemGroup>
 </Project>
