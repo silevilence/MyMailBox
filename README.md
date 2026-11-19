@@ -2,6 +2,12 @@
 
 Windows x64 邮件工作空间，使用 Avalonia 和 .NET 10。支持 PST 导入、本地 EML 阅读、归档导出、账户管理、通用 IMAP、SMTP 与 POP3、提醒计划和插件扩展。各邮箱提供者的支持范围见[需求索引](.scratch/000-mymailbox/index.md)。
 
+## 使用与开发指南
+
+- 在应用的“欢迎”页选择帮助主题，点“阅读步骤”，可离线查看安装、账户连接、Outlook/PST 迁移、归档与更新恢复。[使用指南](docs/user-guide.md)
+- 开发插件可从打包样例和契约检查开始。[插件 SDK](docs/plugin-sdk.md)
+- 贡献者按工单开发和验收。正式发布时使用 generate-changelog 同步记录与版本，提交发布准备变更，再打 Tag 并推送，由 GitHub Actions 构建发布。[仓库贡献与发布约定](AGENTS.md)
+
 ## 当前功能
 
 - 在“从文件导入邮件”中选择 PST、预览目录并指定已打开的本地邮箱。旧版 ANSI 文件缺少编码信息时可填写源代码页。PST 邮件由可读取的 MAPI 属性重建为 MIME，逐项报告列出转换差异、跳过原因和失败项目。导入中断后可在同一页面恢复。

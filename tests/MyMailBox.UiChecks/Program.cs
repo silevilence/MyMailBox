@@ -50,6 +50,11 @@ internal static class Program
             var ui = new Ui(window);
             ui.Find("nav-welcome/welcome");
             ui.Find("nav-diagnostics"); // Startup contributes pages incrementally; wait for the last registration.
+            if (args.Length == 0 && !readingOnly)
+            {
+                ui.Click("nav-welcome/welcome"); ui.Select("guide-topic", 3); ui.Click("guide-read"); ui.Result("查看逐项报告");
+                ui.Select("guide-topic", 6); ui.Click("guide-read"); ui.Result("upgrade-state.json");
+            }
             if (readingOnly)
             {
                 features!.Run(ui, window, true);

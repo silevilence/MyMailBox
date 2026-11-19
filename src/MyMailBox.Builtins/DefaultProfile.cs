@@ -141,7 +141,7 @@ public static class DefaultProfile
         catalog.Add(new(new("welcome", "1.0.0", 1, 1, PluginKind.Ordinary, "welcome"), PluginOrigin.Builtin, "", (ctx, _) =>
         {
             var host = ctx.Get<IPluginHost>("mailbox.host")!;
-            ctx.Effect(() => host.Add(new Page("welcome", "欢迎", "MyMailBox 0.1.0\n你的邮件工作空间，从这里开始。", [], [], (_, _) => Task.FromResult(""))));
+            ctx.Effect(() => host.Add(UserGuide.Welcome()));
         }));
         return catalog;
     }

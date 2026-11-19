@@ -2,5 +2,6 @@
   <ItemGroup><ProjectReference Include="../MyMailBox.Runtime/MyMailBox.Runtime.csproj" /></ItemGroup>
   <ItemGroup><ProjectReference Include="../MyMailBox.Mail/MyMailBox.Mail.csproj" /></ItemGroup>
   <ItemGroup><ProjectReference Include="../MyMailBox.Updates/MyMailBox.Updates.csproj" /></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="../../docs/user-guide.md" LogicalName="MyMailBox.UserGuide" /></ItemGroup>
   <ItemGroup><Content Include="update-source.json" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" /></ItemGroup>
 </Project>
