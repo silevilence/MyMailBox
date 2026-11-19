@@ -179,7 +179,20 @@ public sealed partial class MailAutomationService
             }
             var report=await exporter.Export(new([new(id,mail.Subject)],destination),cancellation:token);
             token.ThrowIfCancellationRequested();var error=report.Items.FirstOrDefault(r=>r.Status=="failed");if(error is not null)throw new IOException(error.Detail);
-            if(published is not null)Directory.Move(destination,published);
+            if (published is not null)
+            {
+                // Windows may hold a just-exported attachment open briefly. Retry only the final rename.
+                for (int attempt = 0; ; attempt++)
+                {
+                    token.ThrowIfCancellationRequested();
+                    try { Directory.Move(destination, published); break; }
+                    catch (Exception ex) when (OperatingSystem.IsWindows() && attempt < 3 &&
+                        ex is IOException or UnauthorizedAccessException && (ex.HResult & 0xffff) is 5 or 32 or 33)
+                    {
+                        await Task.Delay(100 * (attempt + 1), token);
+                    }
+                }
+            }
             return string.Join("；",report.Items.Select(r=>r.Detail));
         }
         if(a.Kind is TaskActionKind.Copy or TaskActionKind.Trash or TaskActionKind.DeletePermanently)
