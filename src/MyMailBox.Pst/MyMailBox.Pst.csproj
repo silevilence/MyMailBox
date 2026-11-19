@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <Nullable>disable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="../../tools/MyMailBox.PstProbe/Patched/*.cs" Link="Patched/%(Filename)%(Extension)" />
+    <Compile Include="../../tools/MyMailBox.PstProbe/PstBodyText.cs" Link="PstBodyText.cs" />
+    <PackageReference Include="MimeKit.Core" Version="5.0.0" PrivateAssets="compile;build;analyzers" />
+    <None Include="../../tools/MyMailBox.PstProbe/Patched/LICENSE.md" Link="Notices/XstReader-MS-PL.txt" CopyToOutputDirectory="PreserveNewest" />
+    <None Update="NOTICE.txt" TargetPath="Notices/Pst-reader.txt" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

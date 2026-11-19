@@ -10,6 +10,7 @@
     <Project Path="src/MyMailBox.Contracts/MyMailBox.Contracts.csproj" />
     <Project Path="src/MyMailBox.Desktop/MyMailBox.Desktop.csproj" />
     <Project Path="src/MyMailBox.Mail/MyMailBox.Mail.csproj" />
+    <Project Path="src/MyMailBox.Pst/MyMailBox.Pst.csproj" />
     <Project Path="src/MyMailBox.Runtime/MyMailBox.Runtime.csproj" />
     <Project Path="src/MyMailBox.Updates/MyMailBox.Updates.csproj" />
     <Project Path="src/MyMailBox.UpdateHost/MyMailBox.UpdateHost.csproj" />

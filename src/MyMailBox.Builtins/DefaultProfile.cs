@@ -77,8 +77,11 @@ public static class DefaultProfile
             var exportHost = ctx.Get<IPluginHost>("mailbox.host")!;
             ctx.Effect(() => exportHost.Add(new Page("export", "批量导出", "", [], [], (_, _) => Task.FromResult(""))
                 { Export = new(available, new Mail.SelectionService(localStore, new Mail.AccountService(localStore))) }));
+            var localMailboxes = new Mail.LocalMailboxService(localStore, new Mail.AccountService(localStore), mimeReader ?? new Mail.MimeReader());
             ctx.Effect(() => exportHost.Add(new Page("local-mailboxes", "本地邮箱管理", "", [], [], (_, _) => Task.FromResult(""))
-                { LocalMailboxes = new Mail.LocalMailboxService(localStore, new Mail.AccountService(localStore), mimeReader ?? new Mail.MimeReader()) }));
+                { LocalMailboxes = localMailboxes }));
+            ctx.Effect(() => exportHost.Add(new Page("pst-import", "导入 Outlook 数据文件", "", [], [], (_, _) => Task.FromResult(""))
+                { PstImport = new Mail.PstImportService(localStore, localMailboxes, mimeReader ?? new Mail.MimeReader()) }));
             ArchivePage.Apply(ctx, new Mail.SqliteMailStore(Path.Combine(location, "mail")));
             var maintenance = new Mail.StorageMaintenance(new Mail.SqliteMailStore(Path.Combine(location, "mail")), mimeReader ?? new Mail.MimeReader());
             var host = ctx.Get<IPluginHost>("mailbox.host")!;

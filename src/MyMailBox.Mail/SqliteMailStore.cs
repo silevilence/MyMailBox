@@ -87,10 +87,11 @@ public sealed class SqliteMailStore : IMailStore
         cancellation.ThrowIfCancellationRequested(); transaction.Commit(); return id;
     }, cancellation);
 
-    internal static Guid InsertMessage(SqliteCommand command, Guid folderId, byte[] raw, ParsedMail metadata)
+    internal static Guid InsertMessage(SqliteCommand command, Guid folderId, byte[] raw, ParsedMail metadata, Guid? stableId = null, bool isRead = false)
     {
-        var id = Guid.NewGuid();
-        command.CommandText = "INSERT INTO messages(id,folder_id,subject,sender,recipient,date,size,raw,sha256) VALUES($id,$folder,$subject,$from,$to,$date,$size,$raw,$hash)";
+        var id = stableId ?? Guid.NewGuid();
+        command.CommandText = "INSERT INTO messages(id,folder_id,subject,sender,recipient,date,size,raw,sha256,is_read) VALUES($id,$folder,$subject,$from,$to,$date,$size,$raw,$hash,$read)";
+        command.Parameters.AddWithValue("$read", isRead);
         command.Parameters.AddWithValue("$id", id.ToString()); command.Parameters.AddWithValue("$folder", folderId.ToString());
         command.Parameters.AddWithValue("$subject", metadata.Subject); command.Parameters.AddWithValue("$from", metadata.From); command.Parameters.AddWithValue("$to", metadata.To);
         command.Parameters.AddWithValue("$date", metadata.Date.ToUniversalTime().ToString("O")); command.Parameters.AddWithValue("$size", raw.Length); command.Parameters.AddWithValue("$raw", raw);

@@ -1,0 +1,8 @@
+The PST reader uses parts of Dijji/XstReader at 3b7856c8b3d01bdf8aa13744e476d1ef7761b832.
+Copyright Dijji and the contributors identified in the individual files.
+Source and local modifications are distributed under the Microsoft Public License (XstReader-MS-PL.txt).
+Local changes include ANSI code pages, short reads and RTF recovery. The upstream Crypto.cs and its libpff tables are excluded.
+The product decoder uses the Microsoft [MS-PST] 5.1 permutation table and the algorithms in sections 5.1 and 5.2.
+Microsoft Open Specifications, Copyright Microsoft Corporation.
+https://learn.microsoft.com/en-us/openspecs/office_file_formats/ms-pst/5faf4800-645d-49d1-9457-2ac40eb467bd
+https://learn.microsoft.com/en-us/openspecs/office_file_formats/ms-pst/9979fc01-0a3e-496f-900f-a6a867951f23

@@ -70,6 +70,11 @@
           "System.Security.Cryptography.Pkcs": "10.0.0"
         }
       },
+      "MimeKit.Core": {
+        "type": "Transitive",
+        "resolved": "5.0.0",
+        "contentHash": "0RLaVyex/BjUGqiw9xtGwzyCMaBcsu33Rth61bDCeVeQaaQK7tjcy4TA+nHKTqwUdp4OGd+gnhuq2fuR+c20qA=="
+      },
       "NetSparkleUpdater.Chaos.NaCl": {
         "type": "Transitive",
         "resolved": "0.9.4",
@@ -138,7 +143,14 @@
           "Microsoft.Identity.Client": "[4.92.0, )",
           "MimeKit": "[4.17.0, )",
           "MyMailBox.Contracts": "[0.1.0, )",
+          "MyMailBox.Pst": "[0.1.0, )",
           "System.Security.Cryptography.ProtectedData": "[10.0.0, )"
+        }
+      },
+      "mymailbox.pst": {
+        "type": "Project",
+        "dependencies": {
+          "MimeKit.Core": "[5.0.0, )"
         }
       },
       "mymailbox.runtime": {

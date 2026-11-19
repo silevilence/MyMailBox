@@ -44,6 +44,7 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
             Selections = page.Selections is { } selections ? new ScopedSelections(this, Target(selections)) : null,
             Export = page.Export is { } export ? new(new ScopedMailStore(this, Target(export.Store)), new ScopedSelections(this, Target(export.Selections))) : null,
             LocalMailboxes = page.LocalMailboxes is { } local ? new ScopedLocalMailboxes(this, Target(local)) : null,
+            PstImport = page.PstImport is { } pst ? new ScopedPstImport(this, Target(pst)) : null,
             Reminders = page.Reminders is { } reminders ? new(new ScopedReminders(this, Target(reminders.Scheduler)), new ScopedMailStore(this, Target(reminders.Mail))) : null,
             Schedules = page.Schedules is { } schedules ? new ScopedSchedules(this, Target(schedules)) : null,
             Updates = page.Updates is { } updates ? new ScopedUpdates(this, Target(updates)) : null,
@@ -452,6 +453,14 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         public void Release() => _exporter = null;
         public Task<ExportReport> Export(ExportRequest request, IProgress<ExportItemResult>? progress = null, CancellationToken cancellation = default) => _scope.Run(t => (_exporter ?? throw new InvalidOperationException("导出器已卸载。")).Export(request, progress, t), cancellation);
     }
+    private sealed class ScopedPstImport(PluginScope scope, ServiceTarget<IPstImport> service) : IPstImport
+    {
+        public Task<IReadOnlyList<LocalMailboxInfo>> Targets(CancellationToken token) => scope.Run(t => service.Value.Targets(t), token);
+        public Task<PstPreview> Preview(string file, int? codePage, CancellationToken token) => scope.Run(t => service.Value.Preview(file, codePage, t), token);
+        public Task<PstResult> Import(PstPreview preview, Guid target, IProgress<PstProgress>? progress, CancellationToken token) =>
+            scope.Run(t => service.Value.Import(preview, target, progress, t), token);
+    }
+
     private sealed class ScopedLocalMailboxes(PluginScope scope, ServiceTarget<ILocalMailboxService> service) : ILocalMailboxService
     {
         public string StorageDescription => service.Value.StorageDescription;

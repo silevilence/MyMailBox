@@ -230,6 +230,10 @@ public sealed class ShellWindow : Window
         {
             var view = new ReminderView(reminders,_activityLink?.Record); _hostView = view; _body.Content = view; return;
         }
+        if (page.PstImport is { } pst)
+        {
+            var view = new PstImportView(pst); _hostView = view; _body.Content = view; return;
+        }
         if (page.LocalMailboxes is { } local)
         {
             var view = new LocalMailboxView(local); _hostView = view; _body.Content = view; return;
