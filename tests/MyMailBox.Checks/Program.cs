@@ -3,6 +3,8 @@ using MyMailBox.Builtins;
 using MyMailBox.Contracts;
 using MyMailBox.Runtime;
 
+if (args is ["pst-worker", var pstWorkspace, var pstAccount]) { await PstImportChecks.CrashWorker(pstWorkspace, Guid.Parse(pstAccount)); return; }
+
 if(args.Length==2 && args[0]=="owner-probe"){WorkspaceOwnerChecks.TryOpen(args[1]);return;}
 if (args.Length==2 && args[0]=="perf-prepare-ui" && int.TryParse(args[1],out var uiSize) && uiSize is 10000 or 100000)
 {await PerformanceFixture.PrepareUi(uiSize);return;}
@@ -38,6 +40,8 @@ if (args.Length == 0 || args.Contains("diagnostics")) await DiagnosticChecks.Run
 if (args.Length == 0 || args.Contains("management")) await ManagementChecks.Run();
 if (args.Length == 0 || args.Contains("mail")) await MailChecks.Run();
 if (args.Contains("pst-import")) await PstImportChecks.Run();
+if (args.Contains("pst-resume")) await PstImportChecks.Recovery();
+if (args.Length == 0 || args.Contains("import-plugin")) await ImportPluginChecks.Run();
 if (args.Contains("pst-fidelity")) await PstFidelityChecks.Run();
 if (args.Length == 0 || args.Contains("outlook-import")) await OutlookImportChecks.Run();
 if (args.Length == 0 || args.Contains("accounts")) await AccountChecks.Run();

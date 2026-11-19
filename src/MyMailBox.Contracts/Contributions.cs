@@ -37,6 +37,7 @@ public interface IContributions
 {
     IDisposable Add(Page page);
     IDisposable AddSelector(Selector selector);
+    IDisposable AddImportReader(MailImportReader reader) => throw new NotSupportedException("宿主尚不支持文件导入器。");
     IDisposable AddProtocolPreset(ProtocolPreset preset) => throw new NotSupportedException("宿主不支持协议预设。");
     IDisposable AddNative(NativePage page);
     IDisposable AddAutomationExtension(AutomationExtension extension)=>throw new NotSupportedException("宿主不支持自动化扩展。");

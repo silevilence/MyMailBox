@@ -1,5 +1,5 @@
 using System.Security.Cryptography;
-using System.Text.Json;
+using System.Diagnostics;
 using MyMailBox.Mail;
 using MyMailBox.Contracts;
 
@@ -44,5 +44,62 @@ internal static class PstImportChecks
     }
 
     internal static void Require(bool value, string condition) { if (!value) throw new Exception(condition); }
+    public static async Task CrashWorker(string workspace, Guid target)
+    {
+        var store = new SqliteMailStore(workspace);
+        var mime = new MimeReader();
+        var service = new PstImportService(store, new LocalMailboxService(store, new AccountService(store), mime), mime);
+        var preview = await service.Preview(Path.Combine(Fixtures, "read-ansi.pst"), 936, default);
+        await service.Import(preview, target, new OnItem(_ =>
+        {
+            File.WriteAllText(Path.Combine(workspace, "committed"), "1");
+            Thread.Sleep(Timeout.Infinite);
+        }), default);
+    }
+    public static async Task Recovery()
+    {
+        var directory = Path.Combine(Environment.GetEnvironmentVariable("MYMAILBOX_HOME")!, "pst-restart");
+        var store = new SqliteMailStore(directory);
+        var mime = new MimeReader();
+        var local = new LocalMailboxService(store, new AccountService(store), mime);
+        var account = await local.Create(new(null, "中断导入", "local"));
+        var start = new ProcessStartInfo("dotnet") { UseShellExecute = false, CreateNoWindow = true };
+        foreach (var arg in new[] { typeof(PstImportChecks).Assembly.Location, "pst-worker", directory, account.Id.ToString() }) start.ArgumentList.Add(arg);
+        using var process = Process.Start(start)!;
+        try
+        {
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+            while (!File.Exists(Path.Combine(directory, "committed")))
+            {
+                Require(!process.HasExited, "Importer exited before first commit");
+                await Task.Delay(50, timeout.Token);
+            }
+        }
+        finally { if (!process.HasExited) process.Kill(entireProcessTree: true); await process.WaitForExitAsync(); }
+        var service = new PstImportService(store, local, mime);
+        var saved = (await service.Pending(default)).Single();
+        Require(saved.Target == account.Id && saved.Committed == 1 && File.Exists(saved.Report), "Lost import session after process kill");
+        var preview = await service.Preview(saved.File, saved.CodePage, default);
+        Require(preview.Fingerprint == saved.Fingerprint, "Resume source did not match");
+        // Fail the second half of a mail+cursor transaction. Reopening must expose neither half.
+        using var db = store.Open();
+        using var cmd = db.CreateCommand();
+        cmd.CommandText = """
+            CREATE TABLE capacity_test(id INTEGER PRIMARY KEY AUTOINCREMENT);
+            INSERT INTO capacity_test VALUES(9223372036854775807);
+            CREATE TRIGGER reject_checkpoint BEFORE INSERT ON pst_committed BEGIN
+                INSERT INTO capacity_test(id) VALUES(NULL);
+            END;
+            """;
+        cmd.ExecuteNonQuery();
+        try { await service.Import(preview, account.Id, null, default); throw new Exception("Missed write fault"); }
+        catch (Microsoft.Data.Sqlite.SqliteException e) when (e.SqliteErrorCode == 13) { } // SQLITE_FULL, induced by an exhausted test rowid sequence.
+        cmd.CommandText = "SELECT COUNT(*) FROM messages";
+        Require(Convert.ToInt32(cmd.ExecuteScalar()) == 1 && (await service.Pending(default)).Single().Committed == 1, "Cursor and mail diverged");
+        cmd.CommandText = "DROP TRIGGER reject_checkpoint"; cmd.ExecuteNonQuery();
+        var result = await service.Import(preview, account.Id, null, default);
+        Require(result.Counts is { Imported: 3, Duplicates: 1, Failed: 0 } && (await service.Pending(default)).Count == 0, "Restart failed");
+        Console.WriteLine("PASS PST session: killed importer after commit, reopened persistent source/target, rolled back item+cursor on SQLITE_FULL, resumed remaining nodes");
+    }
     private sealed class OnItem(Action<PstProgress> action) : IProgress<PstProgress> { public void Report(PstProgress value) => action(value); }
 }

@@ -8,6 +8,17 @@ public sealed class Contributions(Action<Action>? dispatch = null) : IContributi
     private readonly object _gate = new();
     private readonly Dictionary<string, Selector> _selectors = [];
     private readonly Dictionary<string,ProtocolPreset> _protocolPresets = [];
+    private readonly Dictionary<string, MailImportReader> _importReaders = [];
+    public IReadOnlyList<MailImportReader> ImportReaders { get { lock (_gate) return _importReaders.Values.ToArray(); } }
+    public IDisposable AddImportReader(MailImportReader reader)
+    {
+        var format = reader.Format;
+        if (format.Version < 1 || string.IsNullOrWhiteSpace(format.Name) || format.Parameters.Select(p => p.Id).Distinct().Count() != format.Parameters.Count)
+            throw new InvalidDataException("导入器的名称、版本或参数定义无效。");
+        lock (_gate) _importReaders.Add(format.Id, reader);
+        Notify();
+        return new Cleanup(() => { lock (_gate) _importReaders.Remove(format.Id); Notify(); });
+    }
     public IReadOnlyList<ProtocolPreset> ProtocolPresets
     {
         get { lock (_gate) return _protocolPresets.Values.OrderBy(p => p.Name).ToArray(); }

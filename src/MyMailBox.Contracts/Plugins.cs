@@ -18,6 +18,7 @@ public interface IPluginHost : IContributions
 {
     string InstanceId { get; }
     IReadOnlyList<ProtocolPreset> ProtocolPresets => [];
+    IReadOnlyList<MailImportReader> ImportReaders => [];
     IDisposable Command(string id, Func<CancellationToken, Task<string>> execute);
     IDisposable Subscribe(Action<string> listener);
     void Notify(string value);

@@ -64,6 +64,19 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
             async token => await Run(async t => { await save.Value(t); return true; }, token))));
     }
     public IReadOnlyList<ProtocolPreset> ProtocolPresets => pages.ProtocolPresets;
+    public IReadOnlyList<MailImportReader> ImportReaders => pages.ImportReaders;
+    public IDisposable AddImportReader(MailImportReader reader)
+    {
+        var read = Target(reader.Read);
+        var format = reader.Format with { Id = InstanceId + "/" + reader.Format.Id, Parameters = reader.Format.Parameters.ToArray() };
+        return Own(pages.AddImportReader(new(format, (request, receive, token) => Run(async t =>
+        {
+            permissions.Require("files.read");
+            if (!request.Preview) permissions.Require("mail.write", request.Target?.ToString());
+            await read.Value(request, (item, _) => receive(item, t), t);
+            return true;
+        }, token))));
+    }
     public IDisposable AddProtocolPreset(ProtocolPreset preset) => Own(pages.AddProtocolPreset(preset with { Id = InstanceId + "/" + preset.Id }));
 
     public IDisposable AddAutomationExtension(AutomationExtension extension)
@@ -457,6 +470,10 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
     private sealed class ScopedPstImport(PluginScope scope, ServiceTarget<IPstImport> service) : IPstImport
     {
         public Task<IReadOnlyList<LocalMailboxInfo>> Targets(CancellationToken token) => scope.Run(t => service.Value.Targets(t), token);
+        public Task<IReadOnlyList<PstSession>> Pending(CancellationToken token) => scope.Run(t => service.Value.Pending(t), token);
+        public IReadOnlyList<ImportFormat> Formats => service.Value.Formats.ToArray();
+        public Task<PstPreview> PreviewFile(string format, string file, Dictionary<string,string> parameters, CancellationToken token) =>
+            scope.Run(t => service.Value.PreviewFile(format, file, parameters, t), token);
         public Task<PstPreview> Preview(string file, int? codePage, CancellationToken token) => scope.Run(t => service.Value.Preview(file, codePage, t), token);
         public Task<PstResult> Import(PstPreview preview, Guid target, IProgress<PstProgress>? progress, CancellationToken token) =>
             scope.Run(t => service.Value.Import(preview, target, progress, t), token);

@@ -3,12 +3,13 @@ using System.Text.Json;
 using XstReader;
 using MyMailBox.Pst;
 
-if (args.Length != 3 || args[0] is not ("preview" or "import")) return 1;
+if (args.Length != 3 || args[0] is not ("preview" or "import" or "resume")) return 1;
 try
 {
     Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
     Console.OutputEncoding = new UTF8Encoding(false);
     var file = new XstFile(args[1], args[2] == "" ? null : int.Parse(args[2]));
+    var committed = args[0] == "resume" ? JsonSerializer.Deserialize<HashSet<uint>>(Console.ReadLine() ?? "[]") : null;
     Walk(file.ReadFolderTree());
     return 0;
 
@@ -16,11 +17,16 @@ try
     {
         var node = folder.Nid.dwValue;
         Write(new("folder", node, folder.ParentFolder?.Nid.dwValue, folder.Name, Count: folder.ContentCount));
-        if (args[0] == "import")
+        if (args[0] != "preview")
         {
             foreach (var item in file.ReadMessages(folder))
             {
                 var key = item.Nid.dwValue;
+                if (committed?.Contains(key) == true)
+                {
+                    Write(new("duplicate", key, node, item.Subject));
+                    continue;
+                }
                 PstEntry entry;
                 try
                 {
