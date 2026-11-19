@@ -63,14 +63,17 @@ public sealed class MailboxReceiveProvider : IReceiveProvider
             var subject = cmd.Parameters.Add("$subject",SqliteType.Text);
             var sender = cmd.Parameters.Add("$sender",SqliteType.Text);
             var key = cmd.Parameters.Add("$key",SqliteType.Text);
+            var preserve = cmd.Parameters.Add("$preserve", SqliteType.Integer);
             cmd.CommandText = """
                 INSERT INTO provider_inbox(account,provider,folder,item,key,stamp,subject,sender) VALUES($a,$p,$folder,$item,$key,$stamp,$subject,$sender)
-                ON CONFLICT(account,provider,folder,item) DO UPDATE SET stamp=excluded.stamp,subject=excluded.subject,sender=excluded.sender,raw=NULL
+                ON CONFLICT(account,provider,folder,item) DO UPDATE SET stamp=excluded.stamp,subject=excluded.subject,sender=excluded.sender,
+                    raw=CASE WHEN $preserve THEN provider_inbox.raw END
                 """;
             foreach (var changed in page.Changed)
             {
                 token.ThrowIfCancellationRequested(); item.Value = changed.Id;
                 stamp.Value = changed.Date?.ToUnixTimeMilliseconds() ?? 0; subject.Value = changed.Subject; sender.Value = changed.Sender;
+                preserve.Value = changed.OriginalUnchanged;
                 key.Value = Guid.NewGuid().ToString("N"); cmd.ExecuteNonQuery();
             }
             cmd.CommandText = """

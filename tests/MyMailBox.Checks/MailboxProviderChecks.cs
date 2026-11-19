@@ -70,6 +70,11 @@ internal static class MailboxProviderChecks
         var inbox = (await unified.Inbox(a.Id,null,25)).Messages.Single();
         PluginChecks.Check((await unified.Open(a.Id,inbox.Position.Key)).Contains("回环正文"),"Unified reader lost MIME body");
         PluginChecks.Check((await unified.Inbox(a.Id,null,25)).Messages.Single().Cached,"Missing offline copy");
+        var cachedId = (await provider.List(a,"inbox",null,10,default)).Items.Single().Id;
+        await provider.Mark(a,"inbox",cachedId,true,default);
+        await receive.Receive(account,50,default);
+        PluginChecks.Check((await unified.Inbox(a.Id,null,25)).Messages.Single().Cached,
+            "A read-flag delta discarded downloaded MIME before plugin unload");
         var drafts=new MailDraftStore(store);
         PluginChecks.Check(drafts.SourceAccount(inbox.Position.Key)==a.Id && (await drafts.Respond(new(inbox.Position.Key,ReplyMode.Forward),a.Id)).Subject.Contains("契约投递"),"Unified provider message could not be forwarded");
         await runtime.Stop("mailbox");
@@ -82,7 +87,7 @@ internal static class MailboxProviderChecks
         var uploaded = await provider.Upload(a,"inbox",new MemoryStream(raw),default);
         await provider.Mark(a,"inbox",uploaded,true,default);
         var changed = await provider.Delta(a,"inbox",null,100,default);
-        PluginChecks.Check(changed.Changed.Any(m => m.Id==uploaded && m.Read),"Missing mark delta");
+        PluginChecks.Check(changed.Changed.Any(m => m.Id==uploaded && m.Read && !m.OriginalUnchanged),"Missing mark delta");
         var moved = await provider.Move(a,"inbox",uploaded,"archive",default);
         var changes = await provider.Delta(a,"inbox",changed.Cursor,100,default);
         PluginChecks.Check(changes.Removed.SequenceEqual([uploaded]),"Missing move tombstone");

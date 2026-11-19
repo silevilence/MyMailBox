@@ -106,9 +106,9 @@ internal static class ExchangeChecks
         var calls=wire.Calls;using var offline=new MemoryStream();await reopened.Read(a,"box","m1",offline,default);
         Check(wire.Calls==calls && offline.ToArray().SequenceEqual(Raw),"Offline read contacted server");
         var delta=await reopened.Delta(a,"box",null,100,default);
-        Check(delta.Changed.Length==2,"Missing initial delta");
+        Check(delta.Changed.Length==2 && delta.Changed.All(item => !item.OriginalUnchanged),"Missing initial delta");
         wire.Expect("Sync","mark","m1");await reopened.Mark(a,"box","m1",true,default);
-        var marked=await reopened.Delta(a,"box",delta.Cursor,100,default);Check(marked.Changed.Single().Read,"Read state not reflected");
+        var marked=await reopened.Delta(a,"box",delta.Cursor,100,default);Check(marked.Changed.Single() is { Read: true, OriginalUnchanged: true },"Read state not reflected");
         wire.Expect("Sync","invalidKey","K4");wire.Expect("Sync","prime","0");wire.Expect("Sync","rebuild","K1");
         var recovered=await reopened.Delta(a,"box",marked.Cursor,100,default);
         Check(recovered.Removed.Contains("m2") && recovered.Changed.Any(m=>m.Id=="m1"),"Expired key retained removed messages");

@@ -9,7 +9,11 @@ public enum MailboxFeatures
 public sealed record MailboxType(string Id, string Name, MailboxFeatures Features);
 public sealed record MailboxIdentity(Guid Id, string Address);
 public sealed record MailboxFolder(string Id, string Name, string Role);
-public sealed record MailboxItem(string Id, string Subject, string Sender, DateTimeOffset? Date, bool Read);
+public sealed record MailboxItem(string Id, string Subject, string Sender, DateTimeOffset? Date, bool Read)
+{
+    /// <summary>In a delta page, every change to this item since the supplied cursor preserves its MIME bytes.</summary>
+    public bool OriginalUnchanged { get; init; }
+}
 public sealed record MailboxPageResult(MailboxItem[] Items, string? Next);
 public sealed record MailboxDelta(MailboxItem[] Changed, string[] Removed, string Cursor, bool More);
 public sealed record MailboxQuota(long Used, long? Limit);

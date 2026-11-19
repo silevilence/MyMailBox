@@ -75,7 +75,14 @@ internal sealed partial class LoopbackMailbox(string directory) : IMailboxProvid
         CheckFolder(f); var start=Index(cursor,limit);
         if(start>s.Changes.Count)throw new InvalidDataException("游标失效，请从头同步。");
         var window=s.Changes.Skip(start).Take(limit).ToArray();
-        var latest=window.Where(c=>c.Folder==f).GroupBy(c=>c.Id).Select(g=>g.Last()).ToArray();
+        var latest=window.Where(c=>c.Folder==f).GroupBy(c=>c.Id).Select(g=>
+        {
+            var last = g.Last();
+            return last.Item is null ? last : last with
+            {
+                Item = last.Item with { OriginalUnchanged = g.All(c => c.Item?.OriginalUnchanged == true) }
+            };
+        }).ToArray();
         return new MailboxDelta(latest.Where(c=>c.Item!=null).Select(c=>c.Item!).ToArray(),latest.Where(c=>c.Item==null).Select(c=>c.Id).ToArray(),
             (start+window.Length).ToString(),start+window.Length<s.Changes.Count);
     },t);
@@ -119,7 +126,7 @@ internal sealed partial class LoopbackMailbox(string directory) : IMailboxProvid
     public Task Mark(MailboxIdentity a,string f,string id,bool read,CancellationToken t)=>With(a,true,s=>
     {
         var old=Find(s,f,id);var item=old with{Summary=old.Summary with{Read=read}};
-        s.Messages[s.Messages.IndexOf(old)]=item; s.Changes.Add(new(f,id,item.Summary));return true;
+        s.Messages[s.Messages.IndexOf(old)]=item; s.Changes.Add(new(f,id,item.Summary with { OriginalUnchanged = true }));return true;
     },t);
     public Task<string> Move(MailboxIdentity a,string f,string id,string dest,CancellationToken t)=>With(a,true,s=>
     {

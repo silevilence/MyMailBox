@@ -16,6 +16,8 @@
 
 ## 已接入的公开契约
 
+邮箱插件的增量页中，只有从请求游标起该邮件的所有变动都保留原文时，才设置 `MailboxItem.OriginalUnchanged`。仅已读标记变化可复用已下载的 MIME。新增邮件、正文变更、混合更新和无法判断的变化使用默认值 `false`。
+
 | 场景 | 注册与样例 | 验证入口 |
 | --- | --- | --- |
 | 账户类型、连接、目录、收发和远程状态 | AddMailboxProvider；example-mailbox 声明各项能力并使用本地回环身份。进入账户管理、写信、邮箱浏览和统一收件箱。需要授权的提供者在 Connect 中完成自己的授权流程。 | mailbox-provider、protocol-live、graph、exchange-eas |

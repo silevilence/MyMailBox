@@ -109,12 +109,14 @@ public sealed partial class ExchangeMailbox
         if(change.Tag is not (Tag.Add or Tag.Change or Tag.Delete or Tag.SoftDelete))return;
         var id=change.Value(Tag.ServerId);
         var table=building?"eas_stage":"eas_item";
+        bool flagsOnly = false;
         using var c=Command(db,account,"",("id",id),("f",folder));c.Transaction=tx;
         if(change.Tag is Tag.Delete or Tag.SoftDelete)
             c.CommandText=$"DELETE FROM {table} WHERE account=$a AND folder=$f AND id=$id";
         else
         {
             var fields=change.Need(Tag.ApplicationData);
+            flagsOnly = change.Tag == Tag.Change && fields.Children.Count > 0 && fields.Children.All(node => node.Tag == Tag.Read);
             c.Parameters.AddWithValue("$subject",(object?)fields.Child(Tag.Subject)?.Text??DBNull.Value);
             c.Parameters.AddWithValue("$sender",(object?)fields.Child(Tag.From)?.Text??DBNull.Value);
             c.Parameters.AddWithValue("$date",(object?)fields.Child(Tag.DateReceived)?.Text??DBNull.Value);
@@ -123,10 +125,15 @@ public sealed partial class ExchangeMailbox
                 INSERT INTO {table}(account,folder,id,subject,sender,stamp,seen) VALUES($a,$f,$id,coalesce($subject,''),coalesce($sender,''),$date,coalesce($read,0))
                 ON CONFLICT(account,folder,id) DO UPDATE SET subject=coalesce($subject,subject),sender=coalesce($sender,sender),stamp=coalesce($date,stamp),seen=coalesce($read,seen)
                 """;
-            if(!building && (fields.Child(Tag.Body)!=null || fields.Child(Tag.Subject)!=null))c.CommandText+=",raw=NULL";
+            if (!building && !flagsOnly) c.CommandText += ",raw=NULL";
         }
         c.ExecuteNonQuery();
-        if(!building){c.CommandText="INSERT INTO eas_event(account,folder,item) VALUES($a,$f,$id)";c.ExecuteNonQuery();}
+        if (!building)
+        {
+            c.CommandText = "INSERT INTO eas_event(account,folder,item,flags_only) VALUES($a,$f,$id,$flags)";
+            c.Parameters.AddWithValue("$flags", flagsOnly);
+            c.ExecuteNonQuery();
+        }
     }
     private static void FinishBuild(SqliteCommand c)
     {
@@ -161,11 +168,21 @@ public sealed partial class ExchangeMailbox
         using var db=_store.Open();using var c=Command(db,a.Id,"SELECT EXISTS(SELECT 1 FROM eas_event WHERE account=$a AND folder=$f AND seq>$start)",("f",folder),("start",start),("n",limit+1));
         if((long)c.ExecuteScalar()! == 0)await Pull(a.Id,folder,t);
         c.CommandText="""
-            SELECT e.seq,e.item,i.id,i.subject,i.sender,i.stamp,i.seen FROM eas_event e LEFT JOIN eas_item i ON i.account=e.account AND i.folder=e.folder AND i.id=e.item
+            SELECT e.seq,e.item,i.id,i.subject,i.sender,i.stamp,i.seen,e.flags_only FROM eas_event e LEFT JOIN eas_item i ON i.account=e.account AND i.folder=e.folder AND i.id=e.item
             WHERE e.account=$a AND e.folder=$f AND e.seq>$start ORDER BY e.seq LIMIT $n
             """;
         using var r=c.ExecuteReader();var changed=new Dictionary<string,MailboxItem>();var removed=new HashSet<string>();long last=start;int count=0;
-        while(r.Read() && ++count<=limit){last=r.GetInt64(0);if(r.IsDBNull(2))removed.Add(r.GetString(1));else changed[r.GetString(1)]=Item(r,2);}
+        while (r.Read() && ++count <= limit)
+        {
+            last = r.GetInt64(0);
+            var id = r.GetString(1);
+            if (r.IsDBNull(2)) removed.Add(id);
+            else
+            {
+                bool same = r.GetBoolean(7) && (!changed.TryGetValue(id, out var old) || old.OriginalUnchanged);
+                changed[id] = Item(r, 2) with { OriginalUnchanged = same };
+            }
+        }
         return new MailboxDelta(changed.Values.ToArray(),removed.ToArray(),last.ToString(),count>limit);
     },t);
 }

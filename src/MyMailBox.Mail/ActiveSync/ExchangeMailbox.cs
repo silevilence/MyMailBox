@@ -33,7 +33,19 @@ public sealed partial class ExchangeMailbox : IMailboxProvider,IExchangeSetup,ID
             CREATE TABLE IF NOT EXISTS eas_event(seq INTEGER PRIMARY KEY,account TEXT,folder TEXT,item TEXT);
             CREATE INDEX IF NOT EXISTS eas_event_scope ON eas_event(account,folder,seq);
             """;
-        c.ExecuteNonQuery(); CreateStaging();
+        c.ExecuteNonQuery();
+        using (var tx = db.BeginTransaction())
+        {
+            c.Transaction = tx;
+            c.CommandText = "SELECT count(*) FROM pragma_table_info('eas_event') WHERE name='flags_only'";
+            if ((long)c.ExecuteScalar()! == 0)
+            {
+                c.CommandText = "ALTER TABLE eas_event ADD COLUMN flags_only INTEGER NOT NULL DEFAULT 0";
+                c.ExecuteNonQuery();
+            }
+            tx.Commit();
+        }
+        CreateStaging();
     }
     private static SqliteCommand Command(SqliteConnection db,Guid account,string sql,params (string,object?)[] args)
     {

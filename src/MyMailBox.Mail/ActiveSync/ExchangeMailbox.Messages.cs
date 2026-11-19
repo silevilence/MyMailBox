@@ -68,7 +68,7 @@ public sealed partial class ExchangeMailbox
         c.CommandText="""
             UPDATE eas_sync SET key=$key WHERE account=$a AND folder=$f;
             UPDATE eas_item SET seen=$read WHERE account=$a AND folder=$f AND id=$id;
-            INSERT INTO eas_event(account,folder,item) VALUES($a,$f,$id)
+            INSERT INTO eas_event(account,folder,item,flags_only) VALUES($a,$f,$id,1)
             """;c.Parameters.AddWithValue("$key",col.Value(Tag.SyncKey));c.Parameters.AddWithValue("$read",read);c.ExecuteNonQuery();tx.Commit();return true;
     },t);
     public Task<string> Move(MailboxIdentity a,string folder,string item,string destination,CancellationToken t)=>Locked(a.Id,async()=>
