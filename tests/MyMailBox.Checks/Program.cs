@@ -43,6 +43,7 @@ if (args.Contains("pst-import")) await PstImportChecks.Run();
 if (args.Contains("pst-resume")) await PstImportChecks.Recovery();
 if (args.Length == 0 || args.Contains("import-plugin")) await ImportPluginChecks.Run();
 if (args.Contains("pst-fidelity")) await PstFidelityChecks.Run();
+if (args.Length == 0 || args.Contains("settings-templates")) await SettingsTemplateChecks.Run();
 if (args.Length == 0 || args.Contains("outlook-rules")) await OutlookRuleChecks.Run();
 if (args.Length == 0 || args.Contains("outlook-import")) await OutlookImportChecks.Run();
 if (args.Length == 0 || args.Contains("accounts")) await AccountChecks.Run();

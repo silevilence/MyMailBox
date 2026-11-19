@@ -3,6 +3,7 @@ namespace MyMailBox.Contracts;
 public sealed record Page(string Id, string Title, string Description, IReadOnlyList<Field> Fields,
     IReadOnlyList<PageAction> Actions, Func<IReadOnlyDictionary<string, string>, string, Task<string>> Execute, MailReader? Reader = null, IAccountService? Accounts = null, ISelectionService? Selections = null)
 {
+    public ISettingsTemplates? Templates { get; init; }
     public bool BrowseMailboxes { get; init; }
     public ActivityPage? Activity {get;init;}
     public ExportSource? Export { get; init; }

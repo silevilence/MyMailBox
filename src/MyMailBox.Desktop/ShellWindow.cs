@@ -192,6 +192,10 @@ public sealed class ShellWindow : Window
         {
             var view=new ComposerView(composer,_pages,page.Id.Split('/')[0],_reply);_reply=null;_hostView=view;_body.Content=view;return;
         }
+        if (page.Templates is { } templates)
+        {
+            var view = new SettingsTemplatesView(templates); _hostView = view; _body.Content = view; return;
+        }
         if (page.BrowseMailboxes && page.Accounts is { } mailboxAccounts)
         {
             var view = new MailboxBrowserView(mailboxAccounts, _pages); _hostView = view; _body.Content = view; return;

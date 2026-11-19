@@ -49,6 +49,13 @@ internal static class LocalSampleUiChecks
         ui.Click("provider-move"); ui.Status("provider-status","已移动到"); ui.Text("provider-file",file);
         ui.Click("provider-upload"); ui.Status("provider-status","已上传邮件"); ui.Click("provider-quota"); ui.Status("provider-status","总容量");
         ui.Click("provider-delta"); ui.Status("provider-status","移出 1 封");
+        ui.Click("nav-accounts/templates");
+        var templates = Path.Combine(output,"profile-template.json");
+        ui.Text("templates-path",templates); ui.Click("templates-export"); ui.Status("templates-status","已导出");
+        ui.Click("templates-open"); ui.Status("templates-status","个条目"); ui.Select("templates-entries",Array.FindIndex(new AccountService(store).List().GetAwaiter().GetResult().ToArray(),a=>a.Provider=="local"));
+        ui.Click("templates-fields"); ui.Status("templates-status","核对本机绑定");
+        ui.Click("templates-preview"); ui.Status("templates-status","请映射");
+        ui.Select("templates-map-0",1); ui.Click("templates-preview"); ui.Status("templates-status","已选择本机账户");
         Console.WriteLine("PASS published UI: Graph offline and write access, external EML import/replay, account creation, loopback compose/send/read/search/mark/move/upload/quota/delta");
     }
 

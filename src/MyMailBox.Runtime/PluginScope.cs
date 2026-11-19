@@ -34,6 +34,7 @@ public sealed partial class PluginScope(string instanceId, Contributions pages, 
             Composer = page.Composer is { } compose ? new(new ScopedAccounts(this, Target(compose.Accounts)),new ScopedDrafts(this,Target(compose.Drafts)),new ScopedOutbox(this,Target(compose.Outbox))) { Graph = compose.Graph is { } composeGraph ? new ScopedGraphWrites(this, Target(composeGraph)) : null } : null,
             Activity=page.Activity is {} activity?new(new ScopedActivity(this,Target(activity.Center)),new ScopedAccounts(this,Target(activity.Accounts))):null,
             Automation=page.Automation is {} auto ? new ScopedAutomation(this,Target(auto)) : null,
+            Templates = page.Templates is { } templates ? new ScopedTemplates(this,Target(templates)) : null,
             Rules = page.Rules is { } rules ? new ScopedRules(this,Target(rules)) : null,
             Search = page.Search is { } search ? new ScopedSearch(this,Target(search)) : null,
             Organization = page.Organization is { } org ? new(new ScopedAccounts(this, Target(org.Accounts)), new ScopedOrganizer(this, Target(org.Organizer)))
@@ -347,6 +348,14 @@ public sealed partial class PluginScope(string instanceId, Contributions pages, 
         public Task<ConditionReport> Inspect(AutomationPlan plan,bool observe=false,CancellationToken token=default)=>scope.Run(t=>service.Value.Inspect(plan,observe,t),token);
         public Task<IReadOnlyList<MailFolder>> ArchiveFolders(CancellationToken token=default)=>scope.Run(t=>service.Value.ArchiveFolders(t),token);
         public Task<SearchLibrary> Library(CancellationToken token=default)=>scope.Run(t=>service.Value.Library(t),token);
+    }
+    private sealed class ScopedTemplates(PluginScope scope,ServiceTarget<ISettingsTemplates> service) : ISettingsTemplates
+    {
+        public Task Export(string file,CancellationToken token) => scope.Run(async t=>{await service.Value.Export(file,t);return true;},token);
+        public Task<TemplateCatalog> Open(string file,CancellationToken token) => scope.Run(t=>service.Value.Open(file,t),token);
+        public Task<TemplateField[]> Fields(string file,string digest,string entry,CancellationToken token) => scope.Run(t=>service.Value.Fields(file,digest,entry,t),token);
+        public Task<string> Review(string file,string digest,string entry,IReadOnlyDictionary<string,string> bindings,bool save,CancellationToken token) =>
+            scope.Run(t=>service.Value.Review(file,digest,entry,bindings,save,t),token);
     }
     private sealed class ScopedRules(PluginScope scope, ServiceTarget<IReceiveRules> service) : IReceiveRules
     {

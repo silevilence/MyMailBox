@@ -9,7 +9,7 @@ public static class DefaultProfile
     public static PluginConfiguration Core => new(1, [new("platform", "core.platform", "1.0.0")]);
     public static PluginConfiguration Ordinary => new(1, [new("welcome", "welcome", "1.0.0"), new("prototype", "prototype", "1.0.0"), new("selector", "selector", "1.0.0"), new("local-mail", "local-mail", "1.0.0"), new("qq-mail", "qq-mail", "1.0.0"), new("netease-mail", "netease-mail", "1.0.0"), new("accounts", "accounts", "1.0.0"), new("mail-selectors", "mail-selectors", "1.0.0"), new("reminders", "reminders", "1.0.0"), new("updates", "updates", "1.0.0")]);
 
-    public static PluginCatalog Catalog(string? workspace = null, IMailStore? mailStore = null, IMimeReader? mimeReader = null, Action<string>? openWorkspace = null, IMailPdfPrinter? printer = null, Action<string>? notification = null, Action<Updates.PreparedUpdate>? installUpdate = null, Func<IReadOnlyList<SearchExtension>>? searchExtensions = null,Func<IReadOnlyList<NotificationPresenter>>? presenters=null,Func<bool>? locked=null,Func<IReadOnlyList<AutomationExtension>>? automationExtensions=null, Func<IReadOnlyList<IMailboxProvider>>? mailboxProviders=null)
+    public static PluginCatalog Catalog(string? workspace = null, IMailStore? mailStore = null, IMimeReader? mimeReader = null, Action<string>? openWorkspace = null, IMailPdfPrinter? printer = null, Action<string>? notification = null, Action<Updates.PreparedUpdate>? installUpdate = null, Func<IReadOnlyList<SearchExtension>>? searchExtensions = null,Func<IReadOnlyList<NotificationPresenter>>? presenters=null,Func<bool>? locked=null,Func<IReadOnlyList<AutomationExtension>>? automationExtensions=null, Func<IReadOnlyList<IMailboxProvider>>? mailboxProviders=null, Func<PluginConfiguration>? templateConfiguration=null, Func<PluginConfiguration,Task>? saveTemplateConfiguration=null)
     {
         var catalog = new PluginCatalog();
         var location = workspace ?? Environment.GetEnvironmentVariable("MYMAILBOX_HOME")
@@ -63,6 +63,11 @@ public static class DefaultProfile
             ctx.Effect(()=>host.Add(new Page("automation","邮件自动化","",[],[],(_,_)=>Task.FromResult("")){Automation=automation}));
             var rules = new Mail.ReceiveRuleService(store,search,protocols);
             ctx.Effect(() => host.Add(new Page("rules", "收件规则", "", [], [], (_, _) => Task.FromResult("")) { Rules=rules }));
+            if(templateConfiguration != null && saveTemplateConfiguration != null)
+            {
+                var templates = new SettingsTemplates(accounts,protocols,search,rules,automation,templateConfiguration,saveTemplateConfiguration,()=>catalog.All);
+                ctx.Effect(()=>host.Add(new Page("templates","配置模板迁移","",[],[],(_,_)=>Task.FromResult("")) { Templates=templates }));
+            }
             ctx.Effect(() => new Mail.ReceiveRuleRunner(rules,activity.RecordError));
             var inbox = new Mail.UnifiedInboxService(store, accounts, new Mail.ProtocolReceiveProvider(store, protocols),
                 new Mail.MailboxReceiveProvider(store, mailboxProviders ?? (() => [])));
