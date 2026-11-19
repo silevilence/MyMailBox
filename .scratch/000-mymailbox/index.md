@@ -4,7 +4,9 @@ CI 修复验证：普通 push/PR 不再触发构建；修正 `runner.temp` 的�
 
 推送前复核：Exchange 验收地址及应用 ID 已从待推送历史移除。真实 ID 仅在本地忽略配置保留，Actions 从 `MYMAILBOX_GRAPH_CLIENT_ID` Secret 注入；普通用户仍直接登录，不填写 ID。真实服务地址由用户逐账户提供。
 
-日期：2026 年 11 月 19 日。**完成 81；进行中 15；阻塞 1；未开始 11。** 50 的 ANSI 中文及正文修复通过，研究选型完成；32 已内置发布者应用注册，普通用户直接登录，无需输入 Client ID，待个人账户真实登录/读取验收；35 的 EWS 认证仍失败，但 ActiveSync 带凭据 OPTIONS 已返回 200，声明最高协议 16.1，待部署、设备策略及测试目录读写验收。Exchange 产品须由用户逐账户填写服务器及身份，不绑定验收公司域名。证据见 [PST 修复](../../docs/validation/2026-11-17-pst-ansi-fix.md)、[Outlook.com 配置](../../docs/validation/outlook-com-setup.md)、[公司端点调查](../../docs/validation/2026-11-17-exchange-discovery.md)。
+日期：2026 年 11 月 19 日。**完成 82；进行中 14；阻塞 1；未开始 11。** 50 的 ANSI 中文及正文修复通过，研究选型完成；32 已内置发布者应用注册，普通用户直接登录，无需输入 Client ID，待个人账户真实登录/读取验收；35 的 EWS 认证仍失败，但 ActiveSync 带凭据 OPTIONS 已返回 200，声明最高协议 16.1，待部署、设备策略及测试目录读写验收。Exchange 产品须由用户逐账户填写服务器及身份，不绑定验收公司域名。证据见 [PST 修复](../../docs/validation/2026-11-17-pst-ansi-fix.md)、[Outlook.com 配置](../../docs/validation/outlook-com-setup.md)、[公司端点调查](../../docs/validation/2026-11-17-exchange-discovery.md)。
+
+本轮已完成 34 的断网重连与缓存翻页。真实账户、规则投递存储及发布环境的集中验收见[必做项记录](../../docs/validation/2026-11-19-task-000-local.md)。99–108 的产品范围未选入首版，十项均已完成[本地评估](../../docs/validation/2026-11-19-task-000-optional.md)。
 
 - [000-mymailbox 开发规格与完成标准](spec.md)
 - [全部规格索引](../index.md)
@@ -108,7 +110,7 @@ flowchart TD
 | [31 通过 POP3 拉取邮件并控制服务器留存](issues/31-pop3.md) | 必做 | [11](issues/11-accounts.md)、[13](issues/13-mime-baseline.md)、[18](issues/18-storage-recovery.md) | ready-for-agent | 完成 |
 | [32 登录 Outlook.com 并阅读云端邮件](issues/32-graph-login.md) | 必做 | [11](issues/11-accounts.md)、[12](issues/12-selectors.md)、[13](issues/13-mime-baseline.md) | needs-info | 进行中 |
 | [33 通过 Graph 发送并处理邮件状态](issues/33-graph-send.md) | 必做 | [32](issues/32-graph-login.md)、[26](issues/26-reply-forward.md) | needs-info | 进行中 |
-| [34 增量同步 Graph 邮箱并恢复失效游标](issues/34-graph-sync.md) | 必做 | [32](issues/32-graph-login.md)、[18](issues/18-storage-recovery.md) | ready-for-agent | 进行中 |
+| [34 增量同步 Graph 邮箱并恢复失效游标](issues/34-graph-sync.md) | 必做 | [32](issues/32-graph-login.md)、[18](issues/18-storage-recovery.md) | ready-for-agent | 完成 |
 | [35 验证公司 Exchange 的真实接入路径](issues/35-exchange-discovery.md) | 必做验证 | [02](issues/02-app-bootstrap.md)、[11](issues/11-accounts.md) | needs-info | 阻塞 |
 | [36 通过本地 Exchange 提供者浏览并读取邮件](issues/36-ews-read.md) | 条件路线：需要本地 Exchange/EWS 时 | [35](issues/35-exchange-discovery.md)、[12](issues/12-selectors.md)、[13](issues/13-mime-baseline.md) | needs-info | 进行中 |
 | [37 完成公司 Exchange 的写信和邮件操作](issues/37-ews-send.md) | 条件路线：需要本地 Exchange/EWS 时 | [36](issues/36-ews-read.md)、[26](issues/26-reply-forward.md) | needs-info | 进行中 |

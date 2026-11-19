@@ -44,3 +44,5 @@ Blocked by: 32, 33, 34
 ## Comments
 
 - 2026-11-16：用户确认任务拆分后创建，尚未开始开发。
+
+- 2026-11-19：当前公司端证据支持评估 ActiveSync，部署位置尚未确认。39 仅在公司确认实际采用 Exchange Online 时启动；个人 Graph 样本不能确定组织授权和条件访问结果。[本轮验收](../../../docs/validation/2026-11-19-task-000-local.md)

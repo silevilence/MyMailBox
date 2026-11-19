@@ -25,6 +25,8 @@ Blocked by: 91, 87
 - [ ] Release 正文来自该版本 changelog；安装包、校验和及所选更新清单/签名全部成功后才公开，预发布正确标记。
 - [ ] 重跑同一 Tag 可恢复草稿阶段，不移动已发布 Tag 或静默覆盖公开资产；写权限局限发布作业，私钥来自 Secrets。
 
+本地工作流配置、版本边界及签名草稿状态机已有夹具逐项复验。以上三项保留为 GitHub 平台上的统一实测。
+
 ## Blocked by
 
 - [91 在 GitHub Actions 构建并验证 NSIS 产物](91-ci-build.md)
@@ -47,3 +49,5 @@ Blocked by: 91, 87
 ## Comments
 
 - 2026-11-16：用户确认任务拆分后创建，尚未开始开发。
+
+- 2026-11-19：actionlint、发布元数据和草稿重跑夹具均通过。91 已有独立的手动 Actions 构建记录。本工单仍需获准创建测试 Release 并观察 Tag 触发、平台上传及最终公开。[本轮验收](../../../docs/validation/2026-11-19-task-000-local.md)
