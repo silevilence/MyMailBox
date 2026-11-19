@@ -31,7 +31,7 @@ public sealed partial class PluginScope(string instanceId, Contributions pages, 
                 { OfflineMarks = protocols.OfflineMarks is { } marks ? new ScopedOfflineMarks(this,Target(marks)) : null,
                   Outbox = protocols.Outbox is { } outbox ? new ScopedOutbox(this, Target(outbox)) : null,
                   ImapSync = protocols.ImapSync is { } sync ? new ScopedImapSync(this, Target(sync)) : null } : null,
-            Composer = page.Composer is { } compose ? new(new ScopedAccounts(this, Target(compose.Accounts)),new ScopedDrafts(this,Target(compose.Drafts)),new ScopedOutbox(this,Target(compose.Outbox))) { Graph = compose.Graph is { } composeGraph ? new ScopedGraphWrites(this, Target(composeGraph)) : null } : null,
+            Composer = page.Composer is { } compose ? new(new ScopedAccounts(this, Target(compose.Accounts)),new ScopedDrafts(this,Target(compose.Drafts)),new ScopedOutbox(this,Target(compose.Outbox))) { Exchange = compose.Exchange is {} composeEas ? new ScopedExchange(this,Target(composeEas)) : null, Graph = compose.Graph is { } composeGraph ? new ScopedGraphWrites(this, Target(composeGraph)) : null } : null,
             Activity=page.Activity is {} activity?new(new ScopedActivity(this,Target(activity.Center)),new ScopedAccounts(this,Target(activity.Accounts))):null,
             Automation=page.Automation is {} auto ? new ScopedAutomation(this,Target(auto)) : null,
             Templates = page.Templates is { } templates ? new ScopedTemplates(this,Target(templates)) : null,
@@ -41,6 +41,7 @@ public sealed partial class PluginScope(string instanceId, Contributions pages, 
                 { Transfers = org.Transfers is { } transfers ? new ScopedTransfers(this,Target(transfers)) : null,
                   Actions = org.Actions is { } actions ? new ScopedActions(this,Target(actions)) : null } : null,
             UnifiedInbox = page.UnifiedInbox is { } inbox ? new ScopedUnifiedInbox(this, Target(inbox)) : null,
+            Exchange = page.Exchange is {} exchange ? new(new ScopedAccounts(this,Target(exchange.Accounts)),new ScopedExchange(this,Target(exchange.Service))) : null,
             Graph = page.Graph is { } graph ? new(new ScopedAccounts(this, Target(graph.Accounts)), new ScopedGraph(this, Target(graph.Service)))
                 { Writes = graph.Writes is { } writes ? new ScopedGraphWrites(this, Target(writes)) : null, Sync = graph.Sync is { } graphSync ? new ScopedGraphSync(this, Target(graphSync)) : null } : null,
             Selections = page.Selections is { } selections ? new ScopedSelections(this, Target(selections)) : null,
@@ -265,6 +266,14 @@ public sealed partial class PluginScope(string instanceId, Contributions pages, 
         public async Task Remove(Guid id, CancellationToken cancellation = default) => await scope.Run(async t => { await accounts.Value.Remove(id, t); return true; }, cancellation);
     }
 
+    private sealed class ScopedExchange(PluginScope scope,ServiceTarget<IExchangeSetup> service) : IExchangeSetup
+    {
+        public Task<ExchangeSettings> Settings(Guid account,CancellationToken token)=>scope.Run(t=>service.Value.Settings(account,t),token);
+        public Task Configure(Guid account,string endpoint,string user,string? password,bool deviceAllowed,bool writeAllowed,CancellationToken token)=>
+            scope.Run(async t=>{await service.Value.Configure(account,endpoint,user,password,deviceAllowed,writeAllowed,t);return true;},token);
+        public Task<string> SaveDraft(MailDraft draft,CancellationToken token)=>scope.Run(t=>service.Value.SaveDraft(draft,t),token);
+        public Task<ExchangeSettings> Check(Guid account,CancellationToken token)=>scope.Run(t=>service.Value.Check(account,t),token);
+    }
     private sealed class ScopedGraphWrites(PluginScope scope, ServiceTarget<IGraphWrites> service) : IGraphWrites
     {
         public async Task Enable(Guid account, CancellationToken token) => await scope.Run(async t => { await service.Value.Enable(account, t); return true; }, token);

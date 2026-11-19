@@ -2,7 +2,11 @@ namespace MyMailBox.Contracts;
 
 public sealed record DraftBody(string Plain="",string Html="",string RichText="",bool Rich=false);
 public enum ReplyMode { Reply, ReplyAll, Forward }
-public sealed record ReplyIntent(string Key,ReplyMode Mode);
+public sealed record ReplyIntent(string Key,ReplyMode Mode)
+{
+    public Guid? ReadAccount {get;init;}
+    public byte[]? ReadMime {get;init;}
+}
 public sealed record MailQuote(string Heading,string Text,bool Included=true);
 public sealed record MailDraft(Guid Id,int Version,Guid Account,string Identity,string To,string Cc,string Bcc,string Subject,DraftBody Body)
 {
@@ -42,6 +46,7 @@ public interface IMailDrafts
 }
 public sealed record ComposerPage(IAccountService Accounts,IMailDrafts Drafts,IOutboxService Outbox)
 {
+    public IExchangeSetup? Exchange { get; init; }
     public IGraphWrites? Graph { get; init; }
 }
 public sealed record EditorTemplate(string Name,string Text);

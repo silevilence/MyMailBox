@@ -37,7 +37,7 @@ internal static class LocalSampleUiChecks
         var folder = store.Folders().GetAwaiter().GetResult().Single(f => f.Name == "外部导入验收");
         var item = store.List(folder.Id, 0, 10).GetAwaiter().GetResult().Items.Single();
         if (!store.Read(item.Id).GetAwaiter().GetResult().SequenceEqual(raw)) throw new Exception("External importer changed the original MIME");
-        ui.Click("nav-accounts/manage"); ui.Click("account-new"); ui.Select("account-provider",6);
+        ui.Click("nav-accounts/manage"); ui.Click("account-new"); ui.Select("account-provider",7);
         ui.Text("account-name","A Loopback"); ui.Text("account-address","desktop@example.invalid"); ui.Click("account-save");
         ui.Status("account-status","账户已保存");
         ui.Click("nav-accounts/compose"); ui.Text("compose-to","desktop@example.invalid"); ui.Text("compose-subject","外部邮箱投递");
@@ -49,6 +49,13 @@ internal static class LocalSampleUiChecks
         ui.Click("provider-move"); ui.Status("provider-status","已移动到"); ui.Text("provider-file",file);
         ui.Click("provider-upload"); ui.Status("provider-status","已上传邮件"); ui.Click("provider-quota"); ui.Status("provider-status","总容量");
         ui.Click("provider-delta"); ui.Status("provider-status","移出 1 封");
+        ui.Click("nav-accounts/exchange"); ui.Status("exchange-status","请先");
+        ui.Click("nav-accounts/manage"); ui.Click("account-new"); ui.Select("account-provider",6);
+        ui.Text("account-name","公司验收样本"); ui.Text("account-address","eas@example.invalid"); ui.Click("account-save"); ui.Status("account-status","账户已保存");
+        ui.Click("nav-accounts/exchange"); ui.Status("exchange-status","请配置连接");
+        ui.Text("exchange-endpoint","http://exchange.example.invalid"); ui.Click("exchange-save"); ui.Status("exchange-status","HTTPS");
+        ui.Text("exchange-endpoint","https://exchange.example.invalid"); ui.Text("exchange-user","fixture-user"); ui.Text("exchange-password","fixture-password");
+        ui.Click("exchange-save"); ui.Status("exchange-status","设置已保存");
         ui.Click("nav-accounts/templates");
         var templates = Path.Combine(output,"profile-template.json");
         ui.Text("templates-path",templates); ui.Click("templates-export"); ui.Status("templates-status","已导出");

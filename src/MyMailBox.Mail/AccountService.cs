@@ -55,7 +55,7 @@ public sealed class AccountService : IAccountService
             "imap-smtp" => edit.Capabilities & (AccountCapabilities.Send | AccountCapabilities.Receive),
             "imap" or "pop3" => AccountCapabilities.Receive,
             "smtp" => AccountCapabilities.Send,
-            "outlook-com" => AccountCapabilities.Receive | AccountCapabilities.Folders,
+            "exchange-eas" or "outlook-com" => AccountCapabilities.Receive | AccountCapabilities.Folders,
             _ when ProviderTypes.FirstOrDefault(t => t.Id == edit.Provider) is { } type => AccountCapabilities.Receive | AccountCapabilities.Folders |
                 (type.Features.HasFlag(MailboxFeatures.Send) ? AccountCapabilities.Send : 0) | (type.Features.HasFlag(MailboxFeatures.Upload) ? AccountCapabilities.Import : 0),
             _ when edit.Id != null && edit.Provider.Contains('/') => edit.Capabilities,
@@ -91,7 +91,9 @@ public sealed class AccountService : IAccountService
         if (existing is not null && existing.Provider != edit.Provider) throw new InvalidDataException("账户类型创建后不可更改；请新建对应类型账户。");
         if (existing != null && existing.Provider.Contains('/') && !ProviderTypes.Any(p => p.Id == existing.Provider))
             capabilities = existing.Capabilities;
-        if (existing?.Provider == "outlook-com" && existing.Address.Equals(edit.Address.Trim(), StringComparison.OrdinalIgnoreCase))
+        if(existing?.Provider=="exchange-eas" && !existing.Address.Equals(edit.Address.Trim(),StringComparison.OrdinalIgnoreCase))
+            throw new InvalidDataException("更换 Exchange 邮箱身份请新建账户。");
+        if (existing?.Provider is "outlook-com" or "exchange-eas" && existing.Address.Equals(edit.Address.Trim(), StringComparison.OrdinalIgnoreCase))
             capabilities |= existing.Capabilities & AccountCapabilities.Send;
         var id = edit.Id ?? Guid.NewGuid();
         var reference = existing?.CredentialReference;

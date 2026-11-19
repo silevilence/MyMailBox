@@ -15,7 +15,7 @@ namespace MyMailBox.Mail;
 public sealed partial class ProtocolMailService : IProtocolMailService, IImapSyncService, IOutboxService, IMailOrganizer, IMailActionService, IMailTransferService, IOfflineMarks
 {
     public Func<IReadOnlyList<IMailboxProvider>>? MailboxProviders { private get; init; }
-    private IMailboxProvider? ExternalSender(string type) => type.Contains('/') ? MailboxProviders?.Invoke().SingleOrDefault(p => p.Type.Id == type && p.Type.Features.HasFlag(MailboxFeatures.Send)) : null;
+    private IMailboxProvider? ExternalSender(string type) => (type.Contains('/') || type == "exchange-eas") ? MailboxProviders?.Invoke().SingleOrDefault(p => p.Type.Id == type && p.Type.Features.HasFlag(MailboxFeatures.Send)) : null;
     public GraphMailService? Graph { private get; init; }
     private async Task<MailAccount> SendingAccount(Guid account, CancellationToken token)
     {

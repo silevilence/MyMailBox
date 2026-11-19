@@ -17,7 +17,7 @@ public sealed partial class MailDraftStore
         if(fields.Cc.Length>0)mime.Cc.AddRange(InternetAddressList.Parse(fields.Cc));
         var blind=fields.Bcc.Length==0 ? new InternetAddressList() : InternetAddressList.Parse(fields.Bcc);
         var recipients = mime.To.Mailboxes.Concat(mime.Cc.Mailboxes).Concat(blind.Mailboxes).DistinctBy(a => a.Address, StringComparer.OrdinalIgnoreCase).ToArray();
-        if (identity.Provider == "outlook-com") mime.Bcc.AddRange(blind);
+        if (identity.Provider is "outlook-com" or "exchange-eas") mime.Bcc.AddRange(blind);
         if (!draft && recipients.Length == 0) throw new InvalidDataException("请至少填写一位收件人。");
         if (message.Subject.Contains('\r') || message.Subject.Contains('\n')) throw new InvalidDataException("主题不能包含换行。");
         mime.Subject = message.Subject; mime.Body = Body(identity.Id,message,cancellation);

@@ -69,6 +69,8 @@ internal static class MailboxProviderChecks
         var inbox = (await unified.Inbox(a.Id,null,25)).Messages.Single();
         PluginChecks.Check((await unified.Open(a.Id,inbox.Position.Key)).Contains("回环正文"),"Unified reader lost MIME body");
         PluginChecks.Check((await unified.Inbox(a.Id,null,25)).Messages.Single().Cached,"Missing offline copy");
+        var drafts=new MailDraftStore(store);
+        PluginChecks.Check(drafts.SourceAccount(inbox.Position.Key)==a.Id && (await drafts.Respond(new(inbox.Position.Key,ReplyMode.Forward),a.Id)).Subject.Contains("契约投递"),"Unified provider message could not be forwarded");
         var sent = (await provider.Search(a,"inbox","契约",null,10,default)).Items.Single();
         var uploaded = await provider.Upload(a,"inbox",new MemoryStream(raw),default);
         await provider.Mark(a,"inbox",uploaded,true,default);

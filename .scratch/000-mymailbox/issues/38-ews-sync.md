@@ -2,7 +2,7 @@
 
 Spec: 000-mymailbox
 Status: needs-info
-Progress: not-started
+Progress: in-progress
 Type: task
 Scope: 条件路线：需要本地 Exchange/EWS 时
 Estimate: 2–3 人日
@@ -38,8 +38,10 @@ Blocked by: 36, 18
 
 ## 验证与交付记录
 
-实施时记录演示步骤或检查命令、结果、适用环境和已知限制；目前未执行，所有验收项保持未勾选。若发现超出预计粒度，先拆为完整可验收子场景；环境不足时保留具体缺口，不标完成。
+本轮实施及验证见下方记录。
 
 ## Comments
 
 - 2026-11-16：用户确认任务拆分后创建，尚未开始开发。
+
+- 2026-11-19：候选 ActiveSync 同步已接入统一接收。分页和游标持久化，重开继续，失效键使用独立暂存目录快照并原子切换，保留已下载原文。exchange-eas 本地协议样本通过，真实服务器的长时运行待验。

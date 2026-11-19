@@ -5,7 +5,7 @@ namespace MyMailBox.Mail;
 
 public sealed partial class MailDraftStore
 {
-    private (Guid Account,Guid Id) Source(string message)
+    private (Guid Account,Guid? Id) Source(string message)
     {
         using var db=_store.Open();using var c=db.CreateCommand();
         string item;
@@ -19,18 +19,38 @@ public sealed partial class MailDraftStore
             item=c.ExecuteScalar() as string ?? throw new InvalidDataException("请先下载并打开原邮件。");
         }
         c.CommandText="SELECT f.account_id FROM messages m JOIN folders f ON f.id=m.folder_id WHERE m.id=$id";c.Parameters.AddWithValue("$id",item);
-        return(c.ExecuteScalar() is string account?Guid.Parse(account):throw new InvalidDataException("原邮件已移除。"),Guid.Parse(item));
+        if(c.ExecuteScalar() is string account) return(Guid.Parse(account),Guid.Parse(item));
+        c.CommandText="SELECT name FROM sqlite_master WHERE type='table' AND name='provider_inbox'";
+        if(c.ExecuteScalar()!=null)
+        {
+            c.CommandText="SELECT account FROM provider_inbox WHERE key=$key";c.Parameters.AddWithValue("$key",message);
+            if(c.ExecuteScalar() is string owner)return(Guid.Parse(owner),null);
+        }
+        throw new InvalidDataException("原邮件已移除。");
     }
     public Guid SourceAccount(string message)=>Source(message).Account;
     public async Task<MailDraft> Respond(ReplyIntent intent,Guid account,CancellationToken token=default)
     {
-        var source=Source(intent.Key);
+        byte[] raw;
+        if(intent.ReadAccount!=null && intent.ReadMime is {Length:>0 and <=MimeReader.MaxMessageBytes} readMime)
+            raw=readMime;
+        else
+        {
+            var source=Source(intent.Key);
+            if(source.Id is {} local)raw=await _store.Read(local,token);
+            else
+            {
+                using var db=_store.Open();using var c=db.CreateCommand();c.CommandText="SELECT raw FROM provider_inbox WHERE key=$key AND account=$account";
+                c.Parameters.AddWithValue("$key",intent.Key);c.Parameters.AddWithValue("$account",source.Account.ToString());
+                raw=c.ExecuteScalar() as byte[] ?? throw new InvalidDataException("请先在统一收件箱打开并下载原邮件。");
+            }
+        }
         var accounts=await new AccountService(_store).List(token);
         var sending=accounts.FirstOrDefault(a=>a.Id==account && a.Enabled && a.Capabilities.HasFlag(AccountCapabilities.Send)) ??
             throw new InvalidDataException("请选择可发送邮件的账户。");
         var aliases=Profile(account).Aliases.Prepend(sending.Address).ToArray();
         var own=accounts.SelectMany(a=>Profile(a.Id).Aliases.Prepend(a.Address)).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        using var original=await MimeMessage.LoadAsync(new MemoryStream(await _store.Read(source.Id,token)),token);
+        using var original=await MimeMessage.LoadAsync(new MemoryStream(raw,false),token);
         var visible=original.To.Mailboxes.Concat(original.Cc.Mailboxes).ToArray();
         var identity=aliases.FirstOrDefault(a=>visible.Any(m=>m.Address.Equals(a,StringComparison.OrdinalIgnoreCase))) ?? sending.Address;
         var receivers=new HashSet<string>(own,StringComparer.OrdinalIgnoreCase);var to=new InternetAddressList();var cc=new InternetAddressList();

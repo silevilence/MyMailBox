@@ -22,13 +22,14 @@ internal sealed class MailboxBrowserView : UserControl, IDisposable
     private CancellationTokenSource? _operation;
     private bool _disposed;
     private string? _next, _search, _delta;
+    private byte[]? _readMime;
     private MailAccount? Account => _accounts.SelectedItem as MailAccount;
     private IMailboxProvider? Provider => _registry.MailboxProviders.SingleOrDefault(p => p.Type.Id == Account?.Provider);
     private MailboxIdentity Identity => new(Account!.Id, Account.Address);
     private string Folder => (_folders.SelectedItem as MailboxFolder)?.Id ?? throw new InvalidDataException("请选择目录。");
     private MailboxItem Item => _messages.SelectedItem as MailboxItem ?? throw new InvalidDataException("请选择邮件。");
 
-    internal MailboxBrowserView(IAccountService accounts, Contributions registry)
+    internal MailboxBrowserView(IAccountService accounts, Contributions registry,Action<ReplyIntent> respond)
     {
         _registry = registry;
         _accounts.ItemTemplate = new FuncDataTemplate<MailAccount>((a, _) => new TextBlock { Text = a?.Name + " · " + a?.Address });
@@ -55,10 +56,15 @@ internal sealed class MailboxBrowserView : UserControl, IDisposable
         {
             var raw = await BuiltinMailboxAdapters.ReadOriginal(p,Identity,Folder,Item.Id,t);
             var parsed = await new MimeReader().Parse(raw,t);
+            _readMime=raw;
             _body.Text = parsed.Subject + Environment.NewLine + parsed.Text;
             _status.Text = $"已读取 {raw.Length:N0} 字节。";
         });
         Id(_body, "body"); _panel.Children.Add(_body);
+        var replies=new WrapPanel();
+        ReplyButtons.Add(replies,"provider",()=>_readMime!=null?(_messages.SelectedItem as MailboxItem)?.Id:null,
+            intent=>respond(intent with{ ReadAccount=Account!.Id,ReadMime=_readMime }),text=>_status.Text=text);
+        _panel.Children.Add(replies);
         Action("切换已读状态", "mark", MailboxFeatures.Mark, async (p,t) =>
         {
             var selected = Item;
@@ -100,7 +106,7 @@ internal sealed class MailboxBrowserView : UserControl, IDisposable
         Id(_status,"status"); Content = PageFeedback.Layout(_panel,_status,cancel);
         _accounts.SelectionChanged += (_,_) => { Reset(); Refresh(); };
         _folders.SelectionChanged += (_,_) => ClearMessages();
-        _messages.SelectionChanged += (_,_) => _body.Text = "";
+        _messages.SelectionChanged += (_,_) => { _body.Text = ""; _readMime=null; };
         registry.Changed += RegistryChanged;
         AttachedToVisualTree += async (_,_) => await Run(async t =>
         {
@@ -112,7 +118,7 @@ internal sealed class MailboxBrowserView : UserControl, IDisposable
     private void RegistryChanged() { if (_disposed) return; if (Provider == null) { _operation?.Cancel(); Reset(); Describe(); } Refresh(); }
     private void Describe() => _status.Text = Account == null ? "请先添加邮箱账户。" : Provider == null ? $"需要启用邮箱插件 {Account.Provider}。" : "选择账户后连接以读取目录。";
     private void Reset() { _folders.ItemsSource = null; _destination.ItemsSource = null; ClearMessages(); Describe(); }
-    private void ClearMessages() { _messages.ItemsSource = null; _body.Text = ""; _next = _search = _delta = null; }
+    private void ClearMessages() { _readMime=null; _messages.ItemsSource = null; _body.Text = ""; _next = _search = _delta = null; }
     private async Task Load(IMailboxProvider p,string? query,string? cursor,CancellationToken t)
     {
         var result = query == null ? await p.List(Identity,Folder,cursor,25,t) : await p.Search(Identity,Folder,query,cursor,25,t);

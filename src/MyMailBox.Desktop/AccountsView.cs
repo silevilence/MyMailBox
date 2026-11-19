@@ -13,8 +13,8 @@ public sealed class AccountsView : UserControl, IDisposable
     private readonly IAccountService _service;
     private readonly CancellationTokenSource _lifetime = new();
     private readonly ComboBox _accounts = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
-    private readonly ComboBox _provider = new() { ItemsSource = new[] { "本地邮箱", "IMAP + SMTP", "IMAP（仅收）", "SMTP（仅发）", "POP3（仅收）", "Outlook.com（个人账户）" }, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
-    private static readonly string[] BuiltinTypes = ["local", "imap-smtp", "imap", "smtp", "pop3", "outlook-com"];
+    private readonly ComboBox _provider = new() { ItemsSource = new[] { "本地邮箱", "IMAP + SMTP", "IMAP（仅收）", "SMTP（仅发）", "POP3（仅收）", "Outlook.com（个人账户）", "公司 Exchange（ActiveSync）" }, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
+    private static readonly string[] BuiltinTypes = ["local", "imap-smtp", "imap", "smtp", "pop3", "outlook-com", "exchange-eas"];
     private string[] Providers = BuiltinTypes;
     private readonly string[] _builtinLabels;
     private readonly TextBox _name = new(), _address = new(), _alias = new(), _tags = new(), _color = new() { Text = "#2563EB" }, _notes = new() { AcceptsReturn = true, MinHeight = 64 }, _order = new() { Text = "0" }, _credential = new() { PasswordChar = '●' };
@@ -95,6 +95,12 @@ public sealed class AccountsView : UserControl, IDisposable
         _credential.IsEnabled = !local && provider != "outlook-com";
         _receive.IsEnabled = _send.IsEnabled = provider == "imap-smtp";
         if (provider != "imap-smtp") { _receive.IsChecked = provider is "imap" or "pop3" or "outlook-com"; _send.IsChecked = provider == "smtp" || provider == "outlook-com" && (_accounts.SelectedItem as MailAccount)?.Capabilities.HasFlag(AccountCapabilities.Send) == true; }
+        if(provider=="exchange-eas")
+        {
+            _credential.IsEnabled=false; _receive.IsChecked=true;
+            _send.IsChecked=(_accounts.SelectedItem as MailAccount)?.Capabilities.HasFlag(AccountCapabilities.Send)==true;
+            _capability.Text="保存后到“Exchange 连接”填写服务器、登录身份和设备授权。";return;
+        }
         if (provider.Contains('/'))
         {
             var type = _service.ProviderTypes.FirstOrDefault(p => p.Id == provider);

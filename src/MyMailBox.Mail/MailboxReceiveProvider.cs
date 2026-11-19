@@ -24,7 +24,7 @@ public sealed class MailboxReceiveProvider : IReceiveProvider
             """;
         command.ExecuteNonQuery();
     }
-    private IMailboxProvider? Find(MailAccount account) => account.Provider.Contains('/') ?
+    private IMailboxProvider? Find(MailAccount account) => (account.Provider.Contains('/') || account.Provider=="exchange-eas") ?
         _providers().SingleOrDefault(p => p.Type.Id == account.Provider && p.Type.Features.HasFlag(MailboxFeatures.Delta)) : null;
     public bool Supports(MailAccount account) => Find(account) != null;
     private static MailboxIdentity Identity(MailAccount a) => new(a.Id,a.Address);

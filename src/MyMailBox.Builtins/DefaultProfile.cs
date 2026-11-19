@@ -48,6 +48,10 @@ public static class DefaultProfile
             var graph = new Mail.GraphMailService(store);
             ctx.Effect(() => graph);
             var protocols = new Mail.ProtocolMailService(store, () => host.ProtocolPresets) { Graph = graph, MailboxProviders = mailboxProviders };
+            var exchange = new Mail.ActiveSync.ExchangeMailbox(store);
+            ctx.Effect(()=>exchange);
+            ctx.Effect(()=>host.AddMailboxProvider(exchange));
+            ctx.Effect(()=>host.Add(new Page("exchange","Exchange 连接","",[],[],(_,_)=>Task.FromResult("")) { Exchange=new(accounts,exchange) }));
             foreach (var adapter in Mail.BuiltinMailboxAdapters.Create(store, graph, protocols))
                 ctx.Effect(() => host.AddMailboxProvider(adapter));
             ctx.Effect(() => host.Add(new Page("mailbox-browser", "邮箱浏览与整理", "", [], [], (_, _) => Task.FromResult(""), Accounts: accounts)
@@ -56,7 +60,7 @@ public static class DefaultProfile
                 { OutlookAccounts = new Mail.OutlookAccountImport(accounts) }));
             var search = new Mail.MailSearchService(store, protocols, searchExtensions);
             ctx.Effect(() => host.Add(new Page("search", "搜索邮件", "", [], [], (_, _) => Task.FromResult("")) { Search = search }));
-            ctx.Effect(() => host.Add(new Page("compose", "写邮件与草稿", "", [], [], (_, _) => Task.FromResult("")) { Composer = new(accounts,new Mail.MailDraftStore(store),protocols) { Graph = graph } }));
+            ctx.Effect(() => host.Add(new Page("compose", "写邮件与草稿", "", [], [], (_, _) => Task.FromResult("")) { Composer = new(accounts,new Mail.MailDraftStore(store),protocols) { Graph = graph, Exchange = exchange } }));
             var activity=new Mail.ActivityCenter(store);
             var automation=new Mail.MailAutomationService(store,search,protocols,notify:activity.RecordError,activityNotices:true,extensions:automationExtensions);
             ctx.Effect(()=>new Mail.AutomationRunner(automation,activity.RecordError));

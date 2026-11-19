@@ -80,7 +80,7 @@ public sealed partial class ProtocolMailService
             {
                 result = await Graph!.SendQueued(account.Id, raw, item.Remaining, () => _outbox.Claim(id), cancellation);
             }
-            else if (account.Provider.Contains('/'))
+            else if (account.Provider.Contains('/') || account.Provider=="exchange-eas")
             {
                 var provider = ExternalSender(account.Provider) ?? throw new InvalidDataException("所需邮箱插件已停用。");
                 if (!_outbox.Claim(id)) return Outcome(_outbox.Get(id));

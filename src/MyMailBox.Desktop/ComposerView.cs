@@ -45,14 +45,15 @@ internal sealed partial class ComposerView : UserControl,IDisposable
         Field("该账户的草稿",_drafts,"compose-drafts");
         var draftTools=new WrapPanel();Button(draftTools,"打开所选草稿","compose-open",async()=>{await Flush();if(_drafts.SelectedItem is MailDraft d)Load(_page.Drafts.List(d.Account).Single(x=>x.Id==d.Id));});
         Button(draftTools,"新建草稿","compose-new",async()=>{await Flush();var a=Account();Load(MailDraft.New(a.Id,a.Address));});_form.Children.Add(draftTools);
-        if (page.Graph is { } graph)
+        if (page.Graph != null || page.Exchange != null)
         {
             Button(_cloudDraft, "将当前版本另存为云端草稿", "compose-graph-draft", async () =>
             {
                 await Flush();
                 var draft = _draft ?? throw new InvalidDataException("请先填写并保存草稿。");
-                await graph.SaveDraft(draft, _stop.Token);
-                _status.Text = "当前版本已保存到微软草稿目录。本地草稿可继续编辑。";
+                if(Account().Provider=="exchange-eas" && page.Exchange is {} exchange) await exchange.SaveDraft(draft,_stop.Token);
+                else if(page.Graph is {} graph) await graph.SaveDraft(draft,_stop.Token);
+                _status.Text = "当前版本已保存到服务器草稿目录。本地草稿可继续编辑。";
             });
             _cloudDraft.IsVisible = false;
             _form.Children.Add(_cloudDraft);
@@ -81,7 +82,7 @@ internal sealed partial class ComposerView : UserControl,IDisposable
                 _accounts.SelectedIndex=_accounts.ItemCount>0?0:-1;SetEditors();}finally{_binding=false;}
             if(_intent is {} reply)
             {
-                var source=page.Drafts.SourceAccount(reply.Key);
+                var source=reply.ReadAccount ?? page.Drafts.SourceAccount(reply.Key);
                 var preferred=_accounts.Items.OfType<MailAccount>().FirstOrDefault(a=>a.Id==source);
                 if(preferred is not null){_binding=true;_accounts.SelectedItem=preferred;_binding=false;await CreateResponse();}
                 else{_alternate.IsVisible=true;_status.Text="原接收账户无法发送，请明确选择替代账户再继续。";}
@@ -154,7 +155,8 @@ internal sealed partial class ComposerView : UserControl,IDisposable
     }
     private void Load(MailDraft d)
     {
-        _cloudDraft.IsVisible = _page.Graph != null && (_accounts.SelectedItem as MailAccount)?.Provider == "outlook-com";
+        var provider=(_accounts.SelectedItem as MailAccount)?.Provider;
+        _cloudDraft.IsVisible = provider=="outlook-com" && _page.Graph!=null || provider=="exchange-eas" && _page.Exchange!=null;
         _binding=true;try{
             CloseRich();_draft=d;_to.Text=d.To;_cc.Text=d.Cc;_bcc.Text=d.Bcc;_subject.Text=d.Subject;_plain.Text=d.Body.Plain;_identity.Text="发件身份："+d.Identity;_from.SelectedItem=d.Identity;_files.ItemsSource=d.Parts;_quote.IsVisible=d.Quote is not null;_quoteText.Text=d.Quote is {} q ? q.Heading+"\n"+q.Text : "";_include.IsChecked=d.Quote?.Included==true;
             _plain.IsVisible=!d.Body.Rich; if(d.Body.Rich)OpenRich(d);_status.Text=d.Version>0?"已恢复草稿。":"新草稿。";if(_planId!=d.Id)_=ReadPlan(d.Id);

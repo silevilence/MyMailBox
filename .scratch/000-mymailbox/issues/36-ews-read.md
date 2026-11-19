@@ -2,7 +2,7 @@
 
 Spec: 000-mymailbox
 Status: needs-info
-Progress: not-started
+Progress: in-progress
 Type: task
 Scope: 条件路线：需要本地 Exchange/EWS 时
 Estimate: 2–3 人日
@@ -41,8 +41,10 @@ Blocked by: 35, 12, 13
 
 ## 验证与交付记录
 
-实施时记录演示步骤或检查命令、结果、适用环境和已知限制；目前未执行，所有验收项保持未勾选。若发现超出预计粒度，先拆为完整可验收子场景；环境不足时保留具体缺口，不标完成。
+本轮实施及验证见下方记录。
 
 ## Comments
 
 - 2026-11-16：用户确认任务拆分后创建，尚未开始开发。
+
+- 2026-11-19：实现公司 Exchange 的候选 ActiveSync 路线。每账户独立 HTTPS 端点、登录身份、DPAPI 凭据和设备同意；WBXML 目录层级、分页、完整 MIME/附件与离线缓存已通过本地协议样本。EWS 与公司服务器实际访问仍待验证。
