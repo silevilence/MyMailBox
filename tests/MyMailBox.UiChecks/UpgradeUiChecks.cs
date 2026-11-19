@@ -3,7 +3,6 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using Chaos.NaCl;
 using FlaUI.UIA3;
-using MyMailBox.Builtins;
 using MyMailBox.Contracts;
 using MyMailBox.Mail;
 using MyMailBox.Updates;
@@ -17,7 +16,8 @@ internal static class UpgradeUiChecks
     private static async Task RunAsync(string executable, string installer, string output)
     {
         Directory.CreateDirectory(output);
-        var workspace = Path.Combine(output, "upgrade-workspace"); DefaultProfile.Ensure(Path.Combine(workspace, "profiles/default"));
+        // Let the installed baseline create the profile it actually supports.
+        var workspace = Path.Combine(output, "upgrade-workspace");
         var store = new SqliteMailStore(Path.Combine(workspace, "mail"));
         var raw = "From: test@example.test\r\nTo: reader@example.test\r\nSubject: Upgrade preservation\r\n\r\nKeep this raw message."u8.ToArray();
         var messageId = store.Import(SqliteMailStore.Inbox, raw, new MyMailBox.Mail.MimeReader().Parse(raw).GetAwaiter().GetResult()).GetAwaiter().GetResult();

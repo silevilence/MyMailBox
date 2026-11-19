@@ -63,7 +63,21 @@ internal static class LocalSampleUiChecks
         ui.Click("templates-fields"); ui.Status("templates-status","核对本机绑定");
         ui.Click("templates-preview"); ui.Status("templates-status","请映射");
         ui.Select("templates-map-0",1); ui.Click("templates-preview"); ui.Status("templates-status","已选择本机账户");
-        Console.WriteLine("PASS published UI: Graph offline and write access, external EML import/replay, account creation, loopback compose/send/read/search/mark/move/upload/quota/delta");
+        var sourceRule = new OutlookSourceRule("桌面导入对照", 1, true, true, 0,
+            [new(1, 2, "subject", ["Sample"], true, "")], [], [new(1, 19, "mark-read", [], true, "")]);
+        var inventory = Path.Combine(output, "local-rule-inventory.json");
+        File.WriteAllBytes(inventory, JsonSerializer.SerializeToUtf8Bytes(new OutlookRuleInventory(1, "桌面样本", "本地邮箱", [sourceRule]), new JsonSerializerOptions(JsonSerializerDefaults.Web)));
+        ui.Click("nav-accounts/rules"); ui.Expand("从经典 Outlook 规则清单转换");
+        ui.Text("outlook-rule-file", inventory); ui.Click("outlook-rule-open"); ui.Status("rule-status", "1 条规则");
+        ui.Select("outlook-rule-scope", 0); ui.Click("outlook-rule-convert"); ui.Status("rule-status", "已载入停用草稿");
+        ui.Click("rule-save"); ui.Status("rule-status", "已保存「桌面导入对照」");
+        var protocols = new ProtocolMailService(store);
+        var rules = new ReceiveRuleService(store, new(store, protocols), protocols);
+        if (rules.Dashboard().GetAwaiter().GetResult().Rules.Single(x => x.Name == sourceRule.Name).Enabled)
+            throw new Exception("Imported desktop rule was enabled without confirmation");
+        ui.Click("nav-updates/settings"); ui.Select("update-source", 1); ui.Click("update-save"); ui.Status("update-status", "设置已保存");
+        ui.Click("update-check"); ui.Status("update-status", "离线示例已检查版本");
+        Console.WriteLine("PASS published UI: Graph offline and write access, external EML import/replay, account creation, loopback compose/send/read/search/mark/move/upload/quota/delta, ActiveSync validation, update source, rule conversion and portable templates");
     }
 
     private sealed class SampleAuthorization(SqliteMailStore store, string address) : IGraphAuthorization, IGraphWriteAuthorization
