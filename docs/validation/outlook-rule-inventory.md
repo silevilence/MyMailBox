@@ -13,4 +13,8 @@
 
 微软的 Rule 对象同时表示服务器及客户端规则。OOM 只覆盖规则向导的一部分，未知项的原文脚本或区间参数可能无法读取。清单中的候选项仍需与实际样本对照。[Rule 对象](https://learn.microsoft.com/en-us/office/vba/api/outlook.rule)、[条件枚举及区间限制](https://learn.microsoft.com/en-us/office/vba/api/outlook.olruleconditiontype)、[动作枚举](https://learn.microsoft.com/en-us/office/vba/api/outlook.olruleactiontype)
 
+在「收件规则 → 从经典 Outlook 规则清单转换」读取 JSON，选中源规则，再选本机账户或目录。若动作涉及移动，须另外选择目标目录。页面逐项显示条件、例外和动作的映射。点击「对照本机邮件并载入停用草稿」可查看实际样本命中情况。保存后的规则默认停用，可在核对范围及顺序后手动启用。
+
+目前转换主题、正文及两者择一的文本条件，同一字段的多个词按 OR 组合。标为已读、分类、单个同账户移动和停止后续处理可保留。地址字符串、复制、脚本及缺失目标等项目会让整条规则留在清单中供手动核对。源 Profile 的实际命中情况仍需在对应 Outlook 环境中验证。[微软的多值文本规则说明](https://learn.microsoft.com/en-us/office/vba/api/outlook.textrulecondition.text)
+
 在仓库根目录运行 `./scripts/inspect-outlook-rules.ps1 -SelfTest` 可离线复验条件、例外、顺序、停止标志，以及失效目录、脚本、未知类型的留存。实际采集时由用户打开授权的经典 Outlook 测试 Profile，指定 `-Profile`、`-StoreName` 和 `-Output`（新的本地 JSON 文件）。脚本仅附着到当前会话并核对 Profile 和存储名称。清单可能包含账户、目录和规则原文，请保存在 Git 忽略的本地验收目录。

@@ -30,6 +30,7 @@ internal sealed partial class ReceiveRulesView : UserControl, IDisposable
         _service = service; _panel.Children.Add(new TextBlock { Text = "收件规则", FontSize = 28, FontWeight = FontWeight.SemiBold });
         _saved.ItemTemplate = new FuncDataTemplate<ReceiveRule>((r, _) => new TextBlock { Text = r is null ? "" : $"{r.Order} · {r.Name} · {(r.Enabled ? "已启用" : "已停用")}" });
         _scope.ItemTemplate = _destination.ItemTemplate = new FuncDataTemplate<SearchScope>((s, _) => new TextBlock { Text = s?.Name });
+        AddOutlookImport();
         Field("已有规则", _saved, "rule-list");
         var manage = new WrapPanel(); Button(manage, "载入规则", "rule-load", () => { if (_saved.SelectedItem is ReceiveRule r) Edit(r); return Task.CompletedTask; });
         Button(manage, "新规则", "rule-new", () => { Edit(null); return Task.CompletedTask; }); _panel.Children.Add(manage);
@@ -114,6 +115,9 @@ internal sealed partial class ReceiveRulesView : UserControl, IDisposable
         var scope = _scope.SelectedItem as SearchScope;
         _dashboard = await _service.Dashboard(_stop.Token); _saved.ItemsSource = _dashboard.Rules; _saved.SelectedItem = _dashboard.Rules.FirstOrDefault(r => r.Id == selected);
         _scope.ItemsSource = _dashboard.Scopes; _scope.SelectedItem = _dashboard.Scopes.FirstOrDefault(s => s.Account == scope?.Account && s.Folder == scope?.Folder);
+        var binding = _outlookScope.SelectedItem as SearchScope;
+        _outlookScope.ItemsSource = _dashboard.Scopes.Where(s=>s.Account.HasValue).ToArray();
+        _outlookScope.SelectedItem = _dashboard.Scopes.FirstOrDefault(s=>binding != null && s.Account == binding.Account && s.Folder == binding.Folder);
         _runs.ItemsSource = _dashboard.Runs; FilterTargets();
     }
     private ReceiveRule Draft()

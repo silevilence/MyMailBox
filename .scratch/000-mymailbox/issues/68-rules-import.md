@@ -2,7 +2,7 @@
 
 Spec: 000-mymailbox
 Status: needs-info
-Progress: not-started
+Progress: in-progress
 Type: task
 Scope: 条件项：按规则导入评估结论
 Estimate: 2–3 人日
@@ -39,8 +39,10 @@ Blocked by: 54, 67, 49
 
 ## 验证与交付记录
 
-实施时记录演示步骤或检查命令、结果、适用环境和已知限制；目前未执行，所有验收项保持未勾选。若发现超出预计粒度，先拆为完整可验收子场景；环境不足时保留具体缺口，不标完成。
+本轮实施及验证见下方记录。
 
 ## Comments
 
 - 2026-11-16：用户确认任务拆分后创建，尚未开始开发。
+
+- 2026-11-19：已接通经典 Outlook 清单转换、目标绑定、例外和动作逐项报告、同一批 MIME 的命中对照和停用草稿。outlook-rules、receive-rules、rule-preview 均通过；代表性真实 Outlook 规则的两端对照待验。
