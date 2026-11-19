@@ -24,23 +24,23 @@ internal sealed class OutlookAccountsView : UserControl, IDisposable
     {
         _service = service;
         _form.Children.Add(new TextBlock { Text = "导入经典 Outlook 账户", FontSize = 26 });
-        _form.Children.Add(new TextBlock { Text = "选择本机 Profile 预览可读取的 Internet 邮箱设置。确认后，在“邮箱连接与收发”中重新授权。", TextWrapping = TextWrapping.Wrap });
-        Button(_form, "查找经典 Outlook Profile", "outlook-discover", async () =>
+        _form.Children.Add(new TextBlock { Text = "选择本机 Outlook 配置，查看可导入的邮箱设置。确认后，在“邮箱连接与收发”中重新授权。", TextWrapping = TextWrapping.Wrap });
+        Button(_form, "查找经典 Outlook 配置", "outlook-discover", async () =>
         {
             var profiles = await service.Profiles(_life.Token);
             _profiles.ItemsSource = profiles;
             _profiles.SelectedIndex = profiles.Count > 0 ? 0 : -1;
-            _result.Text = profiles.Count == 0 ? "未发现经典 Outlook 16 Profile。新 Outlook 可在“账户管理”中重新添加。" : "请选择要读取的 Profile。";
+            _result.Text = profiles.Count == 0 ? "未发现经典 Outlook 16 配置。新 Outlook 可在“账户管理”中重新添加。" : "请选择要读取的配置。";
         });
-        Field(_form, "来源 Profile", _profiles, "outlook-profile");
+        Field(_form, "来源配置", _profiles, "outlook-profile");
         _profiles.SelectionChanged += (_, _) => { _accounts.ItemsSource = null; _fields.IsVisible = false; };
-        Button(_form, "读取此 Profile 的账户", "outlook-preview", async () =>
+        Button(_form, "查看此配置中的账户", "outlook-preview", async () =>
         {
-            if (_profiles.SelectedItem is not string profile) throw new InvalidDataException("请先选择来源 Profile。");
+            if (_profiles.SelectedItem is not string profile) throw new InvalidDataException("请先选择来源配置。");
             var entries = await service.Preview(profile, _life.Token);
             _accounts.ItemsSource = entries;
             _accounts.SelectedIndex = Array.FindIndex(entries.ToArray(), e => e.ImportedAccount == null);
-            _result.Text = entries.Count == 0 ? "这个 Profile 没有可读取的 Internet 账户配置。" : $"共 {entries.Count} 个来源账户，已确认 {entries.Count(e => e.ImportedAccount != null)} 个。";
+            _result.Text = entries.Count == 0 ? "这份配置中没有可导入的邮箱账户。" : $"共 {entries.Count} 个来源账户，已确认 {entries.Count(e => e.ImportedAccount != null)} 个。";
         });
         _accounts.ItemTemplate = new FuncDataTemplate<OutlookAccountPreview>((a, _) => new TextBlock { Text = a == null ? "" : $"{a.Name}  {a.Address}{(a.ImportedAccount != null ? " · 已确认" : a.SourceChanged ? " · 来源已变化" : "")}" });
         Field(_form, "来源账户", _accounts, "outlook-source");
@@ -58,9 +58,9 @@ internal sealed class OutlookAccountsView : UserControl, IDisposable
             var matches = await service.Matches(source.Provider, _email.Text ?? "", _life.Token);
             _matches.ItemsSource = matches;
             _matches.SelectedIndex = -1;
-            _result.Text = matches.Count == 0 ? "没有匹配项，可以创建新账户。" : "请选择要沿用的账户。映射只引用已有账户及其连接设置。";
+            _result.Text = matches.Count == 0 ? "没有匹配项，可以创建新账户。" : "请选择要沿用的账户。将沿用该账户的收发设置。";
         });
-        Field(_fields, "映射到已有账户（可选）", _matches, "outlook-match");
+        Field(_fields, "使用已有账户（可选）", _matches, "outlook-match");
         _commit = Button(_fields, "确认并创建账户", "outlook-confirm", async () =>
         {
             var source = Selection();
@@ -74,7 +74,7 @@ internal sealed class OutlookAccountsView : UserControl, IDisposable
             _result.Text = matched != null ? $"已映射到 {result.Name}，沿用原有连接配置。" : $"已创建 {result.Name}。请到“邮箱连接与收发”选择此账户并填写凭据。";
             _accounts.SelectedIndex = Array.FindIndex(entries.ToArray(), e => e.ImportedAccount == null);
         });
-        _matches.SelectionChanged += (_, _) => _commit.Content = _matches.SelectedItem == null ? "确认并创建账户" : "确认映射到选中账户";
+        _matches.SelectionChanged += (_, _) => _commit.Content = _matches.SelectedItem == null ? "确认并创建账户" : "使用选中的账户";
         _accounts.SelectionChanged += (_, _) => ShowSelection();
         _email.TextChanged += (_, _) => _matches.ItemsSource = null;
         Button(_fields, "取消本次导入", "outlook-cancel", () =>

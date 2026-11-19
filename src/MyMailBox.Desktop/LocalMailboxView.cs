@@ -25,7 +25,7 @@ public sealed class LocalMailboxView : UserControl, IDisposable
         _panel.Children.Add(new TextBlock { Text = "关闭或在账户管理中移除只隐藏邮箱，邮件原文和附件仍保留。这里可以重新打开保留的邮箱。名称、标签、颜色和备注可在账户管理中修改。", TextWrapping = TextWrapping.Wrap });
         _mailboxes.ItemTemplate = new FuncDataTemplate<LocalMailboxInfo>((m, _) => new TextBlock { Text = m is null ? "" : $"{m.Name} · {(m.Removed ? "已移除，归档保留" : m.Open ? "已打开" : "已关闭")} · {m.Messages} 封 · {string.Join(" / ", m.Tags)}" });
         Add("已有本地邮箱", _mailboxes, "local-mailboxes");
-        Add("名称（新建时使用）", _name, "local-name"); Add("alias（可选；重新打开时使用）", _alias, "local-alias"); Add("标签（新建时使用，逗号分隔）", _tags, "local-tags");
+        Add("名称（新建时使用）", _name, "local-name"); Add("邮箱别名（可选）", _alias, "local-alias"); Add("标签（新建时使用，逗号分隔）", _tags, "local-tags");
         var actions = new WrapPanel { Orientation = Orientation.Horizontal };
         actions.Children.Add(Action("新建本地邮箱", "local-create", async () =>
         {
@@ -96,7 +96,7 @@ public sealed class LocalMailboxView : UserControl, IDisposable
     private async Task SetOpen(bool open)
     {
         var mailbox = Selected(); await _service.SetOpen(mailbox.Id, open, _alias.Text, _lifetime.Token); await Refresh(mailbox.Id);
-        _status.Text = open ? "本地邮箱已打开，稳定 ID 与原文保留。请重新进入阅读页面刷新目录。" : "已关闭，底层归档保留；阅读和导出入口不再访问该邮箱。";
+        _status.Text = open ? "邮箱已打开，可在“本地邮件”中阅读。" : "邮箱已关闭。邮件和附件仍保存在本机，重新打开后即可使用。";
     }
     public void Dispose() { _disposed = true; _lifetime.Cancel(); _lifetime.Dispose(); }
 }

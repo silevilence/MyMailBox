@@ -26,14 +26,14 @@ internal sealed partial class MailSearchView : UserControl, IDisposable
     private int _version;
     private CancellationTokenSource? _operation;
 
-    public MailSearchView(IMailSearch service,Action<ReplyIntent>? respond=null,SearchHit? linked=null)
+    public MailSearchView(IMailSearch service,Action<ReplyIntent>? respond=null,SearchHit? linked=null,string? subject=null)
     {
         _service = service;
         _panel.Children.Add(new TextBlock { Text = "搜索邮件", FontSize = 28, FontWeight = FontWeight.SemiBold });
         _field.ItemTemplate = new FuncDataTemplate<SearchField>((f, _) => new TextBlock { Text = f?.Name });
         _match.ItemTemplate = new FuncDataTemplate<SearchMatch>((m, _) => new TextBlock { Text = m == SearchMatch.Extension ? (_field.SelectedItem as SearchField)?.OperatorName : MatchName(m) });
-        Field(_panel, "字段", _field, "search-field"); Field(_panel, "匹配方式", _match, "search-match");
-        Field(_panel, "条件值", _value, "search-value");
+        Field(_panel, "搜索范围", _field, "search-field"); Field(_panel, "匹配方式", _match, "search-match");
+        Field(_panel, "搜索内容", _value, "search-value");
         foreach (var (control, name) in new (Control, string)[] { (_dateValue, "日期"), (_sizeValue, "字节数"), (_boolValue, "是否") })
         { AutomationProperties.SetName(control, name); _panel.Children.Add(control); }
         _panel.Children.Add(_hint);
@@ -102,7 +102,7 @@ internal sealed partial class MailSearchView : UserControl, IDisposable
         _field.SelectionChanged += (_, _) => Changed(); _match.SelectionChanged += (_, _) => Changed(); _order.SelectionChanged += (_, _) => Changed();
         _scopes.SelectionChanged += (_, _) => Changed(); _boolValue.SelectionChanged += (_, _) => Changed();
         _dateValue.SelectedDateChanged += (_, _) => Changed(); _sizeValue.ValueChanged += (_, _) => Changed(); _server.IsCheckedChanged += (_, _) => Changed();
-        AttachedToVisualTree += async (_, _) => await Guard(async () => { await RefreshLibrary(); if(linked is null)await Run(new([]));else{_results.ItemsSource=new[]{linked};_results.SelectedItem=linked;await Read();} });
+        AttachedToVisualTree += async (_, _) => await Guard(async () => { await RefreshLibrary(); if(subject!=null){_field.SelectedItem=service.Fields.FirstOrDefault(f=>f.Id=="subject");_value.Text=subject;await RunInput();}else if(linked is null)await Run(new([]));else{_results.ItemsSource=new[]{linked};_results.SelectedItem=linked;await Read();} });
     }
     private static void Field(Panel panel, string label, Control control, string id)
     {

@@ -9,7 +9,7 @@ internal sealed partial class AutomationView
     private readonly CheckBox _archiveOn=new(){Content="归档到本地年 / 月目录"},_daily=new(){Content="每天运行"};
     private readonly ComboBox _destination=new(),_history=new();
     private readonly TimePicker _time=new(){ClockIdentifier="24HourClock"};
-    private readonly TextBox _zone=new(){Text=TimeZoneInfo.Local.Id};
+    private readonly ComboBox _zone=new(){ItemsSource=TimeZoneInfo.GetSystemTimeZones(),SelectedItem=TimeZoneInfo.Local};
     private IReadOnlyList<MailFolder> _destinations=[];
 
     private void AddArchive()
@@ -26,7 +26,7 @@ internal sealed partial class AutomationView
             var gate=await _service.Inspect(draft,false,_stop.Token);
             var snapshot=await _service.Select(draft,token:_stop.Token);
             _status.Text=$"前置条件：{GateLabel(gate.Result)}。已选 {snapshot.Items.Count} 封，共 {snapshot.SelectedBytes:N0} 字节。\n"+
-                string.Join("\n",snapshot.Items.Take(20).Select(m=>m.Subject+" → "+(m.Sent is {} at?TimeZoneInfo.ConvertTime(at,TimeZoneInfo.FindSystemTimeZoneById(_zone.Text!)).ToString("yyyy/MM"):"日期未知，将跳过")));
+                string.Join("\n",snapshot.Items.Take(20).Select(m=>m.Subject+" → "+(m.Sent is {} at?TimeZoneInfo.ConvertTime(at,(_zone.SelectedItem as TimeZoneInfo ?? TimeZoneInfo.Local)).ToString("yyyy/MM"):"日期未知，将跳过")));
         });
         Button(actions,"立即执行已保存任务","auto-start",async()=>
         {
@@ -63,13 +63,13 @@ internal sealed partial class AutomationView
         var a=plan?.Archive;_archiveOn.IsChecked=a is not null;_daily.IsChecked=a?.Daily??true;
         _destination.ItemsSource=_library?.Scopes.Where(s=>_destinations.Any(f=>f.AccountId==s.Account&&f.Id==s.Folder)).ToArray();
         _destination.SelectedItem=_destination.Items.OfType<SearchScope>().FirstOrDefault(s=>s.Account==a?.Account&&s.Folder==a?.Folder);
-        _time.SelectedTime=TimeSpan.FromMinutes(a?.LocalMinute??540);_zone.Text=a?.Zone??TimeZoneInfo.Local.Id;_history.ItemsSource=null;
+        _time.SelectedTime=TimeSpan.FromMinutes(a?.LocalMinute??540);_zone.SelectedItem=TimeZoneInfo.FindSystemTimeZoneById(a?.Zone??TimeZoneInfo.Local.Id);_history.ItemsSource=null;
     }
     private ArchivePlan? Archive()
     {
         if(_archiveOn.IsChecked!=true)return null;
         if(_destination.SelectedItem is not SearchScope{Account:{} account,Folder:{} folder}||_time.SelectedTime is not {} time)
             throw new InvalidDataException("请选择本地归档目录和运行时刻。");
-        return new(account,folder,_daily.IsChecked==true,(int)time.TotalMinutes,_zone.Text??TimeZoneInfo.Local.Id);
+        return new(account,folder,_daily.IsChecked==true,(int)time.TotalMinutes,(_zone.SelectedItem as TimeZoneInfo)?.Id??TimeZoneInfo.Local.Id);
     }
 }

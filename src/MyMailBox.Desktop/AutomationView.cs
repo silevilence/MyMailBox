@@ -11,6 +11,9 @@ internal sealed partial class AutomationView : UserControl,IDisposable
     private readonly IMailAutomation _service;private readonly CancellationTokenSource _stop=new();
     private readonly StackPanel _panel=new(){MaxWidth=860,Spacing=6};
     private readonly TextBox _name=new(),_filter=new(),_when=new(){Text="unread>=1"};
+    private static readonly Choice[] Conditions=[new("unread","未读邮件至少有"),new("count","邮件总数至少有"),new("pending","待发邮件至少有"),new("custom","自定义条件")];
+    private readonly ComboBox _condition=new(){ItemsSource=Conditions,ItemTemplate=new FuncDataTemplate<Choice>((c,_)=>new TextBlock{Text=c?.Label})};
+    private readonly NumericUpDown _threshold=Number(int.MaxValue,1);
     private readonly ComboBox _plans=new(),_scope=new();
     private readonly NumericUpDown _hysteresis=new(){Minimum=0,Value=0},_cooldown=new(){Minimum=0,Value=0,FormatString="0"};
     private readonly CheckBox _enabled=new(){Content="启用任务",IsChecked=true};
@@ -25,9 +28,14 @@ internal sealed partial class AutomationView : UserControl,IDisposable
         Button(top,"载入任务","auto-load",()=>{if(_plans.SelectedItem is AutomationPlan p)Load(p);return Task.CompletedTask;});
         Button(top,"新建任务","auto-new",()=>{Load(null);return Task.CompletedTask;});_panel.Children.Add(top);
         Field(_panel,"任务名称",_name,"auto-name");Scope(_scope);Field(_panel,"统计范围",_scope,"auto-scope");
-        Field(_panel,"统计邮件过滤（可留空）",_filter,"auto-filter");Field(_panel,"运行前置条件",_when,"auto-condition");
-        _panel.Children.Add(new TextBlock{TextWrapping=TextWrapping.Wrap,Text="可用 count、unread、logical、cached、disk、free、quota、pending、exists、all、net、ac、minute、last。例：(unread>=10 OR logical>=1048576) AND net=1。"});
-        Field(_panel,"迟滞（按各阈值的单位）",_hysteresis,"auto-hysteresis");Field(_panel,"冷却分钟",_cooldown,"auto-cooldown");
+        MailConditionInput.Add(_panel,"筛选要统计的邮件（可选）",_filter,"auto-filter");Field(_panel,"运行条件",_condition,"auto-condition-kind");
+        Field(_panel,"邮件封数",_threshold,"auto-threshold");
+        var advanced=new StackPanel{Spacing=5};
+        Field(advanced,"自定义条件",_when,"auto-condition");
+        advanced.Children.Add(new TextBlock{Text="例如 unread>=10 表示至少有 10 封未读邮件。",TextWrapping=TextWrapping.Wrap});
+        _panel.Children.Add(advanced);
+        _condition.SelectionChanged+=(_,_)=>{ bool custom=(_condition.SelectedItem as Choice)?.Id=="custom";advanced.IsVisible=custom;_threshold.IsEnabled=!custom; };
+        Field(_panel,"再次触发前需回落的数值",_hysteresis,"auto-hysteresis");Field(_panel,"两次运行的最短间隔（分钟）",_cooldown,"auto-cooldown");
         AddTarget();AddExtensions();AddTriggers();AddSteps();AddArchive();_panel.Children.Add(_enabled);var actions=new WrapPanel();Button(actions,"预览统计","auto-preview",()=>Inspect(false));Button(actions,"记录采样","auto-observe",()=>Inspect(true));
         Button(actions,"保存任务","auto-save",Save);_panel.Children.Add(actions);
         AutomationProperties.SetAutomationId(_status,"auto-status");_panel.Children.Add(_status);Content=PageFeedback.Layout(_panel,_status);
@@ -45,13 +53,18 @@ internal sealed partial class AutomationView : UserControl,IDisposable
     private async Task Refresh(){_plans.ItemsSource=await _service.Plans(_stop.Token);_plans.SelectedItem=_plans.Items.OfType<AutomationPlan>().FirstOrDefault(p=>p.Id==_loaded?.Id);}
     private void Load(AutomationPlan? p)
     {
-        _draftId=p?.Id??Guid.NewGuid();LoadTarget(p?.Target);LoadSteps(p);LoadTriggers(p);LoadExtensions(p);LoadArchive(p);_loaded=p;_name.Text=p?.Name ?? "";_filter.Text=p?.When.Filter ?? "";_when.Text=p?.When.Expression ?? "unread>=1";_enabled.IsChecked=p?.Enabled ?? true;
+        _draftId=p?.Id??Guid.NewGuid();LoadTarget(p?.Target);LoadSteps(p);LoadTriggers(p);LoadExtensions(p);LoadArchive(p);_loaded=p;_name.Text=p?.Name ?? "";_filter.Text=p?.When.Filter ?? "";_when.Text=p?.When.Expression ?? "unread>=1";
+        _condition.SelectedItem=Conditions[^1];
+        foreach(var c in Conditions[..^1])
+            if(_when.Text.StartsWith(c.Id+">=",StringComparison.Ordinal) && int.TryParse(_when.Text[(c.Id.Length+2)..],out int n) && n>=0)
+            { _condition.SelectedItem=c;_threshold.Value=n;break; }
+        _enabled.IsChecked=p?.Enabled ?? true;
         _hysteresis.Value=p?.When.Hysteresis ?? 0;_cooldown.Value=p?.When.CooldownMinutes ?? 0;_scope.SelectedItem=_library?.Scopes.FirstOrDefault(s=>s.Account==p?.When.Account && s.Folder==p?.When.Folder);
     }
     private AutomationPlan Draft()
     {
         if(_scope.SelectedItem is not SearchScope scope)throw new InvalidDataException("请重新选择统计范围。");
-        return new(_draftId,_loaded?.Version ?? 0,_name.Text ?? "",new(scope.Account,scope.Folder,_filter.Text ?? "",_when.Text ?? "",_hysteresis.Value ?? 0,(int)(_cooldown.Value ?? 0)),_enabled.IsChecked==true){Target=Target(),Archive=Archive(),Actions=_actions.ToArray(),PluginCondition=_pluginGate.Read(),PluginSchedule=_pluginTimer.Read(),Triggers=_triggers.ToArray(),Approval=_confirmAction.IsChecked==true?_actionApproval:null};
+        return new(_draftId,_loaded?.Version ?? 0,_name.Text ?? "",new(scope.Account,scope.Folder,_filter.Text ?? "",(_condition.SelectedItem as Choice) is {Id:not "custom"} c ? c.Id+">="+_threshold.Value.GetValueOrDefault().ToString(System.Globalization.CultureInfo.InvariantCulture) : _when.Text ?? "",_hysteresis.Value ?? 0,(int)(_cooldown.Value ?? 0)),_enabled.IsChecked==true){Target=Target(),Archive=Archive(),Actions=_actions.ToArray(),PluginCondition=_pluginGate.Read(),PluginSchedule=_pluginTimer.Read(),Triggers=_triggers.ToArray(),Approval=_confirmAction.IsChecked==true?_actionApproval:null};
     }
     private async Task Save(){_loaded=await _service.Save(Draft(),_stop.Token);await Refresh();_status.Text="已保存任务「"+_loaded.Name+"」。";}
     private async Task Inspect(bool observe)

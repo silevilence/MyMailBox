@@ -22,9 +22,10 @@ internal sealed class ActivityView:UserControl,IDisposable
         Button(actions,"刷新","activity-refresh",Load);Button(actions,"上一页","activity-prev",async()=>{_offset=Math.Max(0,_offset-25);await Load();});
         Button(actions,"下一页","activity-next",async()=>{if(_entries.ItemCount==25){_offset+=25;await Load();}});
         Button(actions,"打开关联内容","activity-open",async()=>{if(_entries.SelectedItem is ActivityEntry row)open(await page.Center.Resolve(row.Id,_stop.Token));});p.Children.Add(actions);
-        var settings=new StackPanel{Spacing=4};settings.Children.Add(_quiet);settings.Children.Add(_private);_presenter.ItemsSource=new[]{"builtin"}.Concat(presenters.Select(x=>x.Id)).ToArray();
-        Field(settings,"通知呈现插件",_presenter,"activity-presenter");Button(settings,"保存通知设置","activity-save",async()=>
-        {await page.Center.Configure(new(_quiet.IsChecked==true,_private.IsChecked==true,_presenter.SelectedItem as string??"builtin"),_stop.Token);_status.Text="已保存通知设置。";});
+        var settings=new StackPanel{Spacing=4};settings.Children.Add(_quiet);settings.Children.Add(_private);var channels=new[]{new Choice("builtin","应用内通知")}.Concat(presenters.Select(x=>new Choice(x.Id,x.Name))).DistinctBy(c=>c.Id).ToArray();
+        _presenter.ItemsSource=channels;_presenter.ItemTemplate=new FuncDataTemplate<Choice>((c,_)=>new TextBlock{Text=c?.Label});
+        Field(settings,"通知方式",_presenter,"activity-presenter");Button(settings,"保存通知设置","activity-save",async()=>
+        {await page.Center.Configure(new(_quiet.IsChecked==true,_private.IsChecked==true,(_presenter.SelectedItem as Choice)?.Id??"builtin"),_stop.Token);_status.Text="已保存通知设置。";});
         _account.ItemTemplate=new FuncDataTemplate<Choice>((s,_)=>new TextBlock{Text=s?.Label});Field(settings,"账户",_account,"activity-account");
         _kind.ItemsSource=_categories.Values.ToArray();_kind.SelectedIndex=0;Field(settings,"事件类型",_kind,"activity-kind");settings.Children.Add(_enabled);
         Button(settings,"保存类型设置","activity-filter-save",async()=>{var (k,a)=Filter();await page.Center.SetEnabled(k,a,_enabled.IsChecked==true,_stop.Token);_status.Text="已保存此范围的通知设置。";});
@@ -32,7 +33,7 @@ internal sealed class ActivityView:UserControl,IDisposable
         _kind.SelectionChanged+=async(_,_)=>await Guard(ReadFilter);_account.SelectionChanged+=async(_,_)=>await Guard(ReadFilter);
         AttachedToVisualTree+=async(_,_)=>await Guard(async()=>
         {
-            var policy=await page.Center.Policy(_stop.Token);_quiet.IsChecked=policy.Quiet;_private.IsChecked=policy.HideWhileLocked;_presenter.SelectedItem=policy.Presenter;
+            var policy=await page.Center.Policy(_stop.Token);_quiet.IsChecked=policy.Quiet;_private.IsChecked=policy.HideWhileLocked;_presenter.SelectedItem=channels.FirstOrDefault(c=>c.Id==policy.Presenter)??channels[0];
             _account.ItemsSource=new[]{new Choice("","全部账户")}.Concat((await page.Accounts.List(_stop.Token)).Select(a=>new Choice(a.Id.ToString(),a.Name))).ToArray();
             _account.SelectedIndex=0;await Load();
         });

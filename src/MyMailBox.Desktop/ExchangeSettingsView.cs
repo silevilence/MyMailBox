@@ -16,7 +16,7 @@ internal sealed class ExchangeSettingsView : UserControl,IDisposable
     private readonly CheckBox _device=new(){Content="允许本机作为同步设备读取此邮箱"},_write=new(){Content="允许发信、标记及移动"};
     private readonly TextBlock _status=new(){TextWrapping=TextWrapping.Wrap};
     private Guid Account=>(_accounts.SelectedItem as MailAccount)?.Id??throw new InvalidDataException("请先在账户管理添加公司 Exchange（ActiveSync）账户。");
-    internal ExchangeSettingsView(ExchangePage page)
+    internal ExchangeSettingsView(ExchangePage page, Guid? initialAccount=null)
     {
         _form.Children.Add(new TextBlock{Text="Exchange 连接",FontSize=28});
         _accounts.ItemTemplate=new FuncDataTemplate<MailAccount>((a,_)=>new TextBlock{Text=a?.Name+" · "+a?.Address});
@@ -47,7 +47,7 @@ internal sealed class ExchangeSettingsView : UserControl,IDisposable
         });
         AttachedToVisualTree+=async(_,_)=>await Run(async()=>
         {
-            _accounts.ItemsSource=(await page.Accounts.List(_stop.Token)).Where(a=>a.Provider=="exchange-eas" && a.Enabled).ToArray();_accounts.SelectedIndex=0;
+            _accounts.ItemsSource=(await page.Accounts.List(_stop.Token)).Where(a=>a.Provider=="exchange-eas" && a.Enabled).ToArray();_accounts.SelectedItem=_accounts.Items.OfType<MailAccount>().FirstOrDefault(a=>a.Id==initialAccount) ?? _accounts.Items.OfType<MailAccount>().FirstOrDefault();
             if(_accounts.SelectedIndex<0)_status.Text="请先在账户管理添加公司 Exchange（ActiveSync）账户。";
         });
     }

@@ -16,6 +16,23 @@ internal static class NativeWindowEvidence
         }, 0);
         File.WriteAllLines(path, lines);
     }
+    public static void CaptureClient(Window window, string path)
+    {
+        var handle = window.Properties.NativeWindowHandle.Value;
+        if (!GetClientRect(handle, out var rect)) throw new InvalidOperationException("无法读取客户区大小。");
+        using var bitmap = new System.Drawing.Bitmap(rect.Right, rect.Bottom);
+        using (var graphics = System.Drawing.Graphics.FromImage(bitmap))
+        {
+            var device = graphics.GetHdc();
+            try
+            {
+                if (!PrintWindow(handle, device, 3)) throw new InvalidOperationException("无法保存窗口画面。");
+            }
+            finally { graphics.ReleaseHdc(device); }
+        }
+        bitmap.Save(path, System.Drawing.Imaging.ImageFormat.Png);
+    }
+    [DllImport("user32.dll")] private static extern bool PrintWindow(nint handle,nint device,uint flags);
     private delegate bool EnumWindow(nint handle, nint data);
     [StructLayout(LayoutKind.Sequential)] private struct Rect { public int Left, Top, Right, Bottom; }
     [DllImport("user32.dll")] private static extern bool EnumChildWindows(nint parent, EnumWindow callback, nint data);

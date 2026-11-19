@@ -98,9 +98,11 @@ public sealed class HotConfiguration : IAsyncDisposable
             foreach (var item in started.AsEnumerable().Reverse()) await _runtime.Stop(item.Id);
             try
             {
-                foreach (var item in stopped.AsEnumerable().Reverse()) await _runtime.Start(_catalog.Find(item), CoreProfile.Options(item));
+                foreach (var item in stopped.AsEnumerable().Reverse().Where(p => !_runtime.NativeNeedsRestart(p.Id))) await _runtime.Start(_catalog.Find(item), CoreProfile.Options(item));
             }
             catch (Exception recoveryError) { throw new AggregateException("新配置失败且旧状态恢复失败，请重启修复。", activationError, recoveryError); }
+            if (stopped.Any(p => _runtime.NativeNeedsRestart(p.Id)))
+                throw new InvalidOperationException("自定义窗口已关闭。请重启软件后再切换这个插件的版本。", activationError);
             throw new InvalidOperationException("新配置未生效，已保留上次有效状态：" + activationError.Message, activationError);
         }
         Current = next; AppliedCount++;

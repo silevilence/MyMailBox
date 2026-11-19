@@ -14,7 +14,7 @@ public static class PrototypePlugin
     public static void Apply(Context context, PluginOptions options)
     {
         var host = context.Get<IPluginHost>("mailbox.host")!;
-        foreach (var page in CreatePages()) context.Effect(() => host.Add(page));
+        foreach (var page in CreatePages()) context.Effect(() => host.Add(page with { DevelopmentOnly = true }));
     }
 
     public static IReadOnlyList<Page> CreatePages()

@@ -121,8 +121,8 @@ internal static class ProtocolUiChecks
             if (ui.Find("transfer-resume").IsEnabled) throw new Exception("Completed transfer offered a retry");
             if (ui.Find("transfer-history").AsListBox().Items.Length == 0) throw new Exception("Archive history missing");
             ui.Click("nav-accounts/inbox"); ui.Select("unified-filter", 1);
-            ui.Click("unified-auto"); ui.Status("unified-status", "接收完成");
-            ui.Find("unified-list").AsListBox().Select(0); ui.Click("unified-open");
+            ui.Check("inbox-sync-details");ui.Click("unified-auto"); ui.Status("unified-status", "接收完成");
+            ui.Find("unified-list").AsListBox().Select(0); ui.ClickIfVisible("unified-open");
             if (!SpinWait.SpinUntil(() => ui.Find("unified-body").AsTextBox().Text.Length > 0, 10000)) throw new Exception("Unified body missing");
             ui.Click("unified-auto"); ui.Status("unified-status", "已暂停");
             ui.Click("nav-accounts/search"); ui.Text("search-value","Local action"); ui.Click("search-run"); ui.Status("search-status","第 1 页");
@@ -135,9 +135,9 @@ internal static class ProtocolUiChecks
             if (!SpinWait.SpinUntil(()=>ui.Find("search-body").AsTextBox().Text.Contains("Fixture"),5000)) throw new Exception("Search result not readable");
             ui.Click("search-locate"); ui.Click("search-back"); ui.Status("search-status","第 1 页");
             ui.Click("nav-accounts/compose");ui.Text("compose-subject","界面草稿");ui.Text("compose-body","editable body");
-            ui.Click("compose-rich");ui.Status("compose-status","富文本编辑器已就绪");
+            ui.Expand("正文格式");ui.Click("compose-rich");ui.Status("compose-status","富文本编辑器已就绪");
             ui.Click("compose-plain");if(ui.Find("compose-body").AsTextBox().Text!="editable body")throw new Exception("Rich/plain draft handoff lost body");
-            ui.Click("nav-accounts/rules"); ui.Text("rule-name","界面试运行");ui.Text("rule-condition","subject:Local");
+            ui.Click("nav-accounts/rules"); ui.Text("rule-name","界面试运行");ui.Expand("编辑条件表达式");ui.Text("rule-condition","subject:Local");
             ui.Click("rule-add-action");ui.Click("rule-preview");ui.Status("rule-status","命中");
             ui.Click("rule-new"); ui.Text("rule-name","界面受控转发");ui.Text("rule-condition","subject:absent-outbound-test");
             var outboundScope = ui.Find("rule-scope").AsComboBox();

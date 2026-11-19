@@ -35,7 +35,7 @@ internal sealed class MailboxBrowserView : UserControl, IDisposable
         _accounts.ItemTemplate = new FuncDataTemplate<MailAccount>((a, _) => new TextBlock { Text = a?.Name + " · " + a?.Address });
         _folders.ItemTemplate = _destination.ItemTemplate = new FuncDataTemplate<MailboxFolder>((f, _) => new TextBlock { Text = f?.Name });
         _messages.ItemTemplate = new FuncDataTemplate<MailboxItem>((m, _) => new TextBlock { Text = m == null ? "" : $"{(m.Read ? "" : "未读 · ")}{m.Subject} · {m.Sender}" });
-        _panel.Children.Add(new TextBlock { Text = "浏览邮箱", FontSize = 28 });
+        _panel.Children.Add(new TextBlock { Text = "邮箱文件夹", FontSize = 28 });
         Field("账户", "account", _accounts);
         Action("连接并读取目录", "connect", MailboxFeatures.Read, async (p,t) =>
         {
@@ -44,7 +44,8 @@ internal sealed class MailboxBrowserView : UserControl, IDisposable
             _folders.ItemsSource = folders;
             _destination.ItemsSource = folders;
             _folders.SelectedItem = folders.FirstOrDefault(f => f.Role == "inbox") ?? folders.FirstOrDefault();
-            _status.Text = $"共 {folders.Length} 个目录。";
+            if (_folders.SelectedItem!=null) await Load(p,null,null,t);
+            else _status.Text="这个邮箱还没有文件夹。";
         });
         Field("目录", "folders", _folders);
         Action("显示目录邮件", "list", MailboxFeatures.Read, (p,t) => Load(p,null,null,t));
@@ -81,7 +82,12 @@ internal sealed class MailboxBrowserView : UserControl, IDisposable
             await Load(p,_search,null,t);
             _status.Text = "已移动到 " + destination.Name + "。";
         });
-        Field("本机 EML 文件路径", "file", _file);
+        var extraStart=_panel.Children.Count;
+        Field("要上传的邮件文件", "file", _file);
+        var browse=new Button{Content="选择邮件文件…"};Id(browse,"browse-file");
+        browse.Click+=async(_,_)=>{var picker=TopLevel.GetTopLevel(this)?.StorageProvider;if(picker is null)return;
+            var file=(await picker.OpenFilePickerAsync(new(){Title="选择 EML 文件"})).FirstOrDefault();if(file is not null)_file.Text=file.Path.LocalPath;};
+        _panel.Children.Add(browse);
         Action("将 EML 上传到此目录", "upload", MailboxFeatures.Upload, async (p,t) =>
         {
             await using var raw = File.OpenRead(_file.Text?.Trim() ?? "");
@@ -101,11 +107,14 @@ internal sealed class MailboxBrowserView : UserControl, IDisposable
             _delta = delta.Cursor;
             _status.Text = $"新增或更新 {delta.Changed.Length} 封，移出 {delta.Removed.Length} 封。" + (delta.More ? "可继续检查下一批。" : "已到最新位置。");
         });
+        var extra=new StackPanel{Spacing=6};
+        foreach(var child in _panel.Children.Skip(extraStart).ToArray()){_panel.Children.Remove(child);extra.Children.Add(child);}
+        _panel.Children.Add(new Expander{Header="导入邮件、容量和同步",Content=extra});
         var cancel = new Button { Content = "取消当前操作" };
         Id(cancel,"cancel"); cancel.Click += (_,_) => _operation?.Cancel();
         Id(_status,"status"); Content = PageFeedback.Layout(_panel,_status,cancel);
         _accounts.SelectionChanged += (_,_) => { Reset(); Refresh(); };
-        _folders.SelectionChanged += (_,_) => ClearMessages();
+        _folders.SelectionChanged += async (_,_) => { ClearMessages(); if(_operation==null && _folders.SelectedItem!=null && Provider is {} p)await Run(t=>Load(p,null,null,t)); };
         _messages.SelectionChanged += (_,_) => { _body.Text = ""; _readMime=null; };
         registry.Changed += RegistryChanged;
         AttachedToVisualTree += async (_,_) => await Run(async t =>

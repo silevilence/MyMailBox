@@ -112,6 +112,12 @@ public sealed class UnifiedInboxService : IUnifiedInbox
         return await provider.Open(identity, key, token);
     }
 
+    public async Task<byte[]?> CachedOriginal(Guid account,string key,CancellationToken token=default)
+    {
+        await Resolve(account,token,cached:true);
+        return await MailDraftStore.CachedOriginal(_store,key,account,token);
+    }
+
     internal async Task Tick(CancellationToken token)
     {
         var due = new List<(Guid Id, int Range, int Revision)>();

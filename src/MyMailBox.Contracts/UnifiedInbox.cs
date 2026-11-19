@@ -22,4 +22,5 @@ public interface IUnifiedInbox
     Task Refresh(Guid account, CancellationToken token = default);
     Task<UnifiedPage> Inbox(Guid? account, InboxPosition? before, int limit, CancellationToken token = default);
     Task<string> Open(Guid account, string key, CancellationToken token = default);
+    Task<byte[]?> CachedOriginal(Guid account,string key,CancellationToken token=default) => Task.FromResult<byte[]?>(null);
 }

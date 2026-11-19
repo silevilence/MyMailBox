@@ -24,18 +24,42 @@ internal sealed partial class ReceiveRulesView
             form.Children.Add(new TextBlock { Text = label }); form.Children.Add(control);
             AutomationProperties.SetName(control,label); AutomationProperties.SetAutomationId(control,"outlook-rule-"+id);
         }
-        AddField("规则清单 JSON 文件",file,"file");
+        void Display(OutlookRuleInventory value)
+        {
+            inventory = value;
+            choices.ItemsSource = value.Rules.OrderBy(r=>r.Order).ToArray();
+            choices.SelectedIndex = value.Rules.Length > 0 ? 0 : -1;
+            _status.Text = $"{value.Profile} / {value.Store} · {value.Rules.Length} 条规则。";
+        }
+        var stores = new ComboBox();
+
+        Button(form,"查看已打开的 Outlook 邮箱","outlook-rule-list-stores",async () =>
+        {
+            stores.ItemsSource = null; choices.ItemsSource = null; inventory = null;
+            var available = await ClassicOutlookRules.Stores(_stop.Token);
+            stores.ItemsSource = available;
+            stores.SelectedIndex = available.Length == 1 ? 0 : -1;
+            _status.Text = available.Length > 0 ? "请选择要读取规则的邮箱。" : "经典 Outlook 中没有可用邮箱。";
+        });
+        stores.SelectionChanged += (_, _) => { choices.ItemsSource = null; inventory = null; detail.Text = ""; };
+        AddField("Outlook 邮箱",stores,"store");
+        Button(form,"读取所选邮箱的规则","outlook-rule-read-store",async () =>
+        {
+            if (stores.SelectedItem is not OutlookRuleStore store) throw new InvalidDataException("请先选择 Outlook 邮箱。");
+            Display(await ClassicOutlookRules.Read(store,_stop.Token));
+        });
+        AddField("或选择已导出的规则文件",file,"file");
+        Button(form,"选择规则文件…","outlook-rule-browse",async()=>{var picker=TopLevel.GetTopLevel(this)?.StorageProvider;if(picker is null)return;
+            var selected=await picker.OpenFilePickerAsync(new(){Title="选择 Outlook 规则清单"});if(selected.FirstOrDefault() is {} chosen)file.Text=chosen.Path.LocalPath;});
         file.TextChanged += (_,_) => { inventory = null; choices.ItemsSource = null; detail.Text = ""; };
         Button(form,"读取清单","outlook-rule-open",async () =>
         {
             choices.ItemsSource = null; inventory = null;
-            inventory = await OutlookRuleImport.Read(file.Text?.Trim() ?? "",_stop.Token);
-            choices.ItemsSource = inventory.Rules.OrderBy(r=>r.Order).ToArray(); choices.SelectedIndex = 0;
-            _status.Text = $"{inventory.Profile} / {inventory.Store} · {inventory.Rules.Length} 条规则。";
+            Display(await OutlookRuleImport.Read(file.Text?.Trim() ?? "",_stop.Token));
         });
         AddField("源规则",choices,"source");
         AddField("应用到本机账户或目录",_outlookScope,"scope");
-        AddField("将这条规则的移动目标映射到",_outlookTarget,"destination");
+        AddField("邮件要移入的本地文件夹",_outlookTarget,"destination");
         _outlookScope.SelectionChanged += (_,_) =>
         {
             _outlookTarget.ItemsSource = _dashboard?.Scopes.Where(s => s.Folder != null && s.Account == (_outlookScope.SelectedItem as SearchScope)?.Account).ToArray();
@@ -64,7 +88,7 @@ internal sealed partial class ReceiveRulesView
             detail.Text += Environment.NewLine + string.Join(Environment.NewLine,preview.Samples);
             _status.Text = $"已载入停用草稿 · 命中 {preview.Matches} 封，例外 {preview.Exceptions} 封，未知 {preview.Unknown} 封。核对后可保存。";
         });
-        var expander = new Expander { Header = "从经典 Outlook 规则清单转换", Content = form };
+        var expander = new Expander { Header = "导入经典 Outlook 规则", Content = form };
         AutomationProperties.SetAutomationId(expander,"outlook-rule-import"); _panel.Children.Add(expander);
     }
 }

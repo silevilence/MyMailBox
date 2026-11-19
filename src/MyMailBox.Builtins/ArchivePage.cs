@@ -12,11 +12,11 @@ public static class ArchivePage
         var service = new MailArchive(store); var selections = new SelectionService(store, new AccountService(store));
         CancellationTokenSource? operation = null;
         context.Effect(() => new Cleanup(() => operation?.Cancel()));
-        context.Effect(() => host.Add(new Page("archive", "邮件归档包", "归档只包含所选邮件、目录与账户说明/标签，不包含工作空间设置和凭据。导入为独立本地邮箱；UUID 或 alias 冲突会重新映射，不覆盖现有内容。",
+        context.Effect(() => host.Add(new Page("archive", "邮件归档包", "归档只包含所选邮件、目录与账户说明/标签，不包含工作空间设置和凭据。导入后会新增一个本地邮箱。遇到重名，原有邮件和账户都会保留。",
             [new("archive-scope", "导出范围（可先在“写信与整理”保存账户或目录范围）", "inbox", [new("inbox", "默认本地收件箱"), new("account", "已保存的账户范围"), new("folder", "已保存的目录范围")]), new("archive-file", "邮件归档包路径", FilePicker: true)],
             [new("archive-export", "导出选定范围"), new("archive-import", "校验并导入归档"), new("archive-cancel", "取消当前操作")], async (values, action) =>
             {
-                if (action == "archive-cancel") { operation?.Cancel(); return "已请求取消；未提交的导入会回滚。"; }
+                if (action == "archive-cancel") { operation?.Cancel(); return "正在取消，尚未保存的邮件不会导入。"; }
                 if (operation is not null) return "当前归档操作尚未完成，请等待或取消。";
                 using var cancellation = new CancellationTokenSource(); operation = cancellation;
                 try

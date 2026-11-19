@@ -3,8 +3,14 @@ namespace MyMailBox.Contracts;
 public sealed record Page(string Id, string Title, string Description, IReadOnlyList<Field> Fields,
     IReadOnlyList<PageAction> Actions, Func<IReadOnlyDictionary<string, string>, string, Task<string>> Execute, MailReader? Reader = null, IAccountService? Accounts = null, ISelectionService? Selections = null)
 {
+    public bool DevelopmentOnly { get; init; }
+    public Func<Action,IDisposable>? WatchManagedPlugins { get; init; }
+    public Func<IReadOnlyList<ManagedPlugin>>? ManagedPlugins { get; init; }
     public ExchangePage? Exchange { get; init; }
     public ISettingsTemplates? Templates { get; init; }
+    public ComposerPage? DraftFolder { get; init; }
+    public bool SentFolderOnly { get; init; }
+    public bool OutboxOnly { get; init; }
     public bool BrowseMailboxes { get; init; }
     public ActivityPage? Activity {get;init;}
     public ExportSource? Export { get; init; }
@@ -27,6 +33,11 @@ public sealed record Page(string Id, string Title, string Description, IReadOnly
     public Page(string id, string title, string description, IReadOnlyList<Field> fields,
         IReadOnlyList<PageAction> actions, Func<IReadOnlyDictionary<string, string>, string, Task<string>> execute)
         : this(id, title, description, fields, actions, execute, null, null, null) { }
+}
+public sealed record ManagedPlugin(string Instance, string Plugin, string Name, string Version, string? CurrentVersion,
+    bool Enabled, bool Configured, bool Core, bool Builtin, string[] Permissions, string[] Grants, string[] Dependencies)
+{
+    public bool NeedsRestart { get; init; }
 }
 public sealed record Field(string Id, string Label, string Value = "", IReadOnlyList<Choice>? Choices = null, bool Multiline = false, string? Selector = null, bool FilePicker = false);
 public sealed record Choice(string Id, string Label);

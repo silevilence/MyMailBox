@@ -4,7 +4,10 @@ public enum PluginKind { Core, Ordinary }
 public enum PluginOrigin { Builtin, External }
 public sealed record PluginManifest(string Id, string Version, int SdkMin, int SdkMax, PluginKind Kind,
     string Entry, string? Assembly = null, string[]? Dependencies = null, string[]? Permissions = null,
-    Dictionary<string, string>? Files = null, string Source = "本地插件");
+    Dictionary<string, string>? Files = null, string Source = "本地插件")
+{
+    public string? DisplayName { get; init; }
+}
 
 public sealed class PluginOptions
 {

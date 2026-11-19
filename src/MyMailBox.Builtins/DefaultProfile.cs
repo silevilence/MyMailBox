@@ -7,7 +7,7 @@ namespace MyMailBox.Builtins;
 public static class DefaultProfile
 {
     public static PluginConfiguration Core => new(1, [new("platform", "core.platform", "1.0.0")]);
-    public static PluginConfiguration Ordinary => new(1, [new("welcome", "welcome", "1.0.0"), new("prototype", "prototype", "1.0.0"), new("selector", "selector", "1.0.0"), new("local-mail", "local-mail", "1.0.0"), new("qq-mail", "qq-mail", "1.0.0"), new("netease-mail", "netease-mail", "1.0.0"), new("accounts", "accounts", "1.0.0"), new("mail-selectors", "mail-selectors", "1.0.0"), new("reminders", "reminders", "1.0.0"), new("updates", "updates", "1.0.0")]);
+    public static PluginConfiguration Ordinary => new(1, [new("welcome", "welcome", "1.0.0"), new("prototype", "prototype", "1.0.0", Enabled:false), new("selector", "selector", "1.0.0", Enabled:false), new("local-mail", "local-mail", "1.0.0"), new("qq-mail", "qq-mail", "1.0.0"), new("netease-mail", "netease-mail", "1.0.0"), new("accounts", "accounts", "1.0.0"), new("mail-selectors", "mail-selectors", "1.0.0"), new("reminders", "reminders", "1.0.0"), new("updates", "updates", "1.0.0")]);
 
     public static PluginCatalog Catalog(string? workspace = null, IMailStore? mailStore = null, IMimeReader? mimeReader = null, Action<string>? openWorkspace = null, IMailPdfPrinter? printer = null, Action<string>? notification = null, Action<Updates.PreparedUpdate>? installUpdate = null, Func<IReadOnlyList<SearchExtension>>? searchExtensions = null,Func<IReadOnlyList<NotificationPresenter>>? presenters=null,Func<bool>? locked=null,Func<IReadOnlyList<AutomationExtension>>? automationExtensions=null, Func<IReadOnlyList<IMailboxProvider>>? mailboxProviders=null, Func<PluginConfiguration>? templateConfiguration=null, Func<PluginConfiguration,Task>? saveTemplateConfiguration=null)
     {
@@ -60,7 +60,11 @@ public static class DefaultProfile
                 { OutlookAccounts = new Mail.OutlookAccountImport(accounts) }));
             var search = new Mail.MailSearchService(store, protocols, searchExtensions);
             ctx.Effect(() => host.Add(new Page("search", "搜索邮件", "", [], [], (_, _) => Task.FromResult("")) { Search = search }));
-            ctx.Effect(() => host.Add(new Page("compose", "写邮件与草稿", "", [], [], (_, _) => Task.FromResult("")) { Composer = new(accounts,new Mail.MailDraftStore(store),protocols) { Graph = graph, Exchange = exchange } }));
+            var composing = new ComposerPage(accounts,new Mail.MailDraftStore(store),protocols) { Graph = graph, Exchange = exchange };
+            ctx.Effect(() => host.Add(new Page("compose","写邮件","",[],[],(_,_)=>Task.FromResult("")) { Composer=composing }));
+            ctx.Effect(() => host.Add(new Page("drafts","草稿箱","",[],[],(_,_)=>Task.FromResult("")) { DraftFolder=composing }));
+            ctx.Effect(() => host.Add(new Page("outbox","发件箱","",[],[],(_,_)=>Task.FromResult(""))
+                { Protocols=new(accounts,protocols){Outbox=protocols}, OutboxOnly=true }));
             var activity=new Mail.ActivityCenter(store);
             var automation=new Mail.MailAutomationService(store,search,protocols,notify:activity.RecordError,activityNotices:true,extensions:automationExtensions);
             ctx.Effect(()=>new Mail.AutomationRunner(automation,activity.RecordError));
@@ -104,9 +108,9 @@ public static class DefaultProfile
             var host = ctx.Get<IPluginHost>("mailbox.host")!;
             var backup = new Mail.WorkspaceBackup(location, new Mail.SqliteMailStore(Path.Combine(location, "mail")));
             string? restoredWorkspace = null;
-            ctx.Effect(() => host.Add(new Page("backup", "工作空间备份", "备份包含账户、原文、目录、选择与插件配置；不包含账户凭据和可丢弃缓存。恢复到新的空位置，保留稳定引用，在线账户需重新授权。",
+            ctx.Effect(() => host.Add(new Page("backup", "工作空间备份", "备份保存账户设置、邮件、文件夹和插件设置。恢复时请选择新位置。在线邮箱需要重新登录。",
                 [new("backup-file", "备份文件（新建时填新文件名；恢复时选择已有文件）", FilePicker: true), new("restore-directory", "恢复到尚不存在的新目录")],
-                [new("backup-create", "创建一致性备份"), new("backup-restore", "校验并恢复到新目录"), new("backup-open", "在新窗口打开恢复工作空间")], async (values, action) =>
+                [new("backup-create", "创建备份"), new("backup-restore", "校验并恢复到新目录"), new("backup-open", "在新窗口打开恢复工作空间")], async (values, action) =>
                 {
                     if (action == "backup-create") return "备份已完成：" + await backup.Create(values["backup-file"]);
                     if (action == "backup-restore")
@@ -118,7 +122,7 @@ public static class DefaultProfile
                     openWorkspace(restoredWorkspace); return "恢复工作空间已在新窗口打开。";
                 })));
             ctx.Effect(() => host.Add(new Page("storage", "存储与恢复", "检查原文与索引。清理仅删除可重新生成的缓存，所有本地原文和独立归档均保留。", [],
-                [new("storage-check", "检查完整性"), new("storage-rebuild", "从原文重建摘要与索引"), new("storage-clear", "清理可丢弃缓存")], async (_, action) => action switch
+                [new("storage-check", "检查完整性"), new("storage-rebuild", "从原文重建摘要与索引"), new("storage-clear", "清理临时缓存")], async (_, action) => action switch
                 {
                     "storage-check" => (await maintenance.Inspect()).ToString(),
                     "storage-rebuild" => $"已重建 {await maintenance.Rebuild()} 封邮件的摘要与索引。原文保持不变。",
@@ -130,7 +134,7 @@ public static class DefaultProfile
             var host = ctx.Get<IPluginHost>("mailbox.host")!;
             ctx.Effect(() => host.AddSelector(new("accounts", "默认账户选择器", () => PrototypePlugin.Accounts)));
             ctx.Effect(() => host.Add(new Page("selector", "选择器示例", "账户选项由可替换的普通插件提供。", [new("selected-account", "账户", "work", Selector: "accounts")],
-                [new("confirm-selection", "确认选择")], (values, _) => Task.FromResult("稳定账户 ID：" + values["selected-account"]))));
+                [new("confirm-selection", "确认选择")], (values, _) => Task.FromResult("稳定账户 ID：" + values["selected-account"])) { DevelopmentOnly = true }));
         }));
         catalog.Add(new(new("prototype", "1.0.0", 1, 1, PluginKind.Ordinary, "prototype"), PluginOrigin.Builtin, "", PrototypePlugin.Apply));
         catalog.Add(new(new("core.platform", "1.0.0", 1, 1, PluginKind.Core, "platform"), PluginOrigin.Builtin, "", (ctx, _) =>

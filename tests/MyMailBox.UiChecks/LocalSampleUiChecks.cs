@@ -23,7 +23,7 @@ internal static class LocalSampleUiChecks
         ui.Status("graph-cache-status", "上次成功同步");
         ui.Click("graph-offline-prev"); ui.Status("graph-cache-status", "第 1 页，共 25 条摘要");
         ui.Click("graph-pick-move"); ui.Status("graph-status", "请选择邮件");
-        ui.Click("nav-accounts/compose"); ui.Find("compose-graph-draft");
+        ui.Click("nav-accounts/compose"); ui.Expand("发件设置和草稿"); ui.Find("compose-graph-draft");
         ui.Click("nav-accounts/graph"); ui.Status("graph-status", "已登录");
         ui.Click("graph-disconnect"); ui.Status("graph-status", "已清除");
 
@@ -43,11 +43,11 @@ internal static class LocalSampleUiChecks
         ui.Status("account-status","账户已保存");
         ui.Click("nav-accounts/compose"); ui.Text("compose-to","desktop@example.invalid"); ui.Text("compose-subject","外部邮箱投递");
         ui.Text("compose-body","桌面插件正文"); ui.Click("compose-send"); ui.Status("compose-status","回环");
-        ui.Click("nav-accounts/mailbox-browser"); ui.Click("provider-connect"); ui.Status("provider-status","2 个目录");
+        ui.Click("nav-accounts/mailbox-browser"); ui.Click("provider-connect"); ui.Status("provider-status","本页 1 封邮件");
         ui.Click("provider-list"); ui.Status("provider-status","1 封"); ui.Click("provider-read"); ui.Status("provider-body","桌面插件正文");
         ui.Text("provider-query","外部"); ui.Click("provider-search"); ui.Status("provider-status","1 封");
         ui.Click("provider-mark"); ui.Status("provider-status","已标为已读"); ui.Select("provider-target",1);
-        ui.Click("provider-move"); ui.Status("provider-status","已移动到"); ui.Text("provider-file",file);
+        ui.Click("provider-move"); ui.Status("provider-status","已移动到"); ui.Expand("导入邮件、容量和同步");ui.Text("provider-file",file);
         ui.Click("provider-upload"); ui.Status("provider-status","已上传邮件"); ui.Click("provider-quota"); ui.Status("provider-status","总容量");
         ui.Click("provider-delta"); ui.Status("provider-status","移出 1 封");
         ui.Click("nav-accounts/exchange"); ui.Status("exchange-status","请先");
@@ -61,14 +61,14 @@ internal static class LocalSampleUiChecks
         var templates = Path.Combine(output,"profile-template.json");
         ui.Text("templates-path",templates); ui.Click("templates-export"); ui.Status("templates-status","已导出");
         ui.Click("templates-open"); ui.Status("templates-status","个条目"); ui.Select("templates-entries",Array.FindIndex(new AccountService(store).List().GetAwaiter().GetResult().ToArray(),a=>a.Provider=="local"));
-        ui.Click("templates-fields"); ui.Status("templates-status","核对本机绑定");
+        ui.Click("templates-fields"); ui.Status("templates-status","请核对所选设置");
         ui.Click("templates-preview"); ui.Status("templates-status","请映射");
         ui.Select("templates-map-0",1); ui.Click("templates-preview"); ui.Status("templates-status","已选择本机账户");
         var sourceRule = new OutlookSourceRule("桌面导入对照", 1, true, true, 0,
             [new(1, 2, "subject", ["Sample"], true, "")], [], [new(1, 19, "mark-read", [], true, "")]);
         var inventory = Path.Combine(output, "local-rule-inventory.json");
         File.WriteAllBytes(inventory, JsonSerializer.SerializeToUtf8Bytes(new OutlookRuleInventory(1, "桌面样本", "本地邮箱", [sourceRule]), new JsonSerializerOptions(JsonSerializerDefaults.Web)));
-        ui.Click("nav-accounts/rules"); ui.Expand("从经典 Outlook 规则清单转换");
+        ui.Click("nav-accounts/rules"); ui.Expand("导入经典 Outlook 规则"); ui.Find("outlook-rule-list-stores");
         ui.Text("outlook-rule-file", inventory); ui.Click("outlook-rule-open"); ui.Status("rule-status", "1 条规则");
         ui.Select("outlook-rule-scope", 0); ui.Click("outlook-rule-convert"); ui.Status("rule-status", "已载入停用草稿");
         ui.Click("rule-save"); ui.Status("rule-status", "已保存「桌面导入对照」");
@@ -78,6 +78,14 @@ internal static class LocalSampleUiChecks
             throw new Exception("Imported desktop rule was enabled without confirmation");
         ui.Click("nav-updates/settings"); ui.Select("update-source", 1); ui.Click("update-save"); ui.Status("update-status", "设置已保存");
         ui.Click("update-check"); ui.Status("update-status", "离线示例已检查版本");
+        ui.Click("nav-plugin-manager");ui.Plugin("mailbox","1.0.0","本机测试邮箱");
+        ui.SetPermission("读取邮件 · "+account.Name,true);ui.SetPermission("读取邮件 · 全部账户",false);
+        ui.Click("save-grants");ui.Result("插件已启用");
+        var settings = MyMailBox.Runtime.ConfigurationFiles.Read(Path.Combine(output,"workspace","profiles","default","plugins.json"));
+        var grants = settings.Instances.Single(p=>p.Id=="mailbox").Grants!;
+        if(grants.Contains("mail.read") || !grants.Contains("mail.read:"+account.Id))
+            throw new Exception("从列表保存的账户权限与选择不一致。");
+        Console.WriteLine("PASS published UI named and account-scoped plug-in permissions");
         Console.WriteLine("PASS published UI: Graph offline and write access, external EML import/replay, account creation, loopback compose/send/read/search/mark/move/upload/quota/delta, ActiveSync validation, update source, rule conversion and portable templates");
     }
 

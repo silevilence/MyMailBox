@@ -17,6 +17,8 @@ public sealed partial class PluginScope(string instanceId, Contributions pages, 
     private static TaskCompletionSource Completed() { var result = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously); result.SetResult(); return result; }
     public string InstanceId { get; } = instanceId;
     public IReadOnlyCollection<string> Commands => _commands.Keys;
+    private ComposerPage? WrapComposer(ComposerPage? compose) => compose == null ? null : new(new ScopedAccounts(this, Target(compose.Accounts)),new ScopedDrafts(this,Target(compose.Drafts)),new ScopedOutbox(this,Target(compose.Outbox))) { Exchange = compose.Exchange is {} composeEas ? new ScopedExchange(this,Target(composeEas)) : null, Graph = compose.Graph is { } composeGraph ? new ScopedGraphWrites(this, Target(composeGraph)) : null };
+
     public IDisposable Add(Page page)
     {
         var execute = Target(page.Execute);
@@ -31,7 +33,8 @@ public sealed partial class PluginScope(string instanceId, Contributions pages, 
                 { OfflineMarks = protocols.OfflineMarks is { } marks ? new ScopedOfflineMarks(this,Target(marks)) : null,
                   Outbox = protocols.Outbox is { } outbox ? new ScopedOutbox(this, Target(outbox)) : null,
                   ImapSync = protocols.ImapSync is { } sync ? new ScopedImapSync(this, Target(sync)) : null } : null,
-            Composer = page.Composer is { } compose ? new(new ScopedAccounts(this, Target(compose.Accounts)),new ScopedDrafts(this,Target(compose.Drafts)),new ScopedOutbox(this,Target(compose.Outbox))) { Exchange = compose.Exchange is {} composeEas ? new ScopedExchange(this,Target(composeEas)) : null, Graph = compose.Graph is { } composeGraph ? new ScopedGraphWrites(this, Target(composeGraph)) : null } : null,
+            Composer = WrapComposer(page.Composer), DraftFolder = WrapComposer(page.DraftFolder),
+            ManagedPlugins=null, WatchManagedPlugins=null,
             Activity=page.Activity is {} activity?new(new ScopedActivity(this,Target(activity.Center)),new ScopedAccounts(this,Target(activity.Accounts))):null,
             Automation=page.Automation is {} auto ? new ScopedAutomation(this,Target(auto)) : null,
             Templates = page.Templates is { } templates ? new ScopedTemplates(this,Target(templates)) : null,
@@ -432,6 +435,7 @@ public sealed partial class PluginScope(string instanceId, Contributions pages, 
             await scope.Run(async t => { await service.Value.Refresh(account, t); return true; }, token);
         public Task<UnifiedPage> Inbox(Guid? account, InboxPosition? before, int limit, CancellationToken token = default) =>
             scope.Run(t => service.Value.Inbox(account, before, limit, t), token);
+        public Task<byte[]?> CachedOriginal(Guid account,string key,CancellationToken token=default) => scope.Run(t=>service.Value.CachedOriginal(account,key,t),token);
         public Task<string> Open(Guid account, string key, CancellationToken token = default) =>
             scope.Run(t => service.Value.Open(account, key, t), token);
     }

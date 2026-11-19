@@ -24,9 +24,13 @@ internal sealed class SettingsTemplatesView : UserControl,IDisposable
     {
         _service=service; _form.Children.Add(new TextBlock {Text="配置模板迁移",FontSize=28});
         _form.Children.Add(new TextBlock {Text="分享账户设置、保存的搜索、规则、任务和普通插件配置。账户凭据需在目标电脑重新授权。",TextWrapping=TextWrapping.Wrap});
-        Field(_form,"模板 JSON 文件路径",_file,"path");
+        Field(_form,"设置文件",_file,"path");
         _file.TextChanged+=(_,_)=>{ _catalog=null;_entries.ItemsSource=null;Reset(); };
         var files=new WrapPanel(); _form.Children.Add(files);
+        Button(files,"选择已有文件…","browse",async()=>{var picker=TopLevel.GetTopLevel(this)?.StorageProvider;if(picker is null)return;
+            var chosen=await picker.OpenFilePickerAsync(new(){Title="打开设置文件"});if(chosen.FirstOrDefault() is {} f)_file.Text=f.Path.LocalPath;});
+        Button(files,"选择保存位置…","save-as",async()=>{var picker=TopLevel.GetTopLevel(this)?.StorageProvider;if(picker is null)return;
+            var f=await picker.SaveFilePickerAsync(new(){Title="保存邮箱设置",SuggestedFileName="邮箱设置.json"});if(f is not null)_file.Text=f.Path.LocalPath;});
         Button(files,"导出到新文件","export",async ()=>
         {
             await service.Export(PathValue(),_stop.Token);
@@ -36,11 +40,11 @@ internal sealed class SettingsTemplatesView : UserControl,IDisposable
         {
             Reset(); _catalog=null; _entries.ItemsSource=null;
             _catalog=await service.Open(PathValue(),_stop.Token);_entries.ItemsSource=_catalog.Entries;
-            _status.Text=$"共 {_catalog.Entries.Length} 个条目。选择一项后读取映射。";
+            _status.Text=$"共 {_catalog.Entries.Length} 个条目。选择一项，核对要用的本机设置。";
         });
         _entries.ItemTemplate=new FuncDataTemplate<TemplateEntry>((e,_)=>new TextBlock{Text=e?.Name});
         Field(_form,"待迁移条目",_entries,"entries"); _entries.SelectionChanged+=(_,_)=>Reset();
-        Button(_form,"读取本机映射选项","fields",async ()=>
+        Button(_form,"选择对应的本机设置","fields",async ()=>
         {
             Reset();var entry=Entry();
             foreach(var field in await service.Fields(PathValue(),_catalog!.Digest,entry,_stop.Token))
@@ -59,10 +63,10 @@ internal sealed class SettingsTemplatesView : UserControl,IDisposable
                     Field(_mappings,field.Label,box,"map-"+_values.Count);_values.Add(field.Key,()=>box.Text??"");
                 }
             }
-            _readyEntry=entry;_status.Text="核对本机绑定后预览。规则、任务与新插件实例以停用状态导入。";
+            _readyEntry=entry;_status.Text="请核对所选设置，再预览导入结果。导入的规则、任务和插件需要手动启用。";
         });
         _form.Children.Add(_mappings);
-        Button(_form,"预览映射结果","preview",async ()=>
+        Button(_form,"预览导入结果","preview",async ()=>
         {
             _apply.IsEnabled=false;
             _status.Text=await Review(false); _apply.IsEnabled=true;

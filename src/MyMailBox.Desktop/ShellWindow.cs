@@ -13,13 +13,13 @@ using Page = MyMailBox.Contracts.Page;
 
 namespace MyMailBox.Desktop;
 
-public sealed class ShellWindow : Window
+public sealed partial class ShellWindow : Window
 {
     private readonly Contributions _pages;
     private readonly ComboBox _compactNavigation=new(){HorizontalAlignment=HorizontalAlignment.Stretch,Margin=new Thickness(8,4)};
     private bool _choosingPage;
 
-    private readonly StackPanel _navigation = new() { Spacing = 8, Margin = new Thickness(16) };
+    private readonly StackPanel _navigation = new() { Spacing = 6, Margin = new Thickness(12) };
     private readonly ContentControl _body = new() { Margin = new Thickness(32) };
     private string? _selected;
     private NativePage? _nativePage;
@@ -30,6 +30,7 @@ public sealed class ShellWindow : Window
     private int _exporterRevision;
     private readonly List<Action> _viewCleanup = [];
     private readonly TextBlock _notice = new() { TextWrapping = TextWrapping.Wrap, Margin = new Thickness(16), Foreground = Brush.Parse("#7C2D12") };
+    private readonly DockPanel _banner;
     private ActivityLink? _activityLink;
     private readonly Button _noticeOpen=new(){Content="打开活动",IsVisible=false};
     private readonly Button _noticeClose = new() { Content = "关闭提示", IsVisible = false, Margin = new Thickness(8), VerticalAlignment = VerticalAlignment.Center };
@@ -37,23 +38,25 @@ public sealed class ShellWindow : Window
     public ShellWindow(Contributions pages)
     {
         _pages = pages;
-        Title = "MyMailBox";
-        Width = 1120; Height = 780; MinWidth = 500; MinHeight = 360;
+        Title = "MyMailBox";WindowStartupLocation=WindowStartupLocation.CenterScreen;
+        Width = 1260; Height = 840; MinWidth = 500; MinHeight = 360;
         Opened += (_, _) =>
         {
             if (Screens.ScreenFromWindow(this) is { } screen)
             {
                 Width = Math.Min(Width, screen.WorkingArea.Width / RenderScaling - 32);
                 Height = Math.Min(Height, screen.WorkingArea.Height / RenderScaling - 32);
+                var area=screen.WorkingArea;
+                Position=new PixelPoint(area.X+Math.Max(0,(area.Width-(int)(Width*RenderScaling))/2),area.Y+Math.Max(0,(area.Height-(int)(Height*RenderScaling))/2));
             }
         };
         FontFamily = new FontFamily("Microsoft YaHei UI, Segoe UI");
         FontSize = 14;
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("220,*") };
-        var sidebar = new Border { Background = Brush.Parse("#F1F5F9"), Child = new ScrollViewer { Content = _navigation } };
+        var sidebar = new Border { BorderBrush = Brush.Parse("#D4DEE7"), BorderThickness = new Thickness(0,0,1,0), Background = Brush.Parse("#F0F4F8"), Child = new ScrollViewer { Content = _navigation } };
         grid.Children.Add(sidebar);
         Grid.SetColumn(_body, 1); grid.Children.Add(_body);
-        var banner = new DockPanel(); DockPanel.SetDock(_noticeClose, Dock.Right); banner.Children.Add(_noticeClose);DockPanel.SetDock(_noticeOpen,Dock.Right);banner.Children.Add(_noticeOpen);banner.Children.Add(_notice);
+        var banner = new DockPanel { IsVisible = false }; _banner = banner; DockPanel.SetDock(_noticeClose, Dock.Right); banner.Children.Add(_noticeClose);DockPanel.SetDock(_noticeOpen,Dock.Right);banner.Children.Add(_noticeOpen);banner.Children.Add(_notice);
         AutomationProperties.SetAutomationId(_noticeOpen,"global-notice-open");_noticeOpen.Click+=async(_,_)=>{
             if(pages.NoticeActivity is {} id && pages.Pages.FirstOrDefault(p=>p.Activity is not null)?.Activity is {} a)
                 try{OpenActivity(await a.Center.Resolve(id));}catch(Exception e){pages.Notice=e.Message;}
@@ -79,7 +82,7 @@ public sealed class ShellWindow : Window
                 if(_navigation.IsKeyboardFocusWithin||_compactNavigation.IsKeyboardFocusWithin)
                     _body.GetVisualDescendants().OfType<Control>().FirstOrDefault(c=>c is Button or TextBox or ComboBox or ListBox or CheckBox && c.Focusable&&c.IsEffectivelyVisible&&c.IsEffectivelyEnabled)?.Focus(NavigationMethod.Tab);
                 else if(_compactNavigation.IsVisible)_compactNavigation.Focus(NavigationMethod.Tab);
-                else (_navigation.Children.OfType<Button>().FirstOrDefault(b=>AutomationProperties.GetAutomationId(b)=="nav-"+_selected)??_navigation.Children.OfType<Button>().FirstOrDefault())?.Focus(NavigationMethod.Tab);
+                else (_links.GetValueOrDefault(_selected ?? "") is { IsEffectivelyVisible:true } active ? active : _links.Values.FirstOrDefault())?.Focus(NavigationMethod.Tab);
                 e.Handled=true;
             }
             else if(e.KeyModifiers==KeyModifiers.Control && e.Key is Key.F or Key.N)
@@ -88,7 +91,7 @@ public sealed class ShellWindow : Window
                 if(_pages.Pages.Any(p=>p.Id==page))
                 {
                     e.Handled = true;
-                    if (_selected != page) await Navigate(page);
+                    if (_selected != page || e.Key==Key.N) await Navigate(page);
                     string field = page == "accounts/search" ? "search-value" : "compose-to";
                     Dispatcher.UIThread.Post(() =>
                     {
@@ -108,31 +111,16 @@ public sealed class ShellWindow : Window
         Refresh();
     }
 
-    private void NoticeChanged() => Dispatcher.UIThread.Post(() => { _notice.Text = _pages.Notice;_noticeOpen.IsVisible=_pages.NoticeActivity.HasValue; _noticeClose.IsVisible = !string.IsNullOrWhiteSpace(_pages.Notice); });
+    private void NoticeChanged() => Dispatcher.UIThread.Post(() => { _banner.IsVisible = !string.IsNullOrWhiteSpace(_pages.Notice); _notice.Text = _pages.Notice;_noticeOpen.IsVisible=_pages.NoticeActivity.HasValue; _noticeClose.IsVisible = !string.IsNullOrWhiteSpace(_pages.Notice); });
 
     private void Refresh()
     {
         if (!Dispatcher.UIThread.CheckAccess()) { Dispatcher.UIThread.Post(Refresh); return; }
-        _navigation.Children.Clear();
-        _navigation.Children.Add(new TextBlock { Text = "MyMailBox", FontSize = 23, FontWeight = FontWeight.SemiBold, Margin = new Thickness(0, 8, 0, 24) });
         var pages = _pages.Pages;
-        foreach (var page in pages)
-        {
-            var id = page.Id;
-            var button = new Button { Content = page.Title, HorizontalAlignment = HorizontalAlignment.Stretch };
-            AutomationProperties.SetAutomationId(button, "nav-" + id);
-            button.Click += async (_, _) => await Navigate(id);
-            _navigation.Children.Add(button);
-        }
-        foreach (var page in _pages.NativePages)
-        {
-            var id = page.Id;
-            var button = new Button { Content = page.Title, HorizontalAlignment = HorizontalAlignment.Stretch };
-            AutomationProperties.SetAutomationId(button, "nav-" + id);
-            button.Click += async (_, _) => await Navigate(id); _navigation.Children.Add(button);
-        }
+        var destinations = Destinations();
+        BuildNavigation(destinations);
         _choosingPage=true;
-        try{var choices=pages.Select(p=>new Choice(p.Id,p.Title)).Concat(_pages.NativePages.Select(p=>new Choice(p.Id,p.Title))).ToArray();_compactNavigation.ItemsSource=choices;_compactNavigation.SelectedItem=choices.FirstOrDefault(p=>p.Id==_selected);}
+        try{var choices=destinations.Select(d=>new Choice(d.Id,d.Group+"  /  "+d.Name)).ToArray();_compactNavigation.ItemsSource=choices;_compactNavigation.SelectedItem=choices.FirstOrDefault(p=>p.Id==_selected);}
         finally{_choosingPage=false;}
         var selectedPage = pages.FirstOrDefault(p => p.Id == _selected);
         var selectedNative = _pages.NativePages.FirstOrDefault(p => p.Id == _selected);
@@ -140,7 +128,7 @@ public sealed class ShellWindow : Window
             (!selectedPage.Fields.Any(f => f.Selector is not null) || _selectorRevision == _pages.SelectorRevision) &&
             (selectedPage.Reader is null && selectedPage.Export is null || _exporterRevision == _pages.ExporterRevision)) return;
         if (selectedNative is not null && ReferenceEquals(selectedNative, _nativePage)) return;
-        Show(selectedPage is not null || selectedNative is not null ? _selected! : pages.FirstOrDefault()?.Id);
+        Show(selectedPage is not null || selectedNative is not null ? _selected! : _startupComplete ? DefaultDestination() : null);
     }
 
     private void ReleaseView()
@@ -156,10 +144,14 @@ public sealed class ShellWindow : Window
 
     private async Task Navigate(string id)
     {
+        _userNavigated = true;
         if (_hostView is ComposerView draft && !await draft.SaveBeforeLeaving()) return;
         Show(id);
     }
 
+    private string? _searchSubject;
+    private Guid? _connectionAccount;
+    private MailDraft? _openingDraft;
     private ReplyIntent? _reply;
     private void Respond(ReplyIntent intent)
     {
@@ -175,7 +167,7 @@ public sealed class ShellWindow : Window
     }
     private void Show(string? id)
     {
-        _selected = id;
+        _selected = id; Highlight();
         _choosingPage=true;try{_compactNavigation.SelectedItem=_compactNavigation.Items.OfType<Choice>().FirstOrDefault(p=>p.Id==id);}finally{_choosingPage=false;}
         ReleaseView();
         var native = _pages.NativePages.FirstOrDefault(p => p.Id == id);
@@ -188,13 +180,19 @@ public sealed class ShellWindow : Window
         var page = _pages.Pages.FirstOrDefault(p => p.Id == id);
         if (page is null) return;
         _renderedPage = page; _selectorRevision = _pages.SelectorRevision; _exporterRevision = _pages.ExporterRevision;
+        if (page.DraftFolder is { } drafts)
+        {
+            var view=new DraftFolderView(drafts, d => { _openingDraft=d; Show(_pages.Pages.First(p=>p.Composer is not null && p.Id.Split('/')[0]==page.Id.Split('/')[0]).Id); });
+            _hostView=view; _body.Content=view; return;
+        }
+        if (page.ManagedPlugins is not null) { var manager=new PluginManagerView(page,()=>_pages.Pages.FirstOrDefault(p=>p.Accounts is not null)?.Accounts); _hostView=manager;_body.Content=manager; return; }
         if (page.Composer is { } composer)
         {
-            var view=new ComposerView(composer,_pages,page.Id.Split('/')[0],_reply);_reply=null;_hostView=view;_body.Content=view;return;
+            var view=new ComposerView(composer,_pages,page.Id.Split('/')[0],_reply,_openingDraft);_reply=null;_openingDraft=null;_hostView=view;_body.Content=view;return;
         }
         if (page.Exchange is { } exchange)
         {
-            var view = new ExchangeSettingsView(exchange); _hostView = view; _body.Content = view; return;
+            var view = new ExchangeSettingsView(exchange,_connectionAccount); _hostView = view; _body.Content = view; return;
         }
         if (page.Templates is { } templates)
         {
@@ -212,7 +210,7 @@ public sealed class ShellWindow : Window
         }
         if (page.Search is { } search)
         {
-            var view = new MailSearchView(search,Respond,_activityLink?.Mail); _hostView = view; _body.Content = view; return;
+            var view = new MailSearchView(search,Respond,_activityLink?.Mail,_searchSubject); _hostView = view; _body.Content = view; return;
         }
         if (page.Organization is { } organization)
         {
@@ -220,15 +218,19 @@ public sealed class ShellWindow : Window
         }
         if (page.UnifiedInbox is { } inbox)
         {
-            var view = new UnifiedInboxView(inbox,Respond,_activityLink?.Account); _hostView = view; _body.Content = view; return;
+            var view = new UnifiedInboxView(inbox,Respond,_activityLink?.Account, id => Navigate(id), _pages.Pages.Any(p=>p.Id=="accounts/manage"), text=>{
+                var searchPage=_pages.Pages.FirstOrDefault(p=>p.Search is not null);
+                if(searchPage==null){_pages.Notice="请先启用搜索邮件功能。";return;}
+                _searchSubject=text;try{Show(searchPage.Id);}finally{_searchSubject=null;}
+            }); _hostView = view; _body.Content = view; return;
         }
         if (page.Protocols is { } protocols)
         {
-            var view = new ProtocolView(protocols,Respond); _hostView = view; _body.Content = view; return;
+            var view = new ProtocolView(protocols,Respond,page.OutboxOnly,_connectionAccount); _hostView = view; _body.Content = view; return;
         }
         if (page.Graph is { } graph)
         {
-            var view = new GraphView(graph); _hostView = view; _body.Content = view; return;
+            var view = new GraphView(graph,_connectionAccount); _hostView = view; _body.Content = view; return;
         }
         if (page.Updates is { } updates)
         {
@@ -264,11 +266,11 @@ public sealed class ShellWindow : Window
         }
         if (page.Accounts is { } accounts)
         {
-            var view = new AccountsView(accounts); _hostView = view; _body.Content = view; return;
+            var view = new AccountsView(accounts,(target,account)=>{_connectionAccount=account;try{Show(target);}finally{_connectionAccount=null;}}); _hostView = view; _body.Content = view; return;
         }
         if (page.Reader is { } reader)
         {
-            var view = new MailboxView(reader, _pages.Exporters,Respond); _hostView = view; _body.Content = view; return;
+            var view = new MailboxView(reader, _pages.Exporters,Respond,page.SentFolderOnly); _hostView = view; _body.Content = view; return;
         }
         var panel = new StackPanel { Spacing = 16, MaxWidth = 800, HorizontalAlignment = HorizontalAlignment.Stretch };
         panel.Children.Add(new TextBlock { Text = page.Title, FontSize = 28, FontWeight = FontWeight.SemiBold });
@@ -299,6 +301,22 @@ public sealed class ShellWindow : Window
                     {
                         var files = await StorageProvider.OpenFilePickerAsync(new() { Title = field.Label, AllowMultiple = false });
                         if (files.Count > 0) text.Text = files[0].Path.LocalPath;
+                    };
+                    fieldPanel.Children.Add(browse);
+                    if (field.Id is "backup-file" or "archive-file")
+                    {
+                        var save=new Button{Content="选择保存位置…"};
+                        AutomationProperties.SetAutomationId(save,"save-"+field.Id);
+                        save.Click+=async(_,_)=>{var file=await StorageProvider.SaveFilePickerAsync(new(){Title="选择保存位置",SuggestedFileName=field.Id=="backup-file"?"邮箱备份.mmbbackup":"邮件归档.mmbarchive"});if(file is not null)text.Text=file.Path.LocalPath;};
+                        fieldPanel.Children.Add(save);
+                    }
+                }
+                else if(field.Id=="restore-directory")
+                {
+                    var browse=new Button{Content="选择恢复位置…"};
+                    browse.Click+=async(_,_)=>{
+                        var folder=(await StorageProvider.OpenFolderPickerAsync(new(){Title="选择存放恢复副本的文件夹"})).FirstOrDefault();
+                        if(folder is not null)text.Text=Path.Combine(folder.Path.LocalPath,"MyMailBox-"+DateTime.Now.ToString("yyyyMMdd-HHmmss"));
                     };
                     fieldPanel.Children.Add(browse);
                 }

@@ -17,7 +17,9 @@ public sealed class AccountsView : UserControl, IDisposable
     private static readonly string[] BuiltinTypes = ["local", "imap-smtp", "imap", "smtp", "pop3", "outlook-com", "exchange-eas"];
     private string[] Providers = BuiltinTypes;
     private readonly string[] _builtinLabels;
-    private readonly TextBox _name = new(), _address = new(), _alias = new(), _tags = new(), _color = new() { Text = "#2563EB" }, _notes = new() { AcceptsReturn = true, MinHeight = 64 }, _order = new() { Text = "0" }, _credential = new() { PasswordChar = '●' };
+    private readonly TextBox _name = new(), _address = new(), _alias = new(), _tags = new(), _notes = new() { AcceptsReturn = true, MinHeight = 64 }, _order = new() { Text = "0" }, _credential = new() { PasswordChar = '●' };
+    private static readonly Choice[] Colors = [new("#2563EB","蓝色"),new("#307854","绿色"),new("#A65221","棕色"),new("#8857A6","紫色"),new("#44566C","灰色"),new("#BD4152","红色")];
+    private readonly ComboBox _color=new(){ItemTemplate=new FuncDataTemplate<Choice>((c,_)=>new TextBlock{Text=c?.Label})};
     private readonly CheckBox _enabled = new() { Content = "启用此账户", IsChecked = true }, _receive = new() { Content = "接收", IsChecked = true }, _send = new() { Content = "发送", IsChecked = true };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap }, _capability = new() { TextWrapping = TextWrapping.Wrap };
     private readonly CheckBox _confirm = new() { Content = "我已了解：移除账户和凭据，保留缓存邮件与独立归档。", IsVisible = false };
@@ -25,25 +27,28 @@ public sealed class AccountsView : UserControl, IDisposable
     private Guid? _id;
     private bool _disposed;
 
-    public AccountsView(IAccountService service)
+    private readonly Button _connect=new(){Content="设置收发",IsVisible=false};
+    public AccountsView(IAccountService service,Action<string,Guid>? connect=null)
     {
         _service = service;
         _builtinLabels = _provider.ItemsSource!.Cast<string>().ToArray();
         _accounts.ItemTemplate = new FuncDataTemplate<MailAccount>((a, _) => new TextBlock { Text = a is null ? "" : $"{a.Name} · {(a.Provider == "local" ? "本地" : a.Address)}{(a.Enabled ? "" : " · 已停用")}" });
         var panel = new StackPanel { Spacing = 12, MaxWidth = 760 };
-        panel.Children.Add(new TextBlock { Text = "账户管理", FontSize = 28, FontWeight = FontWeight.SemiBold });
-        panel.Children.Add(new TextBlock { Text = "名称可以随时修改，邮件和自动化引用保持不变。普通在线账户到“邮箱连接与收发”配置服务器；个人微软账户到“Outlook.com 邮件”授权。", TextWrapping = TextWrapping.Wrap });
+        panel.Children.Add(new TextBlock { Text = "邮箱账户", FontSize = 28, FontWeight = FontWeight.SemiBold });
+        panel.Children.Add(new TextBlock { Text = "为邮箱取一个容易辨认的名称。保存后即可设置收发或登录邮箱。", TextWrapping = TextWrapping.Wrap });
         Add(panel, "已有账户", _accounts, "account-list");
         panel.Children.Add(Action("添加账户", "account-new", () => { Edit(null); return Task.CompletedTask; }));
         Add(panel, "显示名称", _name, "account-name"); Add(panel, "类型", _provider, "account-provider"); Add(panel, "邮箱地址", _address, "account-address");
-        Add(panel, "alias（可选，唯一，用于自动化）", _alias, "account-alias"); Add(panel, "标签（逗号分隔）", _tags, "account-tags");
+        Add(panel, "账户别名（可选，供自动任务使用）", _alias, "account-alias"); Add(panel, "标签（逗号分隔）", _tags, "account-tags");
         var row = new Grid { ColumnDefinitions = new("*,*"), ColumnSpacing = 16 }; var left = new StackPanel { Spacing = 6 }; var right = new StackPanel { Spacing = 6 };
-        Add(left, "颜色（#RRGGBB）", _color, "account-color"); Add(right, "排序（数值小的在前）", _order, "account-order"); row.Children.Add(left); Grid.SetColumn(right, 1); row.Children.Add(right); panel.Children.Add(row);
+        Add(left, "账户颜色", _color, "account-color"); Add(right, "排序（数值小的在前）", _order, "account-order"); row.Children.Add(left); Grid.SetColumn(right, 1); row.Children.Add(right); panel.Children.Add(row);
         Add(panel, "备注", _notes, "account-notes");
         var capabilities = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 16 }; capabilities.Children.Add(_enabled); capabilities.Children.Add(_receive); capabilities.Children.Add(_send); panel.Children.Add(capabilities); panel.Children.Add(_capability);
         AutomationProperties.SetAutomationId(_enabled, "account-enabled"); AutomationProperties.SetAutomationId(_receive, "account-receive"); AutomationProperties.SetAutomationId(_send, "account-send");
-        panel.Children.Add(new TextBlock { Text = "收信、发信凭据在“邮箱连接与收发”分别设置，并由 Windows 当前用户加密保护。", TextWrapping = TextWrapping.Wrap });
+        panel.Children.Add(new TextBlock { Text = "收信和发信密码可在收发设置中分别保存。", TextWrapping = TextWrapping.Wrap });
         panel.Children.Add(Action("保存账户", "account-save", Save));
+        panel.Children.Add(_connect);AutomationProperties.SetAutomationId(_connect,"account-connect");
+        _connect.Click+=(_,_)=>{if(_accounts.SelectedItem is MailAccount a)connect?.Invoke("accounts/"+(a.Provider switch{"outlook-com"=>"graph","exchange-eas"=>"exchange",_=>"protocols"}),a.Id);};
         _remove = Action("移除账户…", "account-remove", Remove); _remove.IsEnabled = false;
         panel.Children.Add(_remove); panel.Children.Add(_confirm); panel.Children.Add(_status);
         AutomationProperties.SetAutomationId(_confirm, "account-remove-confirm"); AutomationProperties.SetAutomationId(_status, "account-status");
@@ -80,9 +85,11 @@ public sealed class AccountsView : UserControl, IDisposable
     }
     private void Edit(MailAccount? account)
     {
+        _connect.IsVisible=account is { Enabled:true, Provider:"imap" or "smtp" or "imap-smtp" or "pop3" or "outlook-com" or "exchange-eas" };
+        _connect.Content=account?.Provider=="outlook-com"?"登录 Outlook.com":"设置收发";
         _id = account?.Id; _provider.IsEnabled = account is null;
         _name.Text = account?.Name ?? ""; _address.Text = account?.Address ?? ""; _alias.Text = account?.Alias ?? "";
-        _tags.Text = string.Join(", ", account?.Tags ?? []); _color.Text = account?.Color ?? "#2563EB"; _notes.Text = account?.Notes ?? ""; _order.Text = (account?.Order ?? 0).ToString();
+        _tags.Text = string.Join(", ", account?.Tags ?? []); var color = account?.Color ?? Colors[0].Id; _color.ItemsSource=Colors.Any(c=>c.Id.Equals(color,StringComparison.OrdinalIgnoreCase)) ? Colors : [..Colors,new Choice(color,"自定义颜色")]; _color.SelectedItem=_color.Items.OfType<Choice>().First(c=>c.Id.Equals(color,StringComparison.OrdinalIgnoreCase)); _notes.Text = account?.Notes ?? ""; _order.Text = (account?.Order ?? 0).ToString();
         _provider.SelectedIndex = account is null ? 0 : Array.IndexOf(Providers, account.Provider);
         _enabled.IsChecked = account?.Enabled ?? true; _receive.IsChecked = account?.Capabilities.HasFlag(AccountCapabilities.Receive) ?? true; _send.IsChecked = account?.Capabilities.HasFlag(AccountCapabilities.Send) ?? true;
         _credential.Text = ""; _confirm.IsVisible = false; _confirm.IsChecked = false; _remove.Content = "移除账户…"; _remove.IsEnabled = account is not null;
@@ -107,17 +114,17 @@ public sealed class AccountsView : UserControl, IDisposable
             _receive.IsChecked = type?.Features.HasFlag(MailboxFeatures.Read) ?? false;
             _send.IsChecked = type?.Features.HasFlag(MailboxFeatures.Send) ?? false;
             _credential.IsEnabled = false;
-            _capability.Text = type == null ? $"所需邮箱插件 {provider} 已停用，可重新启用后连接。" : "请在“邮箱浏览与整理”中连接这个账户。";
+            _capability.Text = type == null ? $"所需邮箱插件 {provider} 已停用，可重新启用后连接。" : "请在“邮箱文件夹”中连接这个账户。";
             return;
         }
-        _capability.Text = local ? "本地账户用于保存和整理邮件，不支持联网收发。" : provider == "outlook-com" ? "在“Outlook.com 邮件”登录个人账户。发送与整理需另外授权。" : provider == "smtp" ? "SMTP 仅发送，不支持收取邮件。" : provider is "imap" or "pop3" ? "此类型仅接收；发送需要单独的 SMTP 账户。" : "可单独关闭收取或发送；在“邮箱连接与收发”配置各自的服务器和凭据。";
+        _capability.Text = local ? "本地账户用于保存和整理邮件，不支持联网收发。" : provider == "outlook-com" ? "在“Outlook.com 邮件”登录个人账户。发送与整理需另外授权。" : provider == "smtp" ? "SMTP 仅发送，不支持收取邮件。" : provider is "imap" or "pop3" ? "此类型仅接收；发送需要单独的 SMTP 账户。" : "可单独关闭收取或发送；在“收发设置”配置各自的服务器和凭据。";
     }
     private async Task Save()
     {
         if (!int.TryParse(_order.Text, out var order)) throw new InvalidDataException("排序请输入整数。");
         var capabilities = (_receive.IsChecked == true ? AccountCapabilities.Receive : 0) | (_send.IsChecked == true ? AccountCapabilities.Send : 0);
         var saved = await _service.Save(new(_id, _name.Text ?? "", Providers[Math.Max(0, _provider.SelectedIndex)], _address.Text ?? "", _alias.Text,
-            (_tags.Text ?? "").Split([',', '，']), _color.Text ?? "", _notes.Text ?? "", order, _enabled.IsChecked == true, capabilities), _credential.Text, _lifetime.Token);
+            (_tags.Text ?? "").Split([',', '，']), (_color.SelectedItem as Choice)?.Id ?? Colors[0].Id, _notes.Text ?? "", order, _enabled.IsChecked == true, capabilities), _credential.Text, _lifetime.Token);
         _credential.Text = ""; await Reload(saved.Id); if (!_disposed) _status.Text = "账户已保存。" + saved.AuthenticationState;
     }
     private async Task Remove()

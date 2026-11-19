@@ -40,12 +40,19 @@ public sealed class ExportView : UserControl, IDisposable
         _form.Children.Add(Action("预览范围", "export-preview", Preview));
         Add("2 · 导出格式", _format, "export-format");
         var options = new StackPanel { Spacing = 8 };
-        options.Children.Add(new TextBlock { Text = "CSV / JSON 默认只包含稳定 ID、主题、时间和原文大小；不导出正文或账户凭据。", TextWrapping = TextWrapping.Wrap });
+        options.Children.Add(new TextBlock { Text = "CSV 和 JSON 默认导出邮件编号、主题、时间和大小，不含正文和密码。", TextWrapping = TextWrapping.Wrap });
         options.Children.Add(_addresses); options.Children.Add(_attachmentNames);
         options.Children.Add(new TextBlock { Text = "阅读副本包含必要邮件头和正文，不等同完整备份。完整备份请使用 EML 或邮件归档包；远程跟踪资源不自动下载。", TextWrapping = TextWrapping.Wrap });
         options.Children.Add(_saveAttachments); AutomationProperties.SetAutomationId(_saveAttachments, "export-save-attachments");
         options.Children.Add(new TextBlock { Text = "附件扩展名（逗号分隔，留空为全部，例如 pdf,jpg）" }); options.Children.Add(_extensions);
-        options.Children.Add(new TextBlock { Text = "附件命名模板：{subject} 主题、{name} 原文件名、{id} 邮件 ID。自动保留扩展名，重名另存。", TextWrapping = TextWrapping.Wrap }); options.Children.Add(_template); options.Children.Add(_inline);
+        options.Children.Add(new TextBlock{Text="附件文件名"});
+        var patterns=new Choice[]{new("{subject}-{name}","邮件主题和原文件名"),new("{name}","保留原文件名"),new("{id}-{name}","邮件编号和原文件名"),new("custom","自定义格式")};
+        var naming=new ComboBox{ItemsSource=patterns,ItemTemplate=new Avalonia.Controls.Templates.FuncDataTemplate<Choice>((c,_)=>new TextBlock{Text=c?.Label}),SelectedIndex=0};
+        AutomationProperties.SetAutomationId(naming,"export-naming");
+        options.Children.Add(naming);
+        var custom=new StackPanel{IsVisible=false};custom.Children.Add(new TextBlock{Text="可使用 {subject}、{name} 和 {id} 组合文件名。"});custom.Children.Add(_template);options.Children.Add(custom);
+        naming.SelectionChanged+=(_,_)=>{if(naming.SelectedItem is Choice c){custom.IsVisible=c.Id=="custom";if(!custom.IsVisible)_template.Text=c.Id;}};
+        options.Children.Add(_inline);
         _form.Children.Add(new Expander { Header = "格式选项与敏感字段", Content = options, HorizontalAlignment = HorizontalAlignment.Stretch });
         AutomationProperties.SetAutomationId(_addresses, "export-addresses"); AutomationProperties.SetAutomationId(_attachmentNames, "export-attachment-names");
         AutomationProperties.SetAutomationId(_extensions, "export-extensions"); AutomationProperties.SetName(_extensions, "附件扩展名");
@@ -104,7 +111,7 @@ public sealed class ExportView : UserControl, IDisposable
         {
             _preview = await ExportScope.Collect(_source.Store, _accounts.ToArray(), _folders.ToArray(), _subject.Text ?? "", operation.Token);
             if (_disposed) return;
-            _status.Text = $"预览：{_accounts.Count} 个账户、{_folders.Count} 个单独目录，去重后 {_preview.Length} 封。导出使用这些稳定邮件 ID；预览后新增的邮件不自动加入。";
+            _status.Text = $"预览：{_accounts.Count} 个账户、{_folders.Count} 个单独目录，去重后 {_preview.Length} 封。只导出本次预览中的邮件。";
             _results.Text = string.Join("\n", _preview.Take(200).Select(i => i.Subject)) + (_preview.Length > 200 ? "\n…仅展示前 200 封，导出包含全部预览结果。" : "");
             _execute.IsEnabled = _preview.Length > 0;
         }

@@ -28,7 +28,7 @@ public sealed class GraphView : UserControl, IDisposable
     private readonly StackPanel _writeActions = new() { Spacing = 6, IsVisible = false };
     private bool _busy, _disposed;
     private Guid Account => (_accounts.SelectedItem as MailAccount)?.Id ?? throw new InvalidDataException("请先在账户管理添加 Outlook.com 个人账户。");
-    public GraphView(GraphPage page)
+    public GraphView(GraphPage page, Guid? initialAccount=null)
     {
         _page = page;
         _accounts.ItemTemplate = new FuncDataTemplate<MailAccount>((a, _) => new TextBlock { Text = a?.Name + " · " + a?.Address });
@@ -115,7 +115,7 @@ public sealed class GraphView : UserControl, IDisposable
         var layout = new DockPanel(); DockPanel.SetDock(feedback, Dock.Bottom); layout.Children.Add(feedback); layout.Children.Add(new ScrollViewer { Content = panel }); Content = layout;
         _accounts.SelectionChanged += async (_, _) => { if (!_busy) await Run(LoadSettings); };
         _folders.SelectionChanged += (_, _) => { _messages.ItemsSource = null; _messageNext = null; _messageCurrent = null; _messageBack.Clear(); };
-        AttachedToVisualTree += async (_, _) => await Run(async t => { _accounts.ItemsSource = (await page.Accounts.List(t)).Where(a => a.Provider == "outlook-com" && a.Enabled).ToArray(); _accounts.SelectedIndex = 0; await LoadSettings(t); });
+        AttachedToVisualTree += async (_, _) => await Run(async t => { _accounts.ItemsSource = (await page.Accounts.List(t)).Where(a => a.Provider == "outlook-com" && a.Enabled).ToArray(); _accounts.SelectedItem=_accounts.Items.OfType<MailAccount>().FirstOrDefault(a=>a.Id==initialAccount) ?? _accounts.Items.OfType<MailAccount>().FirstOrDefault(); await LoadSettings(t); });
     }
     private static WrapPanel Row() => new() { Orientation = Orientation.Horizontal };
     private void Add(StackPanel panel, string label, Control control, string id)

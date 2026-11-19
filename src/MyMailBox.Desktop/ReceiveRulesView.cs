@@ -35,8 +35,7 @@ internal sealed partial class ReceiveRulesView : UserControl, IDisposable
         var manage = new WrapPanel(); Button(manage, "载入规则", "rule-load", () => { if (_saved.SelectedItem is ReceiveRule r) Edit(r); return Task.CompletedTask; });
         Button(manage, "新规则", "rule-new", () => { Edit(null); return Task.CompletedTask; }); _panel.Children.Add(manage);
         Field("规则名称", _name, "rule-name"); Field("应用范围", _scope, "rule-scope"); Field("执行顺序（较小者优先）", _order, "rule-order");
-        Field("匹配条件", _condition, "rule-condition"); Field("例外条件（可留空）", _except, "rule-except");
-        _panel.Children.Add(new TextBlock { Text = "例：subject:合同 AND from:example.test。条件语法与高级搜索相同。", TextWrapping = TextWrapping.Wrap });
+        MailConditionInput.Add(_panel,"符合以下条件",_condition,"rule-condition"); MailConditionInput.Add(_panel,"排除以下邮件（可选）",_except,"rule-except");
         _kind.ItemsSource = Enum.GetValues<RuleActionKind>();
         _kind.ItemTemplate = new FuncDataTemplate<RuleActionKind>((k, _) => new TextBlock { Text = ActionName(k) });
         Field("动作", _kind, "rule-kind"); var argumentLabel = new TextBlock(); _panel.Children.Add(argumentLabel); _panel.Children.Add(_label);

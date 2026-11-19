@@ -48,6 +48,26 @@ internal static class OutlookRuleChecks
             [new(1,2,"subject",["private","skip"],true,"")],
             [new(1,19,"mark-read",[],true,""), new(2,2,"categories",["审阅"],true,""),
              new(3,1,"move",["Archive","entry-fixture","store-fixture"],false,"Requires mapping."),new(4,21,"stop",[],true,"")]);
+        static object Collection(params object[] values)
+        {
+            dynamic collection = new System.Dynamic.ExpandoObject();
+            collection.Count = values.Length; collection.Item = (Func<int,object>)(i=>values[i-1]);
+            return collection;
+        }
+        dynamic subjectPart = new System.Dynamic.ExpandoObject();
+        subjectPart.Enabled = true; subjectPart.ConditionType = 2; subjectPart.Text = new[] {"合同"};
+        dynamic stop = new System.Dynamic.ExpandoObject();
+        stop.Enabled = true; stop.ActionType = 21;
+        dynamic unsupported = new System.Dynamic.ExpandoObject();
+        unsupported.Enabled = true; unsupported.ActionType = 100;
+        dynamic example = new System.Dynamic.ExpandoObject();
+        example.Name = "办公规则"; example.ExecutionOrder = 1; example.Enabled = true; example.RuleType = 0;
+        example.Conditions = Collection((object)subjectPart); example.Exceptions = Collection();
+        example.Actions = Collection((object)stop,(object)unsupported);
+        var fromOutlook = ClassicOutlookRules.ReadInventory(new("本机配置","fixture","办公邮箱"),Collection((object)example),default).Rules.Single();
+        if (fromOutlook.ClientOnly != null || fromOutlook.Conditions.Single().Values.Single() != "合同" ||
+            fromOutlook.Actions[0].Field != "stop" || fromOutlook.Actions[1].Candidate)
+            throw new Exception("经典 Outlook 规则读取遗漏或误判规则内容。");
         var file = Path.Combine(path,"inventory.json");
         await File.WriteAllBytesAsync(file,JsonSerializer.SerializeToUtf8Bytes(new OutlookRuleInventory(1,"测试","邮件",[source]),new JsonSerializerOptions(JsonSerializerDefaults.Web)));
         var inventory = await OutlookRuleImport.Read(file,default);

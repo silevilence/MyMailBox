@@ -32,16 +32,21 @@ internal sealed partial class ComposerView : UserControl,IDisposable
     private bool _binding,_busy,_disposed;
     private IDisposable? _preparation;
 
-    internal ComposerView(ComposerPage page,Contributions contributions,string owner,ReplyIntent? intent=null)
+    internal ComposerView(ComposerPage page,Contributions contributions,string owner,ReplyIntent? intent=null,MailDraft? opening=null)
     {
         _page=page;_contributions=contributions;_owner=owner;_intent=intent;
-        _form.Children.Add(new TextBlock{Text="写邮件与草稿",FontSize=28,FontWeight=FontWeight.SemiBold});
+        _form.Children.Add(new TextBlock{Text="写邮件",FontSize=28,FontWeight=FontWeight.SemiBold});
         _accounts.ItemTemplate=new FuncDataTemplate<MailAccount>((a,_)=>new TextBlock{Text=a?.Name+" · "+a?.Address});
         _drafts.ItemTemplate=new FuncDataTemplate<MailDraft>((d,_)=>new TextBlock{Text=string.IsNullOrWhiteSpace(d?.Subject)?"（无主题草稿）":d.Subject});
         _editors.ItemTemplate=new FuncDataTemplate<ComposerEditor>((e,_)=>new TextBlock{Text=e?.Name});
         _templates.ItemTemplate=new FuncDataTemplate<EditorTemplate>((t,_)=>new TextBlock{Text=t?.Name});
+        var sendTools=new WrapPanel();
+        Button(sendTools,"发送","compose-send",Send);Button(sendTools,"保存草稿","compose-save",Flush);
+        ((Button)sendTools.Children[0]).Classes.Add("accent");
+        _form.Children.Add(sendTools);
         Field("发件账户",_accounts,"compose-account");
-        Button(_alternate,"用所选账户继续回复或转发","compose-alternate",CreateResponse);_alternate.IsVisible=false;_form.Children.Add(_alternate);_form.Children.Add(_identity);AddProfile();
+        Button(_alternate,"用所选账户继续回复或转发","compose-alternate",CreateResponse);_alternate.IsVisible=false;_form.Children.Add(_alternate);_form.Children.Add(_identity);
+        int optionsStart=_form.Children.Count; AddProfile();
         Field("该账户的草稿",_drafts,"compose-drafts");
         var draftTools=new WrapPanel();Button(draftTools,"打开所选草稿","compose-open",async()=>{await Flush();if(_drafts.SelectedItem is MailDraft d)Load(_page.Drafts.List(d.Account).Single(x=>x.Id==d.Id));});
         Button(draftTools,"新建草稿","compose-new",async()=>{await Flush();var a=Account();Load(MailDraft.New(a.Id,a.Address));});_form.Children.Add(draftTools);
@@ -58,19 +63,22 @@ internal sealed partial class ComposerView : UserControl,IDisposable
             _cloudDraft.IsVisible = false;
             _form.Children.Add(_cloudDraft);
         }
-        Field("收件人 To",_to,"compose-to");Field("抄送 Cc",_cc,"compose-cc");Field("密送 Bcc",_bcc,"compose-bcc");AddAddresses();Field("主题",_subject,"compose-subject");
+        var profileOptions=TakeSection(optionsStart,"发件设置和草稿");
+        Field("收件人",_to,"compose-to");Field("抄送",_cc,"compose-cc");Field("密送",_bcc,"compose-bcc");AddAddresses();Field("主题",_subject,"compose-subject");
+        int formatStart=_form.Children.Count;
         Field("编辑器",_editors,"compose-editor");var formats=new WrapPanel();
         Button(formats,"编辑纯文本（保留富文本副本）","compose-plain",()=>Format(false));
         Button(formats,"打开富文本副本","compose-rich",()=>Format(true));
         Button(formats,"从当前纯文本重建富文本","compose-convert",()=>Format(true,true));_form.Children.Add(formats);
+        var formatOptions=TakeSection(formatStart,"正文格式");
         Field("正文",_plain,"compose-body");_form.Children.Add(_richHost);
         var quotePanel=new StackPanel();quotePanel.Children.Add(_include);quotePanel.Children.Add(_quoteText);_quote.Content=quotePanel;_quote.IsVisible=false;_form.Children.Add(_quote);
         _include.IsCheckedChanged+=(_,_)=>{if(!_binding && _draft is {Quote:{} q} d)Persist(d with{Quote=q with{Included=_include.IsChecked==true}});};
-        AddFiles();AddSendPlan();
+        AddFiles();_form.Children.Add(formatOptions);_form.Children.Add(profileOptions);AddSendPlan();
         Field("模板",_templates,"compose-template");
         var tools=new WrapPanel();Button(tools,"插入模板","compose-insert",InsertTemplate);
         Button(tools,"拼写检查","compose-spell",async()=>{await Flush();if(_draft is {} d && _editor is {} e)_status.Text=await e.Spell(d.Body.Plain,_stop.Token);});
-        Button(tools,"保存草稿","compose-save",Flush);Button(tools,"发送","compose-send",Send);_form.Children.Add(tools);
+        _form.Children.Add(tools);
         AutomationProperties.SetAutomationId(_status,"compose-status");_form.Children.Add(_status);Content=PageFeedback.Layout(_form,_status);
         foreach(var box in new[]{_to,_cc,_bcc,_subject,_plain})box.TextChanged+=(_,_)=>{if(!_binding && !_busy)TrySave();};
         _accounts.SelectionChanged+=async(_,_)=>{if(!_binding)await Guard(SwitchAccount);};
@@ -86,6 +94,14 @@ internal sealed partial class ComposerView : UserControl,IDisposable
                 var preferred=_accounts.Items.OfType<MailAccount>().FirstOrDefault(a=>a.Id==source);
                 if(preferred is not null){_binding=true;_accounts.SelectedItem=preferred;_binding=false;await CreateResponse();}
                 else{_alternate.IsVisible=true;_status.Text="原接收账户无法发送，请明确选择替代账户再继续。";}
+            }
+            else if (opening is not null)
+            {
+                _binding=true;
+                try { _accounts.SelectedItem=_accounts.Items.OfType<MailAccount>().FirstOrDefault(a=>a.Id==opening.Account); }
+                finally { _binding=false; }
+                if (_accounts.SelectedItem is MailAccount a) { LoadProfile(a);ListDrafts(a.Id);Load(_page.Drafts.List(a.Id).Single(d=>d.Id==opening.Id)); }
+                else _status.Text="这个发件账户已停用，请先在邮箱账户中启用。";
             }
             else await SwitchAccount();
         });
@@ -112,6 +128,12 @@ internal sealed partial class ComposerView : UserControl,IDisposable
             _plain.Text=_draft?.Body.Plain ?? "";_plain.IsVisible=true;
             _status.Text="编辑器已保存并关闭，草稿可由其他编辑器接管。";
         });
+    }
+    private Expander TakeSection(int start,string name)
+    {
+        var controls=_form.Children.Skip(start).ToArray();var section=new StackPanel{Spacing=6};
+        foreach(var c in controls){_form.Children.Remove(c);section.Children.Add(c);}
+        var group=new Expander{Header=name,Content=section};AutomationProperties.SetAutomationId(group,name=="正文格式"?"compose-format-tools":"compose-draft-tools");return group;
     }
     private void Field(string label,Control element,string id)
     {
@@ -142,7 +164,7 @@ internal sealed partial class ComposerView : UserControl,IDisposable
         _suggesting?.Cancel();_suggestions.IsVisible=false;_recipient=null;
         await Flush();if(_accounts.SelectedItem is not MailAccount a){_status.Text="请先配置可发送邮件的账户。";return;}
         if(_intent is not null){_status.Text="请确认替代发件账户。";return;}
-        LoadProfile(a);ListDrafts(a.Id);Load((_drafts.SelectedItem as MailDraft) ?? MailDraft.New(a.Id,a.Address));
+        LoadProfile(a);ListDrafts(a.Id);Load(MailDraft.New(a.Id,a.Address));
     }
     private async Task SwitchEditor()
     {

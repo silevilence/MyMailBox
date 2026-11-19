@@ -5,9 +5,9 @@ namespace MyMailBox.Mail;
 
 public sealed partial class MailDraftStore
 {
-    private (Guid Account,Guid? Id) Source(string message)
+    private static (Guid Account,Guid? Id) Source(SqliteMailStore store,string message)
     {
-        using var db=_store.Open();using var c=db.CreateCommand();
+        using var db=store.Open();using var c=db.CreateCommand();
         if (message.StartsWith("graph/", StringComparison.Ordinal)) return GraphReceiveProvider.ReplySource(db, message);
         string item;
         if(Guid.TryParse(message,out var local))item=local.ToString();
@@ -29,7 +29,16 @@ public sealed partial class MailDraftStore
         }
         throw new InvalidDataException("原邮件已移除。");
     }
-    public Guid SourceAccount(string message)=>Source(message).Account;
+    public Guid SourceAccount(string message)=>Source(_store,message).Account;
+    internal static async Task<byte[]> CachedOriginal(SqliteMailStore store,string key,Guid? account,CancellationToken token)
+    {
+        var source=Source(store,key);
+        if (account.HasValue && source.Account!=account) throw new InvalidDataException("这封邮件不在选中的账户中。");
+        if(source.Id is {} local)return await store.Read(local,token);
+        using var db=store.Open();using var c=db.CreateCommand();c.CommandText="SELECT raw FROM provider_inbox WHERE key=$key AND account=$account";
+        c.Parameters.AddWithValue("$key",key);c.Parameters.AddWithValue("$account",source.Account.ToString());
+        return c.ExecuteScalar() as byte[] ?? throw new InvalidDataException("请先下载邮件。");
+    }
     public async Task<MailDraft> Respond(ReplyIntent intent,Guid account,CancellationToken token=default)
     {
         byte[] raw;
@@ -37,14 +46,7 @@ public sealed partial class MailDraftStore
             raw=readMime;
         else
         {
-            var source=Source(intent.Key);
-            if(source.Id is {} local)raw=await _store.Read(local,token);
-            else
-            {
-                using var db=_store.Open();using var c=db.CreateCommand();c.CommandText="SELECT raw FROM provider_inbox WHERE key=$key AND account=$account";
-                c.Parameters.AddWithValue("$key",intent.Key);c.Parameters.AddWithValue("$account",source.Account.ToString());
-                raw=c.ExecuteScalar() as byte[] ?? throw new InvalidDataException("请先在统一收件箱打开并下载原邮件。");
-            }
+            raw=await CachedOriginal(_store,intent.Key,null,token);
         }
         var accounts=await new AccountService(_store).List(token);
         var sending=accounts.FirstOrDefault(a=>a.Id==account && a.Enabled && a.Capabilities.HasFlag(AccountCapabilities.Send)) ??

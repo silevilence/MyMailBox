@@ -14,16 +14,20 @@ public sealed class PluginRuntime(Contributions pages, HostOperations? operation
 {
     private readonly ConcurrentDictionary<string, RunningPlugin> _running = new();
     private readonly ConcurrentDictionary<string, string> _states = new();
+    private readonly ConcurrentDictionary<string,string> _retiredNative = new();
+    public bool NativeNeedsRestart(string instance) => _retiredNative.ContainsKey(instance);
     private long _sequence;
     public IReadOnlyDictionary<string, string> States => new Dictionary<string, string>(_states);
     public EventHub Events { get; } = new();
-    public IReadOnlyCollection<string> Running => _running.Keys.ToArray();
+    public IReadOnlyCollection<string> Running => _running.Keys.Where(id => !NativeNeedsRestart(id)).ToArray();
     public PluginScope Scope(string instance) => _running[instance].Scope;
 
     public async Task Start(PluginDefinition definition, PluginOptions options)
     {
         if (definition.Manifest.SdkMin > 1 || definition.Manifest.SdkMax < 1)
             throw new InvalidOperationException($"{definition.Manifest.Id}: SDK 范围不兼容，宿主为 1");
+        if (NativeNeedsRestart(options.InstanceId) || _retiredNative.Values.Contains(definition.Manifest.Id))
+            throw new InvalidOperationException("这个插件的自定义窗口仍占用旧版本，请重新打开软件后再启用。");
         if (_running.ContainsKey(options.InstanceId)) throw new InvalidOperationException("实例已启用：" + options.InstanceId);
         var root = Context.Create();
         _states[options.InstanceId] = "正在启用";
@@ -65,7 +69,7 @@ public sealed class PluginRuntime(Contributions pages, HostOperations? operation
 
     public async Task Stop(string instance, bool cancel = false, TimeSpan? timeout = null)
     {
-        if (!_running.TryGetValue(instance, out var running)) return;
+        if (!_running.TryGetValue(instance, out var running) || NativeNeedsRestart(instance)) return;
         if (_states[instance].StartsWith("资源/程序集释放失败")) throw new InvalidOperationException(_states[instance]);
         _states[instance] = "正在排空在途操作";
         try { await pages.PrepareStop(instance); await running.Scope.Drain(cancel, timeout ?? TimeSpan.FromSeconds(5)); }
@@ -73,7 +77,18 @@ public sealed class PluginRuntime(Contributions pages, HostOperations? operation
         try
         {
             running.Scope.Dispose();
-            if (running.Assembly is not null) await running.Assembly.UnloadAsync(verify: true);
+            if (running.Assembly is not null)
+            {
+                try { await running.Assembly.UnloadAsync(verify: true); }
+                catch (Exception) when (running.Manifest.Permissions?.Contains("ui.native") == true)
+                {
+                    // The host has removed the UI and drained calls. Keep the file and handles until exit.
+                    _retiredNative[instance] = running.Manifest.Id;
+                    _states[instance] = "已停用，自定义窗口组件将在退出时释放。重新启用前请重启软件。";
+                    diagnostics?.Record(instance, "unload", "deferred", "native-controls-retained");
+                    return;
+                }
+            }
             // Dispose the child handle first: CordiSharp 0.2.0 root disposal restarts its fiber,
             // whose notification walk otherwise races the pump removing child fibers.
             await running.Handle.DisposeAsync();

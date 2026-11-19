@@ -33,13 +33,15 @@ public sealed partial class ProtocolView : UserControl, IDisposable
     private IReadOnlyList<TabItem> _tabs = [];
     private Button _next = null!, _previous = null!;
     private readonly Action<ReplyIntent>? _respond;
-    public ProtocolView(ProtocolPage page,Action<ReplyIntent>? respond=null)
+    private readonly bool _outboxOnly;
+    private Guid? _initialAccount;
+    public ProtocolView(ProtocolPage page,Action<ReplyIntent>? respond=null,bool outboxOnly=false,Guid? initialAccount=null)
     {
-        _page = page; _respond=respond;
+        _initialAccount=initialAccount; _outboxOnly=outboxOnly; _page = page; _respond=respond;
         var panel = new StackPanel { Spacing = 14, MaxWidth = 880 };
-        panel.Children.Add(new TextBlock { Text = "邮箱连接与收发", FontSize = 28, FontWeight = FontWeight.SemiBold });
+        panel.Children.Add(new TextBlock { Text = "收发设置", FontSize = 28, FontWeight = FontWeight.SemiBold });
         panel.Children.Add(new TextBlock { Text = "先在账户管理添加在线账户，再配置服务器。保存配置不会连接或发送邮件。", TextWrapping = TextWrapping.Wrap });
-        _accounts.ItemTemplate = new FuncDataTemplate<MailAccount>((a, _) => new TextBlock { Text = a is null ? "" : $"{a.Name} · {a.Address} · {a.Provider}" });
+        _accounts.ItemTemplate = new FuncDataTemplate<MailAccount>((a, _) => new TextBlock { Text = a is null ? "" : $"{a.Name} · {a.Address}" });
         Add(panel, "在线账户", _accounts, "protocol-account"); _editors.Add(_accounts);
         panel.Children.Add(Action("刷新账户", "protocol-refresh", LoadAccounts));
         var tabs = new TabControl(); var connection = new StackPanel { Spacing = 12 };
@@ -50,7 +52,7 @@ public sealed partial class ProtocolView : UserControl, IDisposable
         _presetPanel.Children.Add(_presetGuide);connection.Children.Add(_presetPanel);
         connection.Children.Add(_incoming.Panel); connection.Children.Add(_outgoing.Panel); _editors.Add(_incoming.Panel); _editors.Add(_outgoing.Panel);
         connection.Children.Add(Action("保存连接配置", "protocol-save", Save));
-        _folders.ItemTemplate = new FuncDataTemplate<RemoteFolder>((f, _) => new TextBlock { Text = f is null ? "" : $"{f.Path} · {f.Role}" });
+        _folders.ItemTemplate = new FuncDataTemplate<RemoteFolder>((f, _) => new TextBlock { Text = f is null ? "" : f.Path });
         _messages.ItemTemplate = new FuncDataTemplate<RemoteSummary>((m, _) => new TextBlock { Text = m is null ? "" : $"{m.Subject}\n{m.From} · {m.Date:g} · {m.Size:N0} 字节", TextWrapping = TextWrapping.Wrap });
         _imap.Children.Add(Action("连接并读取目录", "imap-connect", ConnectImap));
         Add(_imap, "服务器目录", _folders, "imap-folder"); _editors.Add(_folders);
@@ -66,6 +68,12 @@ public sealed partial class ProtocolView : UserControl, IDisposable
         AutomationProperties.SetAutomationId(_status, "protocol-status");
         var feedback = new StackPanel { Spacing = 6, Margin = new Avalonia.Thickness(0, 10, 0, 0) }; feedback.Children.Add(_status); feedback.Children.Add(cancel);
         var layout = new DockPanel(); DockPanel.SetDock(feedback, Dock.Bottom); layout.Children.Add(feedback); layout.Children.Add(new ScrollViewer { Content = panel }); Content = layout;
+        if (outboxOnly)
+        {
+            var folder=(StackPanel)items[^1].Content!; items[^1].Content=null;
+            folder.Children.Insert(0,new TextBlock{Text="发件箱",FontSize=28,FontWeight=FontWeight.SemiBold});
+            feedback.Children.Remove(_status); Content=PageFeedback.Layout(folder,_status);
+        }
         _accounts.SelectionChanged += async (_, _) => { if (!_busy) await Run(SelectAccount); };
         _folders.SelectionChanged += (_, _) => { _offset = 0; _hasMore = false; _messages.ItemsSource = null; UpdateButtons(); };
         AttachedToVisualTree += async (_, _) => await Run(LoadAccounts);
@@ -107,12 +115,13 @@ public sealed partial class ProtocolView : UserControl, IDisposable
     }
     private async Task LoadAccounts()
     {
-        var previous = _selected?.Id;
+        var previous = _initialAccount ?? _selected?.Id; _initialAccount=null;
         var all = await _page.Accounts.List(Token);
         var senders = all.Where(a => a.Capabilities.HasFlag(AccountCapabilities.Send) || a.Provider == "outlook-com").ToArray();
         _outboxAccounts.ItemsSource = senders;
         _outboxAccounts.SelectedItem = senders.FirstOrDefault(a => a.Id == previous) ?? senders.FirstOrDefault();
         await LoadOutbox(0);
+        if (_outboxOnly) return;
         var accounts = all.Where(a => a.Enabled && a.Provider is "imap" or "imap-smtp" or "smtp" or "pop3").ToArray();
         if (_disposed) return;
         _accounts.ItemsSource = accounts; _accounts.SelectedItem = accounts.FirstOrDefault(a => a.Id == previous) ?? accounts.FirstOrDefault();
@@ -182,7 +191,7 @@ public sealed partial class ProtocolView : UserControl, IDisposable
         var folders = await _page.Service.Folders(Selected().Id, Token); if (_disposed) return;
         _folders.ItemsSource = folders.Where(f => f.Selectable).ToArray(); _folders.SelectedItem = folders.FirstOrDefault(f => f.Selectable && f.Role == "inbox") ?? folders.FirstOrDefault(f => f.Selectable);
         _syncView?.SetFolders(folders.Where(f => f.Selectable).Select(f => f.Path));
-        _status.Text = $"连接成功，发现 {folders.Count} 个目录。特殊用途由服务器属性映射。";
+        _status.Text = $"连接成功，发现 {folders.Count} 个目录。已识别服务器标出的特殊文件夹。";
     }
     private async Task ReadSummaries(int offset)
     {

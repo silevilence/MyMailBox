@@ -94,6 +94,7 @@ public sealed class App : Application
                 {
                     try{lifetime=new DesktopLifetime(desktop.MainWindow,pages,workspace);if(desktop.Args?.Contains("--tray")==true)desktop.MainWindow.Hide();}
                     catch(Exception e){pages.Notice="托盘未能初始化："+e.Message;}
+                    ((ShellWindow)desktop.MainWindow).FinishStartup();
                     initialized.TrySetResult();
                 }
             });

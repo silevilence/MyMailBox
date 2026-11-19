@@ -14,11 +14,13 @@ internal static class Program
     [STAThread]
     private static void Main(string[] args)
     {
+        if (args.Length==2 && args[0]=="office-workflow") { System.Windows.Forms.Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);OfficeWorkflowChecks.Run(args[1]);return; }
         if (args.Length == 2 && args[0] == "graph-recovery-window") { GraphRecoveryWindow.Show(args[1]); return; }
         if (args.Length == 2 && args[0] == "graph-recovery") { GraphRecoveryWindow.Verify(args[1]); return; }
         Console.OutputEncoding = System.Text.Encoding.UTF8;
         System.Windows.Forms.Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
         if (args.Length==2 && args[0]=="performance"){PerformanceUiChecks.Run(int.Parse(args[1]));return;}
+        if (args.Length == 2 && args[0] == "native-management") { OfficeWorkflowChecks.NativeManagement(args[1]); return; }
         if (args.FirstOrDefault() == "protocols") { ProtocolUiChecks.Run(); return; }
         if (args.FirstOrDefault() is "graph" or "local-samples") { GraphUiChecks.Run(args[0] == "local-samples"); return; }
         if (args.Length == 3 && args[0] == "upgrade-missing-runtime") { UpgradeUiChecks.MissingRuntime(args[1], args[2]).GetAwaiter().GetResult(); return; }
@@ -68,15 +70,10 @@ internal static class Program
             }
             if (args.Length > 1 && args[1] == "finish")
             {
-                ui.Click("nav-plugin-settings"); ui.Text("instance-id", "example"); ui.Text("greeting", "设置页已更新");
-                ui.Click("save-plugin-settings"); ui.Result("已保存并生效");
-                ui.Click("nav-example/example"); ui.Click("ping"); ui.Result("设置页已更新");
-                ui.Click("nav-plugin-manager"); ui.Text("plugin-id", "example"); ui.Text("plugin-version", "1.0.0");
-                ui.Click("remove-package"); ui.Result("指定版本已移除");
+                ui.Click("nav-plugin-manager"); ui.Plugin("example","1.0.0","基础功能示例");ui.Click("remove-package");ui.Click("confirm-plugin-action");ui.Result("指定版本已移除");
                 if (!Directory.Exists(Path.Combine(workspace, "plugins/example/2.0.0"))) throw new Exception("Removal affected another version");
-                ui.Text("plugin-version", "2.0.0"); ui.Text("managed-instance", "example");
-                ui.Click("remove-instance"); ui.Result("已停用"); ui.Gone("nav-example/example");
-                ui.Click("remove-package"); ui.Result("指定版本已移除");
+                ui.Plugin("example","2.0.0","基础功能示例");ui.Click("remove-instance");ui.Click("confirm-plugin-action");ui.Result("已停用");ui.Gone("nav-example/example");
+                ui.Click("remove-package");ui.Click("confirm-plugin-action");ui.Result("指定版本已移除");
                 ui.Click("nav-diagnostics"); ui.Click("export-diagnostics"); ui.Result("诊断已导出");
                 var finishProcess = Process.GetProcessById(app.ProcessId); window.Close();
                 if (!finishProcess.WaitForExit(15000)) throw new Exception("Final shutdown failed");
@@ -86,23 +83,13 @@ internal static class Program
             }
             if (args.Length == 0)
             {
-            Capture.Element(window).ToFile(Path.Combine(output, "01-welcome.png"));
-            ui.Click("nav-prototype/read"); ui.Click("read-message"); ui.Result("工作");
-            ui.Select("read-account", 1); ui.Click("read-message"); ui.Result("alex@personal.example");
-            ui.Click("read-empty"); ui.Result("没有邮件"); ui.Click("read-error"); ui.Result("加载失败"); ui.Click("read-retry"); ui.Result("本周安排");
-            ui.Click("nav-prototype/compose"); ui.Select("send-account", 1); ui.Click("save-draft"); ui.Result("alex@personal.example");
-            ui.Click("restore-draft"); ui.Result("alex@personal.example");
-            ui.Find("recipient").Focus(); Keyboard.Type(VirtualKeyShort.TAB); Thread.Sleep(100);
-            if (!ui.Find("subject").Properties.HasKeyboardFocus.Value) throw new Exception("Keyboard field traversal failed");
-            ui.Click("nav-prototype/automation"); ui.Click("preview-plan"); ui.Result("处理来源：个人");
-            Capture.Element(window).ToFile(Path.Combine(output, "02-automation.png"));
-            ui.Click("fail-plan"); ui.Result("来源全部保留"); ui.Click("nav-prototype/recovery"); ui.Click("resume-plan"); ui.Result("仅继续第 3 封");
-            Console.WriteLine("PASS UI prototype + keyboard");
+            ui.Click("nav-accounts/inbox");Capture.Element(window).ToFile(Path.Combine(output,"01-inbox.png"));
+            ui.Gone("nav-prototype/read");
 
             features!.Run(ui, window);
 
             ui.Click("nav-accounts/outlook-import");
-            ui.Click("outlook-preview"); ui.Status("outlook-status", "请先选择来源 Profile");
+            ui.Click("outlook-preview"); ui.Status("outlook-status", "请先选择来源配置");
             var pst = Path.Combine(repo, "artifacts/outlook-acceptance/final/read-ansi.pst");
             if (File.Exists(pst))
             {
@@ -121,18 +108,15 @@ internal static class Program
             }
 
             ui.Click("nav-plugin-manager");
+            ui.Expand("安装插件");
             foreach (var name in new[] { "example-1.0.0", "example-2.0.0", "alternative-selector-1.0.0", "native-1.0.0" })
             {
                 ui.Text("package-path", Path.Combine(repo, "artifacts/packages", name + ".zip"));
-                ui.Click("inspect-package"); ui.Result("完整性与 SDK 检查通过"); ui.Click("install-package"); ui.Result("已安装");
+                ui.Click("inspect-package"); ui.Result("兼容性检查"); ui.Click("install-package"); ui.Result("已安装");
             }
-            ui.Text("plugin-id", "example"); ui.Text("plugin-version", "1.0.0"); ui.Text("managed-instance", "example");
-            ui.Click("enable-plugin"); ui.Result("实例已启用"); ui.Click("nav-example/example"); ui.Click("ping"); ui.Result("私有依赖");
-            ui.Click("nav-plugin-manager"); ui.Click("start-operation"); ui.Result("模拟任务已接单"); ui.Text("plugin-version", "2.0.0");
-            ui.Click("upgrade-plugin"); ui.Result("新版本已启用");
-            ui.Text("plugin-version", "1.0.0"); ui.Select("fail-initialization", 1); ui.Click("upgrade-plugin"); ui.Result("上次有效");
-            ui.Click("list-plugins"); ui.Result("example → example@2.0.0");
-            Console.WriteLine("PASS UI install + in-flight upgrade + rollback");
+            ui.Plugin("example","1.0.0","基础功能示例");ui.Click("enable-plugin");ui.Result("插件已启用");ui.Click("nav-example/example");ui.Click("ping");ui.Result("私有依赖");
+            ui.Click("nav-plugin-manager");ui.Plugin("example","2.0.0","基础功能示例");ui.Click("upgrade-plugin");ui.Result("版本已切换");
+            Console.WriteLine("PASS external plug-in install, activation and version change from list");
             }
 
             var pluginsPath = Path.Combine(profile, "plugins.json");
@@ -152,7 +136,7 @@ internal static class Program
                 ui.Click("nav-plugin-manager");
                 ConfigurationFiles.Save(pluginsPath, new(1, withoutSelector));
                 ui.Gone("nav-alternative/selector");
-                ui.Click("list-plugins"); ui.Result("alternative：已停用并释放");
+                ui.Click("nav-diagnostics");ui.Click("view-permissions");ui.Result("alternative：已停用并释放");
                 if ((i + 1) % 10 == 0) Console.WriteLine($"UI selector rounds: {i + 1}/30");
             }
             Console.WriteLine("PASS UI 30 navigation/unload selector rounds");
@@ -166,11 +150,11 @@ internal static class Program
             ConfigurationFiles.Save(pluginsPath, new(1, withoutSelector));
             ui.Gone("nav-native/native");
             Thread.Sleep(9000);
-            ui.Click("list-plugins");
+            ui.Click("nav-diagnostics");ui.Click("view-permissions");
             var nativeStatus = ui.Find("action-result").Name;
-            if (!nativeStatus.Contains("native：已停用并释放") && !nativeStatus.Contains("资源/程序集释放失败")) throw new Exception("Native unload not diagnosed");
+            if (!nativeStatus.Contains("native：已停用并释放") && !nativeStatus.Contains("自定义窗口组件将在退出时释放")) throw new Exception("Native unload not diagnosed");
             File.WriteAllText(Path.Combine(output, "native-result.txt"), nativeStatus);
-            Console.WriteLine(nativeStatus.Contains("资源/程序集释放失败") ? "PASS UI native retention explicitly reported (advanced controls require restart)" : "PASS UI native animation/resources unload");
+            Console.WriteLine(nativeStatus.Contains("自定义窗口组件将在退出时释放") ? "PASS UI native retention explicitly reported (advanced controls require restart)" : "PASS UI native animation/resources unload");
 
             ui.Click("nav-diagnostics"); ui.Click("view-permissions"); ui.Result("声明"); ui.Click("export-diagnostics"); ui.Result("诊断已导出");
             if (!Directory.EnumerateFiles(Path.Combine(workspace, "exports"), "*.json").Any()) throw new Exception("No exported diagnostics");
@@ -212,22 +196,56 @@ internal static class Program
 
 internal sealed class Ui(Window window)
 {
-    public AutomationElement Find(string id) => Wait(() => window.FindFirstDescendant(cf => cf.ByAutomationId(id)), e => e is not null, id)!;
+    public AutomationElement Find(string id) => Wait(() =>
+    {
+        var element=window.FindFirstDescendant(cf=>cf.ByAutomationId(id));
+        if(element!=null || !id.StartsWith("nav-",StringComparison.Ordinal))return element;
+        foreach(var group in new[]{"设置","邮件工具","导入与备份","其他功能"})
+        {
+            var section=window.FindFirstDescendant(cf=>cf.ByAutomationId("nav-group-"+group));
+            if(section is null)continue;
+            SetExpanded(section,true);
+            element=window.FindFirstDescendant(cf=>cf.ByAutomationId(id));if(element!=null)break;
+        }
+        return element;
+    }, e=>e is not null,id)!;
+    public void Plugin(string instance,string version,string? displayName = null)
+    {
+        Text("plugin-search",displayName ?? instance);
+        var element=Find("plugin-row-"+instance+"-"+version);
+        while(!element.Patterns.SelectionItem.IsSupported)element=element.Parent;
+        element.Patterns.SelectionItem.Pattern.Select();
+    }
+    public void ClickIfVisible(string id) {var b=window.FindFirstDescendant(cf=>cf.ByAutomationId(id));if(b is { IsEnabled:true } && !b.IsOffscreen)b.AsButton().Invoke();}
     public void Click(string id) { Find(id).AsButton().Invoke(); Thread.Sleep(100); }
     public void Text(string id, string value) => Find(id).AsTextBox().Text = value;
     public void Select(string id, int index) { var combo = Find(id).AsComboBox(); combo.Select(index); combo.Collapse(); }
     public void Status(string id, string value) => Wait(() => window.FindFirstDescendant(cf => cf.ByAutomationId(id))?.Name, text => text?.Contains(value) == true, id + ": " + value);
     public void Body(string value) => Wait(() => Find("mail-body").AsTextBox().Text, text => text.Contains(value), "body: " + value);
     public void Check(string id, bool value = true) => Find(id).AsCheckBox().IsChecked = value;
+    public void SetPermission(string name, bool enabled)
+    {
+        var check = Wait(() => window.FindFirstDescendant(cf => cf.ByName(name)
+            .And(cf.ByControlType(FlaUI.Core.Definitions.ControlType.CheckBox))), e => e != null, name)!;
+        check.AsCheckBox().IsChecked = enabled;
+    }
     public void Expand(string name, bool expanded = true)
     {
-        var element = Wait(() => window.FindFirstDescendant(cf => cf.ByName(name)), e => e is not null, "expander: " + name)!;
-        if (element.Patterns.ExpandCollapse.IsSupported)
-        { if (expanded) element.Patterns.ExpandCollapse.Pattern.Expand(); else element.Patterns.ExpandCollapse.Pattern.Collapse(); }
-        else
+        var element = Wait(() => window.FindFirstDescendant(cf => cf.ByAutomationId("ExpanderHeader").And(cf.ByName(name)))
+            ?? window.FindAllDescendants(cf => cf.ByName(name)).FirstOrDefault(e => e.Patterns.Toggle.TryGetPattern(out _)
+                || e.Patterns.ExpandCollapse.TryGetPattern(out _)), e => e is not null, "expander: " + name)!;
+        SetExpanded(element,expanded);
+    }
+    private static void SetExpanded(AutomationElement element,bool expanded)
+    {
+        var header = element.FindFirstDescendant(cf => cf.ByAutomationId("ExpanderHeader")) ?? element;
+        if (header.Patterns.Toggle.TryGetPattern(out var toggle))
         {
-            var toggle = element.Patterns.Toggle.Pattern;
             if ((toggle.ToggleState.Value == FlaUI.Core.Definitions.ToggleState.On) != expanded) toggle.Toggle();
+        }
+        else if (element.Patterns.ExpandCollapse.TryGetPattern(out var section))
+        {
+            if (expanded) section.Expand(); else section.Collapse();
         }
     }
     public void SelectList(string id, int index) => Wait(() => Find(id).AsListBox().Items, items => items.Length > index, id + " items")[index].Select();

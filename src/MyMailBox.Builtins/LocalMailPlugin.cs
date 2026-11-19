@@ -14,7 +14,8 @@ public static class LocalMailPlugin
         context.Effect(() => host.AddExporter(new Mail.AttachmentExporter(store, parser, new Mail.AttachmentService(store))));
         foreach (var format in new[] { "pdf", "html", "txt" })
             context.Effect(() => host.AddExporter(new Mail.ReadableExporter(store, parser, new Mail.HtmlMailRenderer(), format, printer)));
-        context.Effect(() => host.Add(new Page("inbox", "本地邮箱", "导入 EML 并在此工作空间持久保存。", [], [],
-            (_, _) => Task.FromResult(""), new(store, parser, new Mail.HtmlMailRenderer(), remote, new Mail.AttachmentService(store)))));
+        var reader=new MailReader(store,parser,new Mail.HtmlMailRenderer(),remote,new Mail.AttachmentService(store));
+        context.Effect(() => host.Add(new Page("inbox","本地邮件","",[],[],(_,_)=>Task.FromResult(""),reader)));
+        context.Effect(() => host.Add(new Page("sent","已发送","",[],[],(_,_)=>Task.FromResult(""),reader){SentFolderOnly=true}));
     }
 }

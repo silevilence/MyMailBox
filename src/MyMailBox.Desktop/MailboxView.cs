@@ -52,9 +52,10 @@ public sealed class MailboxView : UserControl, IDisposable
     private SavedAttachment? _savedAttachment;
     private CancellationTokenSource? _savingAttachment;
 
-    public MailboxView(MailReader reader, IReadOnlyList<IMessageExporter> exporters,Action<ReplyIntent>? respond=null)
+    private readonly bool _sentOnly;
+    public MailboxView(MailReader reader, IReadOnlyList<IMessageExporter> exporters,Action<ReplyIntent>? respond=null,bool sentOnly=false)
     {
-        _reader = reader;
+        _sentOnly=sentOnly; _reader = reader;
         _exporters = exporters; _exportFormat.ItemsSource = exporters.Select(e => e.Name).ToArray(); _exportFormat.SelectedIndex = exporters.Count > 0 ? 0 : -1;
         AutomationProperties.SetAutomationId(_file, "mail-file"); AutomationProperties.SetName(_file, "EML 文件路径");
         AutomationProperties.SetAutomationId(_folders, "mail-folders"); AutomationProperties.SetName(_folders, "邮件目录");
@@ -77,12 +78,12 @@ public sealed class MailboxView : UserControl, IDisposable
             if (files.Count > 0) _file.Text = files[0].Path.LocalPath;
         });
         var header = new StackPanel { Spacing = 8 };
-        header.Children.Add(new TextBlock { Text = "本地邮箱", FontSize = 28, FontWeight = FontWeight.SemiBold });
-        header.Children.Add(new TextBlock { Text = "原始邮件保存在当前工作空间；导入不会移动或修改源文件。", TextWrapping = TextWrapping.Wrap });
+        header.Children.Add(new TextBlock { Text = sentOnly?"已发送":"本地邮件", FontSize = 28, FontWeight = FontWeight.SemiBold });
+        header.Children.Add(new TextBlock { Text = sentOnly?"这里显示已保存在本机的发件副本。":"导入的邮件会保存在本机，原文件仍在原处。", TextWrapping = TextWrapping.Wrap });
         header.Children.Add(_folders);
         var fileGrid = new Grid { ColumnDefinitions = new("*,Auto,Auto"), ColumnSpacing = 8 };
         fileGrid.Children.Add(_file); Grid.SetColumn(browse, 1); fileGrid.Children.Add(browse); Grid.SetColumn(_import, 2); fileGrid.Children.Add(_import);
-        header.Children.Add(fileGrid);
+        if(!sentOnly)header.Children.Add(fileGrid);
         AutomationProperties.SetAutomationId(_mode, "mail-mode"); AutomationProperties.SetName(_mode, "阅读模式");
         AutomationProperties.SetAutomationId(_encoding, "mail-encoding"); AutomationProperties.SetName(_encoding, "正文编码");
         var readingOptions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 }; readingOptions.Children.Add(_mode); readingOptions.Children.Add(_encoding); header.Children.Add(readingOptions);
@@ -123,11 +124,18 @@ public sealed class MailboxView : UserControl, IDisposable
         });
         _linkOpen.IsVisible = false; footer.Children.Add(_linkOpen);
         var exportPanel = new StackPanel { Spacing = 8 };
-        exportPanel.Children.Add(new TextBlock { Text = "Ctrl/Shift 多选当前页邮件；同名文件保留，重复 EML 导出复用相同原文。PDF/HTML/纯文本是阅读副本，此入口不另存附件；需要附件选项与结果预览时请使用“批量导出”。", TextWrapping = TextWrapping.Wrap });
+        exportPanel.Children.Add(new TextBlock { Text = "按住 Ctrl 可逐封选择，按住 Shift 可连续选择。EML 保留原邮件和附件。需要将附件单独保存时，请使用“批量导出”。", TextWrapping = TextWrapping.Wrap });
         AutomationProperties.SetAutomationId(_exportDirectory, "mail-export-directory"); AutomationProperties.SetName(_exportDirectory, "导出目录");
         AutomationProperties.SetAutomationId(_exportFormat, "mail-export-format"); AutomationProperties.SetName(_exportFormat, "导出格式");
         exportPanel.Children.Add(new TextBlock { Text = "导出目录" }); exportPanel.Children.Add(_exportDirectory); exportPanel.Children.Add(_exportFormat);
         var exportActions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        exportActions.Children.Add(Button("选择文件夹…", "mail-export-browse", async () =>
+        {
+            var picker = TopLevel.GetTopLevel(this)?.StorageProvider;
+            if (picker is null) return;
+            var folder = (await picker.OpenFolderPickerAsync(new() { Title = "选择邮件导出位置" })).FirstOrDefault();
+            if (folder is not null) _exportDirectory.Text = folder.Path.LocalPath;
+        }));
         exportActions.Children.Add(Button("导出所选邮件", "mail-export", Export));
         exportActions.Children.Add(Button("取消导出", "mail-export-cancel", () => { _exporting?.Cancel(); return Task.CompletedTask; })); exportPanel.Children.Add(exportActions);
         AddTool("导出邮件", exportPanel);
@@ -143,12 +151,17 @@ public sealed class MailboxView : UserControl, IDisposable
         AddTool("远程多媒体", remotePanel);
         var attachmentPanel = new StackPanel { Spacing = 8 };
         AutomationProperties.SetAutomationId(_attachments, "mail-attachments"); AutomationProperties.SetName(_attachments, "附件和内联内容");
-        _attachments.ItemTemplate = new FuncDataTemplate<MimePartInfo>((p, _) => new TextBlock { Text = p is null ? "" : $"{(p.Name.Length == 0 ? p.ContentType : p.Name)} · {(p.ContentId is not null ? "内联 CID" : p.ContentType == "message/rfc822" ? "嵌入邮件" : "附件")}" });
+        _attachments.ItemTemplate = new FuncDataTemplate<MimePartInfo>((p, _) => new TextBlock { Text = p is null ? "" : $"{(p.Name.Length == 0 ? p.ContentType : p.Name)} · {(p.ContentId is not null ? "正文内图片" : p.ContentType == "message/rfc822" ? "嵌入邮件" : "附件")}" });
         _attachments.SelectionChanged += (_, _) => { _savedAttachment = null; if (_attachmentOpen is not null) _attachmentOpen.IsEnabled = false; };
         attachmentPanel.Children.Add(_attachments); attachmentPanel.Children.Add(new TextBlock { Text = "保存目录（重名自动另存，不覆盖已有文件）" });
         AutomationProperties.SetAutomationId(_attachmentDirectory, "mail-attachment-directory"); AutomationProperties.SetName(_attachmentDirectory, "附件保存目录"); attachmentPanel.Children.Add(_attachmentDirectory);
         var attachmentActions = new WrapPanel { Orientation = Orientation.Horizontal };
-        attachmentActions.Children.Add(Button("受限预览", "mail-attachment-preview", PreviewAttachment));
+        attachmentActions.Children.Add(Button("选择保存位置…","mail-attachment-browse",async()=>{
+            var picker=TopLevel.GetTopLevel(this)?.StorageProvider;if(picker is null)return;
+            var folder=(await picker.OpenFolderPickerAsync(new(){Title="选择附件保存位置"})).FirstOrDefault();
+            if(folder is not null)_attachmentDirectory.Text=folder.Path.LocalPath;
+        }));
+        attachmentActions.Children.Add(Button("预览附件", "mail-attachment-preview", PreviewAttachment));
         attachmentActions.Children.Add(Button("保存附件", "mail-attachment-save", SaveAttachment));
         attachmentActions.Children.Add(Button("取消保存", "mail-attachment-cancel", () => { _savingAttachment?.Cancel(); return Task.CompletedTask; }));
         _attachmentOpen = Button("确认打开已保存附件", "mail-attachment-open", () =>
@@ -183,6 +196,11 @@ public sealed class MailboxView : UserControl, IDisposable
     {
         var folders = await _reader.Store.Folders(_lifetime.Token);
         if (_disposed) return;
+        if(_sentOnly)
+        {
+            folders=folders.Where(f=>f.Role is "sent" or "local-sent-copy").ToArray();
+            if(folders.Count==0)_status.Text="还没有已保存的发件副本。";
+        }
         _folders.ItemsSource = folders; _folders.SelectedIndex = folders.Count > 0 ? 0 : -1;
     }
 
@@ -302,7 +320,7 @@ public sealed class MailboxView : UserControl, IDisposable
     private async Task SaveAttachment()
     {
         if (_reader.Attachments is null || _messageId is not { } id || _attachments.SelectedItem is not MimePartInfo part) throw new InvalidDataException("请选择附件。");
-        if (string.IsNullOrWhiteSpace(_attachmentDirectory.Text)) throw new InvalidDataException("请填写附件保存目录。");
+        if (string.IsNullOrWhiteSpace(_attachmentDirectory.Text)) throw new InvalidDataException("请选择附件保存位置。");
         using var cancellation = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token); _savingAttachment = cancellation;
         try
         {

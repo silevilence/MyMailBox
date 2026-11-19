@@ -20,6 +20,13 @@ internal static class ManagementChecks
         values["plugin-id"] = "dependent"; values["managed-instance"] = "dependent";
         await PluginChecks.Reject(() => page.Execute(values, "enable-plugin"), "missing.service");
         PluginChecks.Check(config.Current.Instances.Single(p => p.Id == "dependent").Enabled == false && runtime.Running.Contains("welcome"), "Missing dependency discarded config or affected app");
+        await config.Save(new(1,[new("first","welcome","1.0.0",Options:new(){Greeting="保留设置"}),new("second","welcome","1.0.0")]));
+        var entries=page.ManagedPlugins!();PluginChecks.Check(entries.Count(p=>p.Plugin=="welcome" && p.Enabled)==2,"Plugin list lost duplicate instances");
+        values["plugin-id"]="welcome";values["managed-instance"]="first";
+        await page.Execute(values,"disable-plugin");
+        PluginChecks.Check(!config.Current.Instances.Single(p=>p.Id=="first").Enabled && runtime.Running.Contains("second"),"Stopping one instance stopped its sibling");
+        await page.Execute(values,"enable-plugin");
+        PluginChecks.Check(config.Current.Instances.Single(p=>p.Id=="first").Options?.Greeting=="保留设置","Enabling discarded saved options");
         var platform = catalog.Find(DefaultProfile.Core.Instances[0]);
         catalog.Add(platform with { Manifest = platform.Manifest with { Version = "2.0.0" } });
         var core = new CoreProfile(runtime, catalog, Path.Combine(directory, "core.json")); await core.Start();

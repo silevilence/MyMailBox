@@ -26,7 +26,7 @@ public static class OutlookRuleImport
                 throw new InvalidDataException("规则清单版本、规则顺序或字段无效。");
             return inventory;
         }
-        catch (JsonException ex) { throw new InvalidDataException("无法读取规则清单，请使用只读采集脚本导出的 JSON。",ex); }
+        catch (JsonException ex) { throw new InvalidDataException("无法读取规则清单，请重新从经典 Outlook 读取规则，或选择已导出的规则清单。",ex); }
     }
 
     public static OutlookRuleConversion Convert(OutlookRuleInventory inventory,OutlookSourceRule source,SearchScope scope,SearchScope? destination)

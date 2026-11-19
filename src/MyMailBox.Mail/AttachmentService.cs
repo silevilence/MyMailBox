@@ -8,7 +8,12 @@ public sealed class AttachmentService(IMailStore store, IAttachmentPreviewer? pr
 {
     public async Task<SavedAttachment> Save(Guid message, string part, string directory, IProgress<long>? progress = null, CancellationToken cancellation = default)
     {
-        var raw = await store.Read(message, cancellation); using var source = new MemoryStream(raw, false); using var mime = Parse(source, cancellation);
+        var raw = await store.Read(message,cancellation);
+        return await SaveOriginal(raw,part,directory,progress,cancellation);
+    }
+    public static async Task<SavedAttachment> SaveOriginal(byte[] raw,string part,string directory,IProgress<long>? progress=null,CancellationToken cancellation=default)
+    {
+        using var source = new MemoryStream(raw, false); using var mime = Parse(source, cancellation);
         var entity = Find(mime.Body, part); var original = entity.ContentDisposition?.FileName ?? entity.ContentType.Name;
         var name = SafeName(original ?? (entity is MessagePart ? "嵌入邮件.eml" : "附件.bin"));
         directory = Path.GetFullPath(directory); Directory.CreateDirectory(directory); var path = Path.Combine(directory, name);

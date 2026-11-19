@@ -6,6 +6,8 @@ CI 修复验证：普通 push/PR 不再触发构建；修正 `runner.temp` 的�
 
 日期：2026 年 11 月 19 日。**完成 82；进行中 14；阻塞 1；未开始 11。** 50 的 ANSI 中文及正文修复通过，研究选型完成；32 已内置发布者应用注册，普通用户直接登录，无需输入 Client ID，待个人账户真实登录/读取验收；35 的 EWS 认证仍失败，但 ActiveSync 带凭据 OPTIONS 已返回 200，声明最高协议 16.1，待部署、设备策略及测试目录读写验收。Exchange 产品须由用户逐账户填写服务器及身份，不绑定验收公司域名。证据见 [PST 修复](../../docs/validation/2026-11-17-pst-ansi-fix.md)、[Outlook.com 配置](../../docs/validation/outlook-com-setup.md)、[公司端点调查](../../docs/validation/2026-11-17-exchange-discovery.md)。
 
+桌面界面已重新整理。收件箱、写信、草稿箱和发件箱可直接进入，插件可按名称查找和启停。本机办公样本和验证范围见[办公邮箱界面改版](../../docs/validation/2026-11-19-office-ui.md)。
+
 本轮已完成 34 的断网重连与缓存翻页。真实账户、规则投递存储及发布环境的集中验收见[必做项记录](../../docs/validation/2026-11-19-task-000-local.md)。99–108 的产品范围未选入首版，十项均已完成[本地评估](../../docs/validation/2026-11-19-task-000-optional.md)。
 
 - [000-mymailbox 开发规格与完成标准](spec.md)

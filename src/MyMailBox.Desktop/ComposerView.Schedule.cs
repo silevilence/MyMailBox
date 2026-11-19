@@ -9,7 +9,7 @@ internal sealed partial class ComposerView
 {
     private readonly CalendarDatePicker _sendDate=new(){SelectedDate=DateTime.Today};
     private readonly TimePicker _sendTime=new(){ClockIdentifier="24HourClock",SelectedTime=DateTime.Now.AddHours(1).TimeOfDay};
-    private readonly ComboBox _zone=new(){ItemsSource=TimeZoneInfo.GetSystemTimeZones().Select(z=>z.Id).ToArray(),SelectedItem=TimeZoneInfo.Local.Id};
+    private readonly ComboBox _zone=new(){ItemsSource=TimeZoneInfo.GetSystemTimeZones(),SelectedItem=TimeZoneInfo.Local};
     private readonly ComboBox _missed=new(){ItemsSource=new[]{"恢复运行后发送","迟到超过一分钟时等待确认"},SelectedIndex=0};
     private readonly TextBlock _planStatus=new(){TextWrapping=TextWrapping.Wrap};
     private SendPlan? _plan;private Guid? _planId;private int _planRead;
@@ -36,7 +36,7 @@ internal sealed partial class ComposerView
             _plan=plan;_planStatus.Text="当前草稿没有待执行的预约。";
             if(plan is null)return;
             var time=TimeZoneInfo.ConvertTime(plan.Due,TimeZoneInfo.FindSystemTimeZoneById(plan.Zone));
-            _zone.SelectedItem=plan.Zone;_sendDate.SelectedDate=time.Date;_sendTime.SelectedTime=time.TimeOfDay;_missed.SelectedIndex=(int)plan.Missed;
+            _zone.SelectedItem=TimeZoneInfo.FindSystemTimeZoneById(plan.Zone);_sendDate.SelectedDate=time.Date;_sendTime.SelectedTime=time.TimeOfDay;_missed.SelectedIndex=(int)plan.Missed;
             _planStatus.Text=$"已保留计划 {time:yyyy-MM-dd HH:mm:ss zzz} · {plan.Zone}。编辑正文后须更新预约。";
         }
         catch(Exception e){if(!_disposed && version==_planRead)_planStatus.Text=e.Message;}
@@ -45,7 +45,7 @@ internal sealed partial class ComposerView
     {
         await Flush();var d=_draft ?? throw new InvalidDataException("请先创建草稿。");
         if(d.Version==0)_draft=d=_page.Drafts.Save(d);
-        var zone=TimeZoneInfo.FindSystemTimeZoneById(_zone.SelectedItem as string ?? TimeZoneInfo.Local.Id);
+        var zone=_zone.SelectedItem as TimeZoneInfo ?? TimeZoneInfo.Local;
         DateTimeOffset due;
         if(delay)due=DateTimeOffset.Now.AddSeconds(30);
         else

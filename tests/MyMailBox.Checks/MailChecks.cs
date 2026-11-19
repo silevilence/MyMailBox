@@ -40,7 +40,7 @@ internal static class MailChecks
         var contributions = new Contributions(); await using var runtime = new PluginRuntime(contributions);
         var catalog = DefaultProfile.Catalog(directory, new MemoryStore(), parser);
         await runtime.Start(catalog.Find(new("mail-test", "local-mail", "1.0.0")), new PluginOptions { InstanceId = "mail-test" });
-        var reader = contributions.Pages.Single(p => p.Reader is not null).Reader!;
+        var reader = contributions.Pages.Single(p => p.Id == "mail-test/inbox").Reader!;
         Check(contributions.Exporters.Count(e => e.FormatId == "eml") == 1, "EML exporter not uniquely registered");
         await Exercise(reader.Store, reader.Parser);
         await runtime.Stop("mail-test");
