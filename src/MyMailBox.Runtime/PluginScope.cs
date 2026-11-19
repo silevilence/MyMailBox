@@ -45,6 +45,7 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
             Export = page.Export is { } export ? new(new ScopedMailStore(this, Target(export.Store)), new ScopedSelections(this, Target(export.Selections))) : null,
             LocalMailboxes = page.LocalMailboxes is { } local ? new ScopedLocalMailboxes(this, Target(local)) : null,
             PstImport = page.PstImport is { } pst ? new ScopedPstImport(this, Target(pst)) : null,
+            OutlookAccounts = page.OutlookAccounts is { } outlook ? new ScopedOutlookAccounts(this, Target(outlook)) : null,
             Reminders = page.Reminders is { } reminders ? new(new ScopedReminders(this, Target(reminders.Scheduler)), new ScopedMailStore(this, Target(reminders.Mail))) : null,
             Schedules = page.Schedules is { } schedules ? new ScopedSchedules(this, Target(schedules)) : null,
             Updates = page.Updates is { } updates ? new ScopedUpdates(this, Target(updates)) : null,
@@ -459,6 +460,15 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         public Task<PstPreview> Preview(string file, int? codePage, CancellationToken token) => scope.Run(t => service.Value.Preview(file, codePage, t), token);
         public Task<PstResult> Import(PstPreview preview, Guid target, IProgress<PstProgress>? progress, CancellationToken token) =>
             scope.Run(t => service.Value.Import(preview, target, progress, t), token);
+    }
+
+    private sealed class ScopedOutlookAccounts(PluginScope scope, ServiceTarget<IOutlookAccountImport> service) : IOutlookAccountImport
+    {
+        public Task<IReadOnlyList<string>> Profiles(CancellationToken token) => scope.Run(t => service.Value.Profiles(t), token);
+        public Task<IReadOnlyList<OutlookAccountPreview>> Preview(string profile, CancellationToken token) => scope.Run(t => service.Value.Preview(profile, t), token);
+        public Task<IReadOnlyList<MailAccount>> Matches(string provider, string address, CancellationToken token) => scope.Run(t => service.Value.Matches(provider, address, t), token);
+        public Task<MailAccount> Import(AccountEdit edit, ProtocolSettings settings, Guid? mapTo, CancellationToken token) =>
+            scope.Run(t => service.Value.Import(edit, settings, mapTo, t), token);
     }
 
     private sealed class ScopedLocalMailboxes(PluginScope scope, ServiceTarget<ILocalMailboxService> service) : ILocalMailboxService

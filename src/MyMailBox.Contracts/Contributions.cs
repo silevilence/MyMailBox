@@ -7,6 +7,7 @@ public sealed record Page(string Id, string Title, string Description, IReadOnly
     public ExportSource? Export { get; init; }
     public ILocalMailboxService? LocalMailboxes { get; init; }
     public IPstImport? PstImport { get; init; }
+    public IOutlookAccountImport? OutlookAccounts { get; init; }
     public ReminderPage? Reminders { get; init; }
     public IScheduleService? Schedules { get; init; }
     public IUpdateService? Updates { get; init; }

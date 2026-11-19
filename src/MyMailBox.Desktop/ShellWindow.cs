@@ -234,6 +234,10 @@ public sealed class ShellWindow : Window
         {
             var view = new PstImportView(pst); _hostView = view; _body.Content = view; return;
         }
+        if (page.OutlookAccounts is { } outlookAccounts)
+        {
+            var view = new OutlookAccountsView(outlookAccounts); _hostView = view; _body.Content = view; return;
+        }
         if (page.LocalMailboxes is { } local)
         {
             var view = new LocalMailboxView(local); _hostView = view; _body.Content = view; return;

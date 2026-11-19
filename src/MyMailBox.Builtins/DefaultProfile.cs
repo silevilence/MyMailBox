@@ -46,6 +46,8 @@ public static class DefaultProfile
             var store = new Mail.SqliteMailStore(Path.Combine(location, "mail"));
             var accounts = new Mail.AccountService(store);
             var protocols = new Mail.ProtocolMailService(store, () => host.ProtocolPresets);
+            ctx.Effect(() => host.Add(new Page("outlook-import", "导入 Outlook 账户", "", [], [], (_, _) => Task.FromResult(""))
+                { OutlookAccounts = new Mail.OutlookAccountImport(accounts) }));
             var search = new Mail.MailSearchService(store, protocols, searchExtensions);
             ctx.Effect(() => host.Add(new Page("search", "搜索邮件", "", [], [], (_, _) => Task.FromResult("")) { Search = search }));
             ctx.Effect(() => host.Add(new Page("compose", "写邮件与草稿", "", [], [], (_, _) => Task.FromResult("")) { Composer = new(accounts,new Mail.MailDraftStore(store),protocols) }));

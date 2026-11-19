@@ -39,6 +39,7 @@ if (args.Length == 0 || args.Contains("management")) await ManagementChecks.Run(
 if (args.Length == 0 || args.Contains("mail")) await MailChecks.Run();
 if (args.Contains("pst-import")) await PstImportChecks.Run();
 if (args.Contains("pst-fidelity")) await PstFidelityChecks.Run();
+if (args.Length == 0 || args.Contains("outlook-import")) await OutlookImportChecks.Run();
 if (args.Length == 0 || args.Contains("accounts")) await AccountChecks.Run();
 if (args.Length == 0 || args.Contains("netease-preset")) await ProtocolChecks.Preset("netease-mail");
 if (args.Length == 0 || args.Contains("qq-preset")) await ProtocolChecks.Preset("qq-mail");

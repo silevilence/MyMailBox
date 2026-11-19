@@ -36,7 +36,10 @@ public sealed class AccountService : IAccountService
     // Restore never overwrites another account. A caller must explicitly remap conflicting IDs/aliases.
     public Task<MailAccount> Restore(MailAccount account, CancellationToken cancellation = default) => Task.Run(() => SaveCore(new(account.Id, account.Name, account.Provider, account.Address, account.Alias, account.Tags, account.Color, account.Notes, account.Order, account.Enabled, account.Capabilities), null, true, cancellation), cancellation);
 
-    private MailAccount SaveCore(AccountEdit edit, string? secret, bool restoring, CancellationToken cancellation)
+    internal Task<MailAccount> CreateImported(AccountEdit edit, ProtocolSettings settings, CancellationToken token) =>
+        Task.Run(() => SaveCore(edit, null, false, token, settings), token);
+
+    private MailAccount SaveCore(AccountEdit edit, string? secret, bool restoring, CancellationToken cancellation, ProtocolSettings? imported = null)
     {
         if (string.IsNullOrWhiteSpace(edit.Name)) throw new InvalidDataException("请输入账户名称。");
         var alias = string.IsNullOrWhiteSpace(edit.Alias) ? null : edit.Alias.Trim();
@@ -56,6 +59,15 @@ public sealed class AccountService : IAccountService
         if (edit.Provider is "imap" or "imap-smtp" && capabilities.HasFlag(AccountCapabilities.Receive)) capabilities |= AccountCapabilities.Folders;
         var tags = (edit.Tags ?? []).Select(t => t.Trim()).Where(t => t.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         using var db = _store.Open(); using var transaction = db.BeginTransaction();
+        if (imported != null)
+        {
+            using var match = db.CreateCommand();
+            match.Transaction = transaction;
+            match.CommandText = "SELECT EXISTS(SELECT 1 FROM accounts WHERE removed=0 AND provider=$provider AND address=$address COLLATE NOCASE)";
+            match.Parameters.AddWithValue("$provider", edit.Provider);
+            match.Parameters.AddWithValue("$address", edit.Address.Trim());
+            if (Convert.ToBoolean(match.ExecuteScalar())) throw new InvalidDataException("已存在相同类型和地址的账户。请刷新匹配结果并选择已有账户。");
+        }
         MailAccount? existing = null;
         if (edit.Id is { } editId)
         {
@@ -101,6 +113,14 @@ public sealed class AccountService : IAccountService
         {
             command.Parameters.Clear(); command.CommandText = "INSERT INTO folders VALUES($id,$account,'收件箱',$path,'inbox',NULL)";
             command.Parameters.AddWithValue("$id", Guid.NewGuid().ToString()); command.Parameters.AddWithValue("$account", id.ToString()); command.Parameters.AddWithValue("$path", account.Name + " / 收件箱"); command.ExecuteNonQuery();
+        }
+        if (imported != null)
+        {
+            command.CommandText = "INSERT INTO protocol_settings(account_id,settings) VALUES($id,$settings)";
+            command.Parameters.Clear();
+            command.Parameters.AddWithValue("$id", account.Id.ToString());
+            command.Parameters.AddWithValue("$settings", JsonSerializer.Serialize(imported));
+            command.ExecuteNonQuery();
         }
         cancellation.ThrowIfCancellationRequested(); transaction.Commit(); return account;
     }

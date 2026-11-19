@@ -2,7 +2,7 @@
 
 Spec: 000-mymailbox
 Status: needs-info
-Progress: not-started
+Progress: in-progress
 Type: task
 Scope: 必做
 Estimate: 2–3 人日
@@ -39,8 +39,10 @@ Blocked by: 48, 11, 12
 
 ## 验证与交付记录
 
-实施时记录演示步骤或检查命令、结果、适用环境和已知限制；目前未执行，所有验收项保持未勾选。若发现超出预计粒度，先拆为完整可验收子场景；环境不足时保留具体缺口，不标完成。
+本轮实施及验证见下方记录。
 
 ## Comments
 
 - 2026-11-16：用户确认任务拆分后创建，尚未开始开发。
+
+- 2026-11-19：新增经典 Outlook 16 Internet 账户预览向导。仅在用户选择 Profile 后读取白名单字段，读取到的主机、端口、登录名可预填，TLS 和缺失项需核对，用户可编辑显示名及标签或显式映射到同地址、同类型账户。账户与协议设置在同一事务中创建，凭据需在现有协议页重新授权。outlook-import、accounts、protocols 定向通过。现有 Outlook 样本的 Accounts=0；注册表字段兼容性、有账户的真实读取和重新授权收发待验。
