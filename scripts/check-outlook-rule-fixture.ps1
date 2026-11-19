@@ -14,13 +14,34 @@ if (Test-Path -LiteralPath $fixture) { throw 'Use a new evidence directory to pr
 $originalHash = (Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash
 Copy-Item -LiteralPath $source -Destination $fixture -ErrorAction Stop
 $stage = 'open isolated PST copy'
+$rules = $null
 try {
     $Session.AddStore($fixture)
     $store = @($Session.Stores | Where-Object { $_.FilePath -eq $fixture })[0]
     $root = $store.GetRootFolder()
     $originals = $root.Folders.Item('测试邮件').Folders.Item('嵌套目录')
     $default = $Session.DefaultStore
-    $inbox = $default.GetDefaultFolder(6)
+    $stage = 'GetRules'
+    $probes = foreach ($candidate in @(@{name='default';store=$default}, @{name='attached-pst';store=$store})) {
+        try {
+            $collection = $candidate.store.GetRules()
+            [pscustomobject]@{name=$candidate.name; available=$true; count=$collection.Count}
+            if ($null -eq $rules) { $rules=$collection; $selected=$candidate.store }
+        } catch {
+            [pscustomobject]@{name=$candidate.name; available=$false; reason=$_.Exception.Message; hresult=$_.Exception.HResult}
+        }
+    }
+    $probes | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $Output 'rule-stores.json') -Encoding utf8
+    if ($null -eq $rules) {
+        [ordered]@{available=$false; stage=$stage; stores=$probes; sourceHash=$originalHash} |
+            ConvertTo-Json -Depth 4 | Set-Content -LiteralPath (Join-Path $Output 'rule-results.json') -Encoding utf8
+        if (@($probes | Where-Object { $_.reason -notmatch '此存储区不支持规则|does not support rules' }).Count) {
+            throw 'Unexpected Outlook error while probing the isolated stores; inspect rule-stores.json.'
+        }
+        Write-Output 'Outlook did not expose rules on either isolated store; see rule-stores.json.'
+        return
+    }
+    $inbox = $selected.GetDefaultFolder(6)
     $sample = $inbox.Folders.Add('MyMailBox rule samples')
     $target = $inbox.Folders.Add('MyMailBox rule results')
     $subjects = @(foreach ($message in $originals.Items) {
@@ -29,8 +50,6 @@ try {
         [string]$moved.Subject
     })
     if ($subjects.Count -ne 4) { throw 'Expected the existing four-message PST corpus.' }
-    $stage = 'GetRules'
-    $rules = $default.GetRules()
     $before = $rules.Count
     $stage = 'Rules.Create'
     $rule = $rules.Create('MyMailBox PST comparison',0)
@@ -45,7 +64,7 @@ try {
     $stage = 'Rules.Save'
     $rules.Save($false)
     $stage = 'read-only inventory'
-    & "$PSScriptRoot/inspect-outlook-rules.ps1" -Profile $Profile -StoreName $default.DisplayName -Output (Join-Path $Output 'rule-inventory.json')
+    & "$PSScriptRoot/inspect-outlook-rules.ps1" -Profile $Profile -StoreName $selected.DisplayName -Output (Join-Path $Output 'rule-inventory.json')
     $stage = 'Rule.Execute'
     $rule.Execute($false, $sample, $false, 0)
     $matched = @($target.Items | ForEach-Object { [string]$_.Subject })

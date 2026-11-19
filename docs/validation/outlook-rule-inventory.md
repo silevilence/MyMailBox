@@ -20,3 +20,5 @@
 在只含无账户 PST 的环境，可在“收件规则”中新建停用规则，依次设置原规则的条件和例外，选择本地目标目录，在同一批邮件上预览并核对后再启用。现有规则导出清单和 PST 邮件源是两种不同的输入。已安装的 Outlook 允许时，可对指定测试目录单次执行规则并与 MyMailBox 预览对照。[微软的 Rule.Execute 说明](https://learn.microsoft.com/en-us/office/vba/api/outlook.rule.execute)
 
 在仓库根目录运行 `./scripts/inspect-outlook-rules.ps1 -SelfTest` 可离线复验条件、例外、顺序、停止标志，以及失效目录、脚本、未知类型的留存。实际采集时由用户打开授权的经典 Outlook 测试 Profile，指定 `-Profile`、`-StoreName` 和 `-Output`（新的本地 JSON 文件）。脚本仅附着到当前会话并核对 Profile 和存储名称。清单可能包含账户、目录和规则原文，请保存在 Git 忽略的本地验收目录。
+
+同日复核时，零账户测试 Profile 的默认投递存储及挂载的 ANSI PST 副本分别调用 GetRules，两个存储都返回“不支持规则”。本地清单及转换报告可区分仅客户端、允许服务器执行和源标志不可读；导入后的规则在本地运行并保持停用。正例仍需有可执行规则的 Outlook 投递存储。[集中验收记录](2026-11-19-task-000-local.md)

@@ -50,10 +50,11 @@ function Read-Rule($Rule) {
     $conditions = @(Read-RuleParts $Rule.Conditions $false)
     $exceptions = @(Read-RuleParts $Rule.Exceptions $false)
     $actions = @(Read-RuleParts $Rule.Actions $true)
+    $local = try { $Rule.IsLocalRule } catch { $null }
     $unknown = @(@($conditions + $exceptions + $actions) | Where-Object { !$_.candidate })
     [pscustomobject][ordered]@{
         name=$Rule.Name; order=[int]$Rule.ExecutionOrder; sourceEnabled=[bool]$Rule.Enabled
-        clientOnly=[bool]$Rule.IsLocalRule; direction=[int]$Rule.RuleType
+        clientOnly=if ($null -ne $local) { [bool]$local } else { $null }; direction=[int]$Rule.RuleType
         conditions=$conditions; exceptions=$exceptions; actions=$actions
         candidate=([int]$Rule.RuleType -eq 0 -and $unknown.Count -eq 0 -and $actions.Count -gt 0)
         importEnabled=$false
@@ -71,6 +72,11 @@ if ($SelfTest) {
         Actions=(Collection @([pscustomobject]@{Enabled=$true;ActionType=19},[pscustomobject]@{Enabled=$true;ActionType=21})) }
     $valid=Read-Rule $r
     if (!$valid.candidate -or $valid.importEnabled -or $valid.exceptions.Count -ne 1 -or $valid.actions[1].field -ne 'stop') {throw 'Candidate semantics lost.'}
+    if ($valid.clientOnly -ne $false) {throw 'Lost server-capable provenance.'}
+    $r.IsLocalRule=$true
+    if ((Read-Rule $r).clientOnly -ne $true) {throw 'Lost client-only provenance.'}
+    $r.IsLocalRule=$null
+    if ($null -ne (Read-Rule $r).clientOnly) {throw 'Missing locality became server-capable.'}
     $r.Exceptions=Collection @([pscustomobject]@{Enabled=$true;ConditionType=222})
     $r.Actions=Collection @([pscustomobject]@{Enabled=$true;ActionType=1},[pscustomobject]@{Enabled=$true;ActionType=20})
     $blocked=Read-Rule $r

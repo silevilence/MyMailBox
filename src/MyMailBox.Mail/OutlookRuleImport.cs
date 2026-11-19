@@ -5,7 +5,7 @@ using MyMailBox.Contracts;
 namespace MyMailBox.Mail;
 
 public sealed record OutlookRulePart(int Index,int Type,string Field,string[] Values,bool Candidate,string Reason);
-public sealed record OutlookSourceRule(string Name,int Order,bool SourceEnabled,bool ClientOnly,int Direction,
+public sealed record OutlookSourceRule(string Name,int Order,bool SourceEnabled,bool? ClientOnly,int Direction,
     OutlookRulePart[] Conditions,OutlookRulePart[] Exceptions,OutlookRulePart[] Actions);
 public sealed record OutlookRuleInventory(int Schema,string Profile,string Store,OutlookSourceRule[] Rules);
 public sealed record OutlookRuleConversion(ReceiveRule? Rule,string[] Report);
@@ -31,7 +31,14 @@ public static class OutlookRuleImport
 
     public static OutlookRuleConversion Convert(OutlookRuleInventory inventory,OutlookSourceRule source,SearchScope scope,SearchScope? destination)
     {
-        var report = new List<string>(); var errors = new List<string>();
+        var locality = source.ClientOnly switch
+        {
+            true => "仅限经典 Outlook 客户端",
+            false => "Outlook 未标为仅客户端，是否在服务器执行取决于源邮箱",
+            null => "来源未提供执行位置"
+        };
+        var report = new List<string> { $"源规则执行位置：{locality}。导入后由本应用在本机执行。" };
+        var errors = new List<string>();
         if (scope.Account == null) errors.Add("请选择目标账户或其目录。");
         if (source.Direction != 0) errors.Add("仅能转换收件规则。");
         if (source.Conditions.Length == 0) errors.Add("无条件规则请手动核对适用范围。");

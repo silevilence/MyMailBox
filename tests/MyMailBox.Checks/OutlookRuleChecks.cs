@@ -52,6 +52,11 @@ internal static class OutlookRuleChecks
         await File.WriteAllBytesAsync(file,JsonSerializer.SerializeToUtf8Bytes(new OutlookRuleInventory(1,"测试","邮件",[source]),new JsonSerializerOptions(JsonSerializerDefaults.Web)));
         var inventory = await OutlookRuleImport.Read(file,default);
         var mapped = OutlookRuleImport.Convert(inventory,inventory.Rules.Single(),scope,destination);
+        foreach (var (value, label) in new (bool?, string)[] { (true,"仅限经典"), (false,"未标为仅客户端"), (null,"未提供执行位置") })
+        {
+            var comparison = OutlookRuleImport.Convert(inventory, source with { ClientOnly = value }, scope, destination);
+            MailChecks.Check(comparison.Report.Any(line => line.Contains(label)) && comparison.Rule?.Enabled == false, "Wrong rule origin or activation");
+        }
         var draft = mapped.Rule ?? throw new Exception(string.Join("/",mapped.Report));
         MailChecks.Check(!draft.Enabled && draft.Stop && draft.Order==7 && draft.Account==scope.Account && draft.Folder==scope.Folder &&
             draft.Actions.Select(a=>a.Kind).SequenceEqual([RuleActionKind.Read,RuleActionKind.Label,RuleActionKind.Move]) && draft.Actions.Last().Destination==target,"Converted rule changed action semantics");
