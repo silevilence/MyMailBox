@@ -6,10 +6,12 @@ namespace MyMailBox.Mail.ActiveSync;
 
 public sealed partial class ExchangeMailbox
 {
-    public Task<MailboxFolder[]> Folders(MailboxIdentity a,CancellationToken t)=>Locked(a.Id,async()=>
+    public Task<MailboxFolder[]> Folders(MailboxIdentity a,CancellationToken t) => Locked(a.Id, () => RefreshHierarchy(a.Id, t), t);
+
+    private async Task<MailboxFolder[]> RefreshHierarchy(Guid account, CancellationToken t)
     {
         using var db=_store.Open();
-        using var c=Command(db,a.Id,"SELECT folder_key FROM eas_settings WHERE account=$a");
+        using var c=Command(db,account,"SELECT folder_key FROM eas_settings WHERE account=$a");
         string key=c.ExecuteScalar() as string ?? "0";
         var response=await Hierarchy(key);
         if(response.Value(Tag.FolderStatus)=="9" && key!="0"){key="0";response=await Hierarchy(key);}
@@ -20,7 +22,7 @@ public sealed partial class ExchangeMailbox
         {
             if(change.Tag is not (Tag.FolderAdd or Tag.FolderUpdate or Tag.FolderDelete))continue;
             string id=change.Value(Tag.FolderId);
-            using var cmd=Command(db,a.Id,"DELETE FROM eas_folder WHERE account=$a AND id=$id",("id",id));cmd.Transaction=tx;
+            using var cmd=Command(db,account,"DELETE FROM eas_folder WHERE account=$a AND id=$id",("id",id));cmd.Transaction=tx;
             if(change.Tag!=Tag.FolderDelete)
             {
                 cmd.CommandText="""
@@ -45,9 +47,9 @@ public sealed partial class ExchangeMailbox
             list.Add(new(id,string.Join(" / ",names),entry.Kind switch{2=>"inbox",3=>"drafts",4=>"trash",5=>"sent",6=>"outbox",_=>"custom"}));
         }
         return list.ToArray();
-        async Task<EasNode> Hierarchy(string cursor)=>await Post(a.Id,"FolderSync",Element(Tag.FolderSync,Value(Tag.FolderKey,cursor)),t)
+        async Task<EasNode> Hierarchy(string cursor)=>await Post(account,"FolderSync",Element(Tag.FolderSync,Value(Tag.FolderKey,cursor)),t)
             ?? throw new InvalidDataException("Exchange 目录响应为空。");
-    },t);
+    }
 
     private void CreateStaging()
     {
@@ -68,6 +70,7 @@ public sealed partial class ExchangeMailbox
         bool building=key!=null;
         if(key==null){c.CommandText="SELECT key FROM eas_sync WHERE account=$a AND folder=$f";key=c.ExecuteScalar() as string;building=key==null;}
         key??="0";bool reset=false;
+        bool hierarchyRefreshed = false;
         while(true)
         {
             t.ThrowIfCancellationRequested();
@@ -76,6 +79,14 @@ public sealed partial class ExchangeMailbox
             var root=await Post(id,"Sync",request,t);
             if(root==null && !building)return;
             var col=root?.Child(Tag.Collections)?.Child(Tag.Collection);
+            var status = col?.Child(Tag.Status)?.Text ?? root?.Child(Tag.Status)?.Text;
+            if (status == "12" && !hierarchyRefreshed)
+            {
+                var folders = await RefreshHierarchy(id, t);
+                if (!folders.Any(f => f.Id == folder)) throw new InvalidDataException("Exchange 目录已移除，请重新选择目录。");
+                hierarchyRefreshed = true;
+                continue;
+            }
             if(col==null && root?.Child(Tag.Status)!=null)Status(root,Tag.Status);
             if(col==null && (root!=null || !building || key=="0"))throw new InvalidDataException("Exchange 同步响应缺少集合。");
             if(col?.Child(Tag.CollectionId) is {} returned && returned.Text!=folder)throw new InvalidDataException("Exchange 返回了其他目录。");

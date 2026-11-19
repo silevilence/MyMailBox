@@ -106,7 +106,7 @@ public sealed partial class ExchangeMailbox : IMailboxProvider,IExchangeSetup,ID
         {
             var s=await Settings(id,t);
             using var request=await Request(id,s,HttpMethod.Options,s.Endpoint,t);
-            using var response=await _http.SendAsync(request,HttpCompletionOption.ResponseHeadersRead,t);
+            using var response=await SendRequest(request,t);
             await CheckHttp(id,response,t);
             string[] Header(string name)=>response.Headers.TryGetValues(name,out var values)?values.SelectMany(v=>v.Split(',',StringSplitOptions.TrimEntries|StringSplitOptions.RemoveEmptyEntries)).ToArray():[];
             var versions=Header("MS-ASProtocolVersions");var commands=Header("MS-ASProtocolCommands");
@@ -127,6 +127,14 @@ public sealed partial class ExchangeMailbox : IMailboxProvider,IExchangeSetup,ID
         var request=new HttpRequestMessage(method,url);
         request.Headers.Authorization=new AuthenticationHeaderValue("Basic",Convert.ToBase64String(Encoding.UTF8.GetBytes(s.User+":"+secret)));
         request.Headers.UserAgent.ParseAdd("MyMailBox/1.0");return request;
+    }
+    private async Task<HttpResponseMessage> SendRequest(HttpRequestMessage request, CancellationToken token)
+    {
+        try { return await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token); }
+        catch (HttpRequestException e) when (e.HttpRequestError == HttpRequestError.SecureConnectionError)
+        {
+            throw MailboxFailure.Mark(new InvalidDataException("Exchange TLS 连接失败，请核对服务器名称、证书信任和系统时间。"), MailboxFailureKind.Certificate);
+        }
     }
     private async Task CheckHttp(Guid id,HttpResponseMessage response,CancellationToken t)
     {
@@ -149,7 +157,7 @@ public sealed partial class ExchangeMailbox : IMailboxProvider,IExchangeSetup,ID
         using var request=await Request(id,s,HttpMethod.Post,url,t);
         request.Headers.Add("MS-ASProtocolVersion",s.Version);request.Headers.Add("X-MS-PolicyKey","0");
         request.Content=new ByteArrayContent(Wbxml.Write(body));request.Content.Headers.ContentType=new("application/vnd.ms-sync.wbxml");
-        using var response=await _http.SendAsync(request,HttpCompletionOption.ResponseHeadersRead,t);
+        using var response=await SendRequest(request,t);
         await CheckHttp(id,response,t);
         await using var stream=await response.Content.ReadAsStreamAsync(t);
         using var data=new MemoryStream();using var limit=new AttachmentService.CountingStream(data,MimeReader.MaxMessageBytes+1024*1024,null,"Exchange 响应超过本机阅读限制。");
@@ -162,6 +170,20 @@ public sealed partial class ExchangeMailbox : IMailboxProvider,IExchangeSetup,ID
     {
         var code=n.Value(tag);if(code==expected)return;
         if(code is "140" or "141" or "142" or "143" or "144")throw MailboxFailure.Mark(new InvalidDataException("Exchange 要求设备策略，请联系管理员核对准入。"), MailboxFailureKind.Policy);
+        if (tag == Tag.ItemStatus && code == "16")
+            throw MailboxFailure.Mark(new InvalidDataException("没有读取此资源的权限，请核对该目录的访问权限。"), MailboxFailureKind.Policy);
+        var guidance = (tag, code) switch
+        {
+            (Tag.MoveStatus, "1" or "2") => "源或目标目录已失效，请刷新目录后重新选择。",
+            (Tag.MoveStatus, "4") => "源目录与目标目录相同，请选择其他目录。",
+            (Tag.MoveStatus, "7") => "服务器暂时锁定了此邮件，请稍后重新移动。",
+            (Tag.Status, "8") => "服务器找不到该邮件或目录，请刷新后重新选择。",
+            (Tag.Status, "9") => "服务器邮箱空间可能不足，请核对邮箱配额。",
+            (Tag.Status, "12") => "服务器目录结构已变化，请刷新目录后重试。",
+            (Tag.Status, "16") => "服务器暂时无法同步，请稍后重试。",
+            _ => null
+        };
+        if (guidance is not null) throw new InvalidDataException(guidance);
         throw new InvalidDataException("Exchange 操作未完成，协议状态 "+(int.TryParse(code,out var value)?value.ToString():"无效")+"。");
     }
     public Task Connect(MailboxIdentity a,CancellationToken t)=>Check(a.Id,t);

@@ -165,6 +165,7 @@ public sealed class UnifiedInboxService : IUnifiedInbox
                 MailboxFailureKind.Authorization => ("auth", "授权失败或已过期。请在此账户的连接页面重新授权后刷新。"),
                 MailboxFailureKind.Throttled => ("limited", "服务方暂时限制请求，请在等待期结束后刷新。"),
                 MailboxFailureKind.PluginPermission => ("permission", "请在插件设置中核对该邮箱实例的收件权限，再刷新。"),
+                MailboxFailureKind.Certificate => ("certificate", "TLS 连接失败。请核对服务器名称、证书信任和系统时间后刷新。"),
                 MailboxFailureKind.Policy => ("policy", "组织策略阻止接收。请联系管理员确认设备准入和账户权限。"),
                 MailboxFailureKind.Storage => ("storage", "工作空间磁盘空间不足。请释放空间后刷新，将从已提交的进度继续。"),
                 _ => ("failed", "接收失败。请检查提供者插件、服务器配置和本地存储后刷新。")

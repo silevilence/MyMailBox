@@ -7,6 +7,17 @@ public sealed partial class ExchangeMailbox
 {
     public async Task Read(MailboxIdentity a,string folder,string item,Stream destination,CancellationToken t)
     {
+        await Account(a.Id,t);
+        using (var local = _store.Open())
+        using (var lookup = Command(local,a.Id,"SELECT raw FROM eas_item WHERE account=$a AND folder=$f AND id=$id",("f",folder),("id",item)))
+        {
+            if (lookup.ExecuteScalar() is byte[] original)
+            {
+                await destination.WriteAsync(original,t);
+                return;
+            }
+        }
+        // A cold read waits for the collection lock and checks the cache again after synchronizing.
         var raw=await Locked(a.Id,async()=>
         {
             await Account(a.Id,t);

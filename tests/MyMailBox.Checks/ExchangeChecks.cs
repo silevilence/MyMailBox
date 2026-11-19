@@ -18,6 +18,9 @@ internal static class ExchangeChecks
         ["first"] = "03016A00455C4F5203626F7800014E033100014B034B3200011456474D036D3100015D00025403E4B8ADE69687E4B8BBE9A2980001580373656E646572406578616D706C652E696E76616C6964000155033000014F03323032362D31312D30315430323A30333A30342E3030305A0001010101010101",
         ["second"] = "03016A00455C4F5203626F7800014E033100014B034B33000156474D036D3200015D00025403E6ACA1E9A1B50001580373656E646572406578616D706C652E696E76616C6964000155033000014F03323032362D31312D30315430323A30333A30342E3030305A0001010101010101",
         ["mark"] = "03016A00455C4F5203626F7800014E033100014B034B340001010101",
+        ["hierarchyChanged"] = "03016A00454E033132000101",
+        ["deniedRead"] = "03016A000014454D033136000101",
+        ["invalidDestination"] = "03016A000005454A4B033200010101",
         ["invalidKey"] = "03016A00455C4F5203626F7800014E03330001010101",
         ["rebuild"] = "03016A00455C4F5203626F7800014E033100014B034B35000156474D036D3100015D00025403E4B8ADE69687E4B8BBE9A2980001580373656E646572406578616D706C652E696E76616C6964000155033000014F03323032362D31312D30315430323A30333A30342E3030305A0001010101010101",
         ["moved"] = "03016A000005454A47036D3100014B033300014C036D3300010101",
@@ -28,6 +31,8 @@ internal static class ExchangeChecks
     {
         internal Queue<(string Cmd,string Reply,string? Contains)> Next {get;}=new();
         internal int Calls;
+        internal readonly TaskCompletionSource Started = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        internal readonly TaskCompletionSource Resume = new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal HashSet<string> Devices {get;}=[];
         internal void Expect(string cmd,string reply,string? contains=null)=>Next.Enqueue((cmd,reply,contains));
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request,CancellationToken t)
@@ -54,6 +59,14 @@ internal static class ExchangeChecks
                 }
                 if(cmd=="SendMail")Check(Encoding.UTF8.GetString(bytes).Contains("Bcc: blind@example.invalid"),"Lost blind envelope during MIME submission");
             }
+            if (reply == "pending")
+            {
+                Started.TrySetResult();
+                await Resume.Task.WaitAsync(t);
+                reply = "empty";
+            }
+            if(reply=="tls")throw new HttpRequestException(HttpRequestError.SecureConnectionError,"fixture-tls");
+            if(reply=="limited")return new(HttpStatusCode.TooManyRequests){Headers={RetryAfter=new(TimeSpan.FromMinutes(2))}};
             if(reply=="offline")throw new HttpRequestException("fixture-offline");
             if(reply=="policy")return new((HttpStatusCode)449);
             if(reply=="auth")return new(HttpStatusCode.Unauthorized);
@@ -87,6 +100,12 @@ internal static class ExchangeChecks
         wire.Expect("OPTIONS","empty");await eas.Check(a.Id,default);
         await PluginChecks.Reject(()=>eas.Folders(a,default),"同步关系");Check(wire.Calls==1,"Device grant ignored");
         await eas.Configure(a.Id,"https://exchange.example.invalid","test-login",null,true,true,default);
+        wire.Expect("OPTIONS","tls");
+        await PluginChecks.Reject(()=>eas.Check(a.Id,default),"证书信任");
+        wire.Expect("OPTIONS","limited");
+        try { await eas.Check(a.Id,default); throw new Exception("Rate limit ignored"); }
+        catch (InvalidDataException e) when (MailboxFailure.Kind(e) == MailboxFailureKind.Throttled &&
+            MailboxFailure.RetryAfter(e) > DateTimeOffset.UtcNow.AddMinutes(1)) { }
         wire.Expect("OPTIONS","auth");await PluginChecks.Reject(()=>eas.Check(a.Id,default),"身份验证失败");
         wire.Expect("OPTIONS","redirect");await PluginChecks.Reject(()=>eas.Check(a.Id,default),"重定向");
         wire.Expect("OPTIONS","empty");await eas.Check(a.Id,default);
@@ -96,9 +115,13 @@ internal static class ExchangeChecks
         wire.Expect("Sync","prime","0");wire.Expect("Sync","first","K1");wire.Expect("Sync","offline","K2");
         await PluginChecks.Reject(()=>eas.List(a,"box",null,1,default),"fixture-offline");
         using var reopened=new ExchangeMailbox(store,http);
+        wire.Expect("Sync","hierarchyChanged","K2"); wire.Expect("FolderSync","hierarchyNoChange","H1");
         wire.Expect("Sync","second","K2");
         var first=await reopened.List(a,"box",null,1,default);var second=await reopened.List(a,"box",first.Next,1,default);
         Check(first.Items[0].Id!=second.Items[0].Id && second.Next==null,"Recovered pages overlap");
+        wire.Expect("ItemOperations","deniedRead","Mailbox");
+        using (var denied = new MemoryStream())
+            await PluginChecks.Reject(() => reopened.Read(a,"box","m1",denied,default),"访问权限");
         wire.Expect("ItemOperations","fetch","Mailbox");
         using var copy=new MemoryStream();await reopened.Read(a,"box","m1",copy,default);
         var parsed=await new MimeReader().Parse(copy.ToArray());
@@ -107,11 +130,31 @@ internal static class ExchangeChecks
         Check(wire.Calls==calls && offline.ToArray().SequenceEqual(Raw),"Offline read contacted server");
         var delta=await reopened.Delta(a,"box",null,100,default);
         Check(delta.Changed.Length==2 && delta.Changed.All(item => !item.OriginalUnchanged),"Missing initial delta");
+        wire.Expect("Sync","pending","K3");
+        var synchronizing = reopened.Delta(a,"box",delta.Cursor,100,default);
+        try
+        {
+            await wire.Started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            using var localCopy = new MemoryStream();
+            await reopened.Read(a,"box","m1",localCopy,default).WaitAsync(TimeSpan.FromSeconds(5));
+            var localDrafts = new MailDraftStore(store);
+            var edited = localDrafts.Save(MailDraft.New(a.Id,a.Address) with { Subject = "同步期间本地编辑" });
+            Check(localCopy.ToArray().SequenceEqual(Raw) && localDrafts.List(a.Id).Any(x=>x.Id==edited.Id),
+                "Pending receive prevented offline reading or local draft editing");
+            var secondAccount = await accounts.Save(new(null,"另一公司样本","exchange-eas","other@example.invalid"));
+            await reopened.Configure(secondAccount.Id,"https://exchange.example.invalid","test-login","test-only",false,false,default);
+            wire.Expect("OPTIONS","empty");
+            await reopened.Check(secondAccount.Id,default).WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        finally { wire.Resume.TrySetResult(); }
+        Check((await synchronizing).Changed.Length==0, "An empty sync returned a duplicate change");
         wire.Expect("Sync","mark","m1");await reopened.Mark(a,"box","m1",true,default);
         var marked=await reopened.Delta(a,"box",delta.Cursor,100,default);Check(marked.Changed.Single() is { Read: true, OriginalUnchanged: true },"Read state not reflected");
         wire.Expect("Sync","invalidKey","K4");wire.Expect("Sync","prime","0");wire.Expect("Sync","rebuild","K1");
         var recovered=await reopened.Delta(a,"box",marked.Cursor,100,default);
         Check(recovered.Removed.Contains("m2") && recovered.Changed.Any(m=>m.Id=="m1"),"Expired key retained removed messages");
+        wire.Expect("MoveItems","invalidDestination","archive");
+        await PluginChecks.Reject(() => reopened.Move(a,"box","m1","archive",default),"刷新目录");
         wire.Expect("MoveItems","moved","archive");Check(await reopened.Move(a,"box","m1","archive",default)=="m3","Move lost destination identity");
         using var afterMove=new MemoryStream();await reopened.Read(a,"archive","m3",afterMove,default);Check(afterMove.ToArray().SequenceEqual(Raw),"Move lost downloaded original");
         var drafts=new MailDraftStore(store);
