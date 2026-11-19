@@ -58,6 +58,30 @@ internal static partial class ProtocolChecks
                     server.Identification==null,"Client identification ignored the negotiated capability or disclosed credentials");
             }
         }
+        await using var incoming = new ProtocolFaultServer(imap:true) { SpecialFolders=true };
+        await using var outgoing = new ProtocolFaultServer(true) { AcceptAll=true };
+        var routed = preset with { IncomingHost="127.0.0.1",IncomingPort=incoming.Port,OutgoingHost="127.0.0.1",OutgoingPort=outgoing.Port };
+        var active = new ProtocolMailService(store,()=>[routed]);
+        var endpoints = routed.ForAddress(account.Address);
+        await active.Save(account.Id, endpoints with {
+            Incoming=endpoints.Incoming! with { CertificateSha256=incoming.Pin },
+            Outgoing=endpoints.Outgoing! with { CertificateSha256=outgoing.Pin }
+        },"test-only","test-only");
+        var folders = await active.Folders(account.Id);
+        foreach (var (role,name) in new[]{("sent","已发送"),("drafts","草稿箱"),("trash","垃圾箱")})
+            MailChecks.Check(folders.Single(f=>f.Role==role).Name==name,"Lost special-use folder or Chinese name: "+role);
+        var operation=Guid.NewGuid();
+        await active.Enqueue(operation,account.Id,new("recipient@example.invalid","","","一次投递","本机样本"));
+        await active.Deliver(operation);
+        var final=await active.Deliver(operation);
+        MailChecks.Check(final.State=="sent" && outgoing.Submissions==1, "Preset replay sent twice");
+        using (var db=store.Open())
+        using (var c=db.CreateCommand())
+        {
+            c.CommandText="SELECT count(*) FROM messages m JOIN folders f ON m.folder_id=f.id WHERE f.role='local-sent-copy' AND f.account_id=$a";
+            c.Parameters.AddWithValue("$a",account.Id.ToString());
+            MailChecks.Check((long)c.ExecuteScalar()! == 1,"Local sent copy count incorrect");
+        }
         Console.WriteLine("PASS "+id+" ordinary plug-in, TLS defaults, explicit selection, removal/re-enable preserves settings, credential binding; vendor login not exercised");
     }
 }

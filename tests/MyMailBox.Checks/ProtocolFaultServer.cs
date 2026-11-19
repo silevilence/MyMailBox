@@ -14,6 +14,7 @@ internal sealed class ProtocolFaultServer : IAsyncDisposable
     private readonly Task _runner;
     private readonly bool _smtp;
     private readonly bool _imap;
+    public bool SpecialFolders { get; set; }
     public bool AdvertiseId { get; set; } = true;
     public string? Identification { get; private set; }
     public int Port => ((IPEndPoint)_listener.LocalEndpoint).Port;
@@ -56,7 +57,7 @@ internal sealed class ProtocolFaultServer : IAsyncDisposable
     }
     private async Task Imap(StreamReader reader, StreamWriter writer)
     {
-        string capabilities = "IMAP4rev1" + (AdvertiseId ? " ID" : "");
+        string capabilities = "IMAP4rev1" + (AdvertiseId ? " ID" : "") + (SpecialFolders ? " NAMESPACE SPECIAL-USE" : "");
         await writer.WriteLineAsync("* OK [CAPABILITY "+capabilities+"] loopback IMAP");
         while (await reader.ReadLineAsync(_stop.Token) is string line)
         {
@@ -66,6 +67,23 @@ internal sealed class ProtocolFaultServer : IAsyncDisposable
             {
                 case "CAPABILITY": await writer.WriteLineAsync("* CAPABILITY "+capabilities);break;
                 case "ID": Identification=line;await writer.WriteLineAsync("* ID NIL");break;
+                case "LOGIN" when SpecialFolders: break;
+                case "NAMESPACE" when SpecialFolders: await writer.WriteLineAsync("* NAMESPACE ((\"\" \"/\")) NIL NIL");break;
+                case "LIST" when SpecialFolders:
+                    if (line.EndsWith("\"\"", StringComparison.Ordinal)) await writer.WriteLineAsync("* LIST (\\Noselect) \"/\" \"\"");
+                    else
+                    {
+                        await writer.WriteLineAsync("* LIST () \"/\" INBOX");
+                        if (!line.EndsWith("INBOX", StringComparison.OrdinalIgnoreCase))
+                        {
+                            foreach (var (name, flag) in new[] { ("已发送", "Sent"), ("草稿箱", "Drafts"), ("垃圾箱", "Trash") })
+                            {
+                                var encoded = Convert.ToBase64String(Encoding.BigEndianUnicode.GetBytes(name)).TrimEnd('=').Replace('/', ',');
+                                await writer.WriteLineAsync($"* LIST (\\{flag}) \"/\" \"&{encoded}-\"");
+                            }
+                        }
+                    }
+                    break;
                 case "LOGIN": await writer.WriteLineAsync(tag+" NO Authentication rejected");return;
                 case "LOGOUT": await writer.WriteLineAsync("* BYE");return;
                 default: await writer.WriteLineAsync(tag+" BAD Unsupported command");continue;
