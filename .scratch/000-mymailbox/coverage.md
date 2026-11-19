@@ -1,8 +1,8 @@
 # 000-mymailbox · MyMailBox 需求覆盖矩阵
 
-状态：完成 81；进行中 14；阻塞 1；未开始 12。PST ANSI 保真已修复并完成研究选型；32 已内置公共客户端注册并提供直接登录，待真实个人账户验收；35 EWS 认证仍为 401，EAS 带凭据 OPTIONS 已为 200/最高 16.1，待实际读写验收。入口：[任务索引](index.md)、[规格](spec.md)、[PST修复验收](../../docs/validation/2026-11-17-pst-ansi-fix.md)。
+状态：完成 81；进行中 15；阻塞 1；未开始 11。PST ANSI 保真已修复并完成研究选型；32 已内置公共客户端注册并提供直接登录，待真实个人账户验收；35 EWS 认证仍为 401，EAS 带凭据 OPTIONS 已为 200/最高 16.1，待实际读写验收。入口：[任务索引](index.md)、[规格](spec.md)、[PST修复验收](../../docs/validation/2026-11-17-pst-ansi-fix.md)。
 
-PST 导入保真、恢复、Outlook 配置及 Graph 增量同步的证据见 [11 月 19 日验收](../../docs/validation/2026-11-19-task-000.md)。本地收发、调度及性能覆盖范围见 [11 月 18 日验收](../../docs/validation/2026-11-18-task-000.md)。
+当前各需求的本地证据、公司路线、规则子集及外部验收范围见[续作验收](../../docs/validation/2026-11-19-task-000-continuation.md)。PST 导入保真、恢复、Outlook 配置及 Graph 增量同步的证据见 [11 月 19 日验收](../../docs/validation/2026-11-19-task-000.md)。本地收发、调度及性能覆盖范围见 [11 月 18 日验收](../../docs/validation/2026-11-18-task-000.md)。
 
 REQ 是原始用户需求及后续确认，SUP 为必要支撑，OPT 为尚未选入首版的扩展。每行列出具体实现/验证工单，不借总验收工单填充覆盖。进度列统计该行关联工单（含可选扩展），不是整条需求的验收结论；所有必做和已选条件范围完成前，不能宣称整条需求交付。
 
@@ -46,5 +46,5 @@ REQ 是原始用户需求及后续确认，SUP 为必要支撑，OPT 为尚未�
 - 所有产品能力采用内置插件，同类第二实现与外部接入由 [扩展性验收](issues/94-extensibility-audit.md) 核对。
 
 <!-- implementation-status -->
-当前已完成实现与验收：01–09；10–19、55–56 实现及定向检查通过，待集中窗口验收；35/48/50 外部环境阻塞，其余 83 项未开始。证据见 [验收记录](../../docs/validation/framework-plugins.md)。
+早期平台、插件和配置验收的记录见[基础框架验收](../../docs/validation/framework-plugins.md)。本表顶部与各需求行反映最新工单进度。
 <!-- /implementation-status -->

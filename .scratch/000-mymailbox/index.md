@@ -4,7 +4,7 @@ CI 修复验证：普通 push/PR 不再触发构建；修正 `runner.temp` 的�
 
 推送前复核：Exchange 验收地址及应用 ID 已从待推送历史移除。真实 ID 仅在本地忽略配置保留，Actions 从 `MYMAILBOX_GRAPH_CLIENT_ID` Secret 注入；普通用户仍直接登录，不填写 ID。真实服务地址由用户逐账户提供。
 
-日期：2026 年 11 月 19 日。**完成 81；进行中 14；阻塞 1；未开始 12。** 50 的 ANSI 中文及正文修复通过，研究选型完成；32 已内置发布者应用注册，普通用户直接登录，无需输入 Client ID，待个人账户真实登录/读取验收；35 的 EWS 认证仍失败，但 ActiveSync 带凭据 OPTIONS 已返回 200，声明最高协议 16.1，待部署、设备策略及测试目录读写验收。Exchange 产品须由用户逐账户填写服务器及身份，不绑定验收公司域名。证据见 [PST 修复](../../docs/validation/2026-11-17-pst-ansi-fix.md)、[Outlook.com 配置](../../docs/validation/outlook-com-setup.md)、[公司端点调查](../../docs/validation/2026-11-17-exchange-discovery.md)。
+日期：2026 年 11 月 19 日。**完成 81；进行中 15；阻塞 1；未开始 11。** 50 的 ANSI 中文及正文修复通过，研究选型完成；32 已内置发布者应用注册，普通用户直接登录，无需输入 Client ID，待个人账户真实登录/读取验收；35 的 EWS 认证仍失败，但 ActiveSync 带凭据 OPTIONS 已返回 200，声明最高协议 16.1，待部署、设备策略及测试目录读写验收。Exchange 产品须由用户逐账户填写服务器及身份，不绑定验收公司域名。证据见 [PST 修复](../../docs/validation/2026-11-17-pst-ansi-fix.md)、[Outlook.com 配置](../../docs/validation/outlook-com-setup.md)、[公司端点调查](../../docs/validation/2026-11-17-exchange-discovery.md)。
 
 - [000-mymailbox 开发规格与完成标准](spec.md)
 - [全部规格索引](../index.md)
@@ -12,7 +12,7 @@ CI 修复验证：普通 push/PR 不再触发构建；修正 `runner.temp` 的�
 - [评审草案快照](../../docs/开发任务拆分草案.md)
 - [需求评估与技术依据](../../docs/需求与技术可行性评估.md)
 
-11 月 19 日完成 51、52。PST 导入已进入桌面产品，34、49、53、54 已完成部分本地验证，仍待各自的真实环境验收。见[本轮验收](../../docs/validation/2026-11-19-task-000.md)。前一轮新增完成 37 项，见 [11 月 18 日验收](../../docs/validation/2026-11-18-task-000.md)。
+11 月 19 日完成 47、51、52、53、94、95、97。Graph 写信与同步、Exchange ActiveSync、Outlook 账户预览与规则转换、统一收件箱故障恢复、安装升级均已用本地样本验证。剩余验收按需求逐项列在[续作验收](../../docs/validation/2026-11-19-task-000-continuation.md)，PST 样本和字节对照见[导入验收](../../docs/validation/2026-11-19-task-000.md)。前一轮新增完成 37 项，见 [11 月 18 日验收](../../docs/validation/2026-11-18-task-000.md)。
 
 ## 规模与状态
 
@@ -195,7 +195,7 @@ flowchart TD
 | [93 验证从已安装旧版到 Actions 新版的升级](issues/93-update-e2e.md) | 必做 | [92](issues/92-tag-release.md)、[89](issues/89-update-install.md) | needs-info | 进行中 |
 | [94 验证每一类内置能力都可被外部实现替换](issues/94-extensibility-audit.md) | 必做 | [47](issues/47-provider-sdk.md)、[53](issues/53-import-resume.md)、[58](issues/58-bulk-export.md)、[64](issues/64-search-plugin.md)、[79](issues/79-automation-sdk.md)、[88](issues/88-update-check.md)、[08](issues/08-plugin-upgrade.md) | ready-for-agent | 完成 |
 | [97 完成安装迁移与故障恢复的使用指引](issues/97-user-guides.md) | 必做 | [53](issues/53-import-resume.md)、[56](issues/56-archive-export.md)、[78](issues/78-task-history.md)、[93](issues/93-update-e2e.md)、[95](issues/95-settings-transfer.md)、[96](issues/96-tray-lifetime.md) | ready-for-agent | 完成 |
-| [98 按原始需求逐项完成发布前验收](issues/98-acceptance.md) | 必做 | [81](issues/81-ux-acceptance.md)、[83](issues/83-performance.md)、[84](issues/84-reliability.md)、[85](issues/85-automatic-replies.md)、[52](issues/52-pst-fidelity.md)、[94](issues/94-extensibility-audit.md)、[97](issues/97-user-guides.md)、[27](issues/27-address-suggestions.md)、[28](issues/28-scheduled-send.md)、[54](issues/54-rules-import-spike.md)、[57](issues/57-readable-export.md) | needs-info | 未开始 |
+| [98 按原始需求逐项完成发布前验收](issues/98-acceptance.md) | 必做 | [81](issues/81-ux-acceptance.md)、[83](issues/83-performance.md)、[84](issues/84-reliability.md)、[85](issues/85-automatic-replies.md)、[52](issues/52-pst-fidelity.md)、[94](issues/94-extensibility-audit.md)、[97](issues/97-user-guides.md)、[27](issues/27-address-suggestions.md)、[28](issues/28-scheduled-send.md)、[54](issues/54-rules-import-spike.md)、[57](issues/57-readable-export.md) | needs-info | 进行中 |
 
 ### I 配置迁移与运行方式
 

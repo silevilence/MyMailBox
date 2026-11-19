@@ -2,7 +2,7 @@
 
 Spec: 000-mymailbox
 Status: needs-info
-Progress: not-started
+Progress: in-progress
 Type: task
 Scope: 必做
 Estimate: 2–3 人日
@@ -22,8 +22,8 @@ Blocked by: 81, 83, 84, 85, 52, 94, 97, 27, 28, 54, 57
 ## Acceptance criteria
 
 - [ ] 必做项全部有证据，公司实际 Exchange 路线、QQ/163、Outlook.com、POP3、配置/PST 导入不能仅凭通用接口勾选。
-- [ ] 条件项记录采用/不采用及理由，未确认扩展不被伪装为完成，也不无故阻塞原始需求。
-- [ ] 只在用户届时明确要求发布时执行 changelog→提交→Tag→push；此任务的完成不自动触发发布。
+- [x] 条件项记录采用/不采用及理由，未确认扩展不被伪装为完成，也不无故阻塞原始需求。
+- [x] 只在用户届时明确要求发布时执行 changelog→提交→Tag→push；此任务的完成不自动触发发布。
 
 ## Blocked by
 
@@ -49,8 +49,10 @@ Blocked by: 81, 83, 84, 85, 52, 94, 97, 27, 28, 54, 57
 
 ## 验证与交付记录
 
-实施时记录演示步骤或检查命令、结果、适用环境和已知限制；目前未执行，所有验收项保持未勾选。若发现超出预计粒度，先拆为完整可验收子场景；环境不足时保留具体缺口，不标完成。
+本轮实施及验证见下方记录。
 
 ## Comments
 
 - 2026-11-16：用户确认任务拆分后创建，尚未开始开发。
+
+- 2026-11-19：已逐项核对 REQ-01 至 REQ-24、SUP-01 至 SUP-02，记录 ActiveSync 和规则转换选择、组织 Graph 条件、可选扩展及正式发布范围。详见 [整体验收](../../../docs/validation/2026-11-19-task-000-continuation.md)。真实服务商与公司端、本机带在线账户的经典 Outlook 和授权测试 Release 仍待验收。

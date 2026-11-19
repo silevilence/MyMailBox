@@ -52,4 +52,4 @@ Blocked by: 47, 78, 46, 35, 29, 30, 34, 33
 
 - 2026-11-16：用户确认任务拆分后创建，尚未开始开发。
 
-- 2026-11-19：统一收件箱已接入 Outlook.com 的已授权收件箱、分页游标、同日期翻页、原文离线阅读和回复转发。provider-faults 真实运行接收队列，验证离线、重新授权、Retry-After 和 SQLite FULL 时邮件与游标回滚；multi-sync、mailbox-provider 验证多账户隔离、停用与缓存。protocol-live、protocol-faults、imap-sync、imap-conflicts 本次使用现有 GreenMail 和本机故障服务器通过，exchange-eas 验证协议替身。仍缺 QQ/163/个人 Graph 和公司 Exchange 的授权服务端记录。
+- 2026-11-19：统一收件箱已接入 Outlook.com 的已授权收件箱、分页游标、同日期翻页、原文离线阅读和回复转发。provider-faults 真实运行接收队列，验证离线、重新授权、Retry-After 和 SQLite FULL 时邮件与游标回滚；multi-sync、mailbox-provider 验证多账户隔离、停用与缓存。protocol-live、protocol-faults、imap-sync、imap-conflicts 本次使用现有 GreenMail 和本机故障服务器通过，exchange-eas 验证协议替身。邮箱插件和 ActiveSync 的已读增量保留离线原文。外部插件的错误会保留故障类别和重试等待，诊断日志被独占不会中断原操作。仍缺 QQ/163/个人 Graph 和公司 Exchange 的授权服务端记录。
