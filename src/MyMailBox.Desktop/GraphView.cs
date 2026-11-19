@@ -19,6 +19,10 @@ public sealed class GraphView : UserControl, IDisposable
     private string? _parent, _folderNext, _messageNext, _messageCurrent;
     private readonly Stack<string?> _parents = new(), _messageBack = new();
     private List<GraphFolder> _folderItems = [];
+    private readonly ComboBox _syncScopes = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly ListBox _offline = new() { Height = 150 };
+    private int _offlineOffset;
+    private bool _offlineMore;
     private bool _busy, _disposed;
     private Guid Account => (_accounts.SelectedItem as MailAccount)?.Id ?? throw new InvalidDataException("请先在账户管理添加 Outlook.com 个人账户。");
     public GraphView(GraphPage page)
@@ -46,6 +50,32 @@ public sealed class GraphView : UserControl, IDisposable
         paging.Children.Add(Button("下一页", "graph-next", async t => { if (_messageNext is null) throw new InvalidDataException("没有下一页。"); var current = _messageCurrent; await LoadMessages(_messageNext, t); _messageBack.Push(current); }));
         Add(panel, "邮件摘要", _messages, "graph-messages");
         panel.Children.Add(Button("下载所选邮件到本地阅读", "graph-download", async t => { var message = _messages.SelectedItem as GraphSummary ?? throw new InvalidDataException("请选择邮件。"); await page.Service.Download(Account, message.Id, t); _status.Text = "原文和附件已保存。打开“本地邮件”，选择当前账户的“Outlook.com 已下载”目录阅读。云端状态未更改。"; }));
+        if (page.Sync is { } sync)
+        {
+            panel.Children.Add(Button("增量同步选中目录的摘要", "graph-sync", async t =>
+            {
+                var folder = _folders.SelectedItem as GraphFolder ?? throw new InvalidDataException("请先选择云端目录。");
+                _status.Text = $"正在同步 {folder.Name}，可取消并在下次继续。";
+                var scope = await sync.Sync(Account, folder, t);
+                await LoadScopes(sync, scope.Id, t);
+                _status.Text = $"{scope.Name} 同步完成，共 {scope.Messages} 封，{scope.LastSuccess?.ToLocalTime():g}。";
+            }));
+            _syncScopes.ItemTemplate = new FuncDataTemplate<GraphSyncScope>((s, _) => new TextBlock { Text = s == null ? "" : $"{s.Name} · {s.Messages} 封 · 上次成功 {s.LastSuccess?.ToLocalTime().ToString("g") ?? "尚未完成"}" });
+            Add(panel, "已同步的目录", _syncScopes, "graph-offline-scope");
+            _offline.ItemTemplate = _messages.ItemTemplate;
+            Add(panel, "本地摘要", _offline, "graph-offline-messages");
+            var cached = Row(); panel.Children.Add(cached);
+            _syncScopes.SelectionChanged += (_, _) => { _offlineOffset = 0; _offlineMore = false; _offline.ItemsSource = null; };
+            cached.Children.Add(Button("查看本地摘要", "graph-offline", t => LoadOffline(sync, 0, t)));
+            cached.Children.Add(Button("上一页摘要", "graph-offline-prev", t => LoadOffline(sync, Math.Max(0, _offlineOffset - 25), t)));
+            cached.Children.Add(Button("下一页摘要", "graph-offline-next", t => LoadOffline(sync, _offlineMore ? _offlineOffset + 25 : _offlineOffset, t)));
+            cached.Children.Add(Button("保存选中邮件供离线阅读", "graph-offline-download", async t =>
+            {
+                if (_offline.SelectedItem is not GraphSummary message) throw new InvalidDataException("请选择一封本地摘要。");
+                await page.Service.Download(Account, message.Id, t);
+                _status.Text = "正文与附件已保存在本地邮箱。";
+            }));
+        }
         var feedback = new StackPanel { Spacing = 6, Margin = new Avalonia.Thickness(0, 10, 0, 0) };
         AutomationProperties.SetAutomationId(_status, "graph-status"); feedback.Children.Add(_status);
         var cancel = new Button { Content = "取消当前操作" }; AutomationProperties.SetAutomationId(cancel, "graph-cancel"); cancel.Click += (_, _) => _operation?.Cancel(); feedback.Children.Add(cancel);
@@ -68,9 +98,22 @@ public sealed class GraphView : UserControl, IDisposable
         ClearLists();
         if (_accounts.SelectedItem is null) { _status.Text = "请先在账户管理添加 Outlook.com（个人账户，只读）。"; return; }
         var settings = await _page.Service.Settings(Account, token);
+        if (settings.SignedIn && _page.Sync is { } sync) await LoadScopes(sync, null, token);
         _status.Text = settings.SignedIn ? "已登录，可以读取目录。" : "请选择对应账户并点击“登录微软账户”，在微软页面完成授权。";
     }
-    private void ClearLists() { _folders.ItemsSource = null; _messages.ItemsSource = null; _folderItems = []; _parent = null; _parents.Clear(); _folderNext = null; _messageNext = null; _messageCurrent = null; _messageBack.Clear(); }
+    private async Task LoadScopes(IGraphFolderSync sync, string? selected, CancellationToken token)
+    {
+        var scopes = await sync.Scopes(Account, token);
+        _syncScopes.ItemsSource = scopes; _syncScopes.SelectedItem = scopes.FirstOrDefault(s => s.Id == selected) ?? scopes.FirstOrDefault();
+    }
+    private async Task LoadOffline(IGraphFolderSync sync, int offset, CancellationToken token)
+    {
+        if (_syncScopes.SelectedItem is not GraphSyncScope scope) throw new InvalidDataException("请先同步一个云端目录。");
+        var page = await sync.Cached(Account, scope.Id, offset, token);
+        _offlineOffset = offset; _offlineMore = page.More; _offline.ItemsSource = page.Items; _offline.SelectedIndex = page.Items.Count > 0 ? 0 : -1;
+        _status.Text = $"{scope.Name} · 本地第 {offset / 25 + 1} 页，共 {page.Items.Count} 条摘要。";
+    }
+    private void ClearLists() { _syncScopes.ItemsSource = null; _offline.ItemsSource = null; _folders.ItemsSource = null; _messages.ItemsSource = null; _folderItems = []; _parent = null; _parents.Clear(); _folderNext = null; _messageNext = null; _messageCurrent = null; _messageBack.Clear(); }
     private async Task LoadFolders(string? next, CancellationToken token)
     {
         var result = await _page.Service.Folders(Account, _parent, next, token); _folderItems = next is null ? result.Items.ToList() : [.. _folderItems, .. result.Items]; _folderNext = result.Next;

@@ -34,14 +34,16 @@ public sealed partial class GraphMailService
         return new GraphMessages(items, Next(data, new Uri(route).AbsolutePath));
     }, cancellation);
     private static string Required(JsonElement item, string key) => item.GetProperty(key).GetString() is { Length: > 0 } text ? text : throw new InvalidDataException("微软响应缺少目录或邮件标识。");
-    private static string Sender(JsonElement message) => message.TryGetProperty("from", out var from) && from.ValueKind == JsonValueKind.Object && from.TryGetProperty("emailAddress", out var email)
+    internal static string Sender(JsonElement message) => message.TryGetProperty("from", out var from) && from.ValueKind == JsonValueKind.Object && from.TryGetProperty("emailAddress", out var email) && email.ValueKind == JsonValueKind.Object
         ? (email.TryGetProperty("address", out var address) ? address.GetString() ?? "" : "") : "";
     private static string? Next(JsonDocument document, string path) => document.RootElement.TryGetProperty("@odata.nextLink", out var next) && next.GetString() is { Length: > 0 } value ? ValidatePage(value, path).AbsoluteUri : null;
     private async Task<JsonDocument> Json(Guid account, string url, string path, CancellationToken token) => JsonDocument.Parse(await Get(account, ValidatePage(url, path), 4 * 1024 * 1024, token));
-    private async Task<byte[]> Get(Guid account, Uri uri, int maxBytes, CancellationToken token)
+    private async Task<byte[]> Get(Guid account, Uri uri, int maxBytes, CancellationToken token, bool delta = false)
     {
         var identity = await Account(account, token); var config = Configuration(account);
         if (config.Home is null) throw new InvalidDataException("尚未连接微软账户，请先登录授权。");
+        var sync = new GraphDeltaStore(_store, account, config.Home);
+        sync.CheckCooldown();
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(token); timeout.CancelAfter(TimeSpan.FromSeconds(30));
         for (var attempt = 0; attempt < 2; attempt++)
         {
@@ -51,11 +53,22 @@ public sealed partial class GraphMailService
             request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", grant.AccessToken);
             request.Headers.TryAddWithoutValidation("Prefer", "IdType=\"ImmutableId\"");
             using var response = await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
+            if (delta && await Expired(response, timeout.Token)) throw new DeltaExpired();
+            if (delta && response.StatusCode == HttpStatusCode.NotFound) throw new DeltaFolderMissing();
             if (response.StatusCode == HttpStatusCode.Unauthorized && attempt == 0) continue;
             if (response.StatusCode == HttpStatusCode.Unauthorized) throw new InvalidDataException("微软授权已失效，请重新登录授权。");
             if (response.StatusCode == HttpStatusCode.Forbidden) throw new InvalidDataException("没有读取权限；请检查应用的 Mail.Read 委托权限并重新授权。");
             if (response.StatusCode == HttpStatusCode.NotFound) throw new InvalidDataException("远程邮件或目录已不存在，请刷新列表。");
-            if (response.StatusCode == HttpStatusCode.TooManyRequests) throw new InvalidDataException("微软服务正在限流，请稍后重试。");
+            if (response.StatusCode == HttpStatusCode.TooManyRequests)
+            {
+                var retry = response.Headers.RetryAfter;
+                if (retry != null || delta)
+                {
+                    var until = retry?.Date ?? DateTimeOffset.UtcNow.Add(retry?.Delta ?? TimeSpan.FromSeconds(30));
+                    sync.Cooldown(until);
+                }
+                throw new InvalidDataException("微软服务正在限流，请稍后重试。");
+            }
             if (!response.IsSuccessStatusCode) throw new InvalidDataException("微软邮件请求失败，请稍后重试；没有更改云端邮件。");
             if (response.Content.Headers.ContentLength > maxBytes) throw new InvalidDataException("远程内容超过本次读取大小限制。");
             await using var input = await response.Content.ReadAsStreamAsync(timeout.Token); using var output = new MemoryStream();
@@ -73,6 +86,13 @@ public sealed partial class GraphMailService
     {
         await Account(account, cancellation); var config = Configuration(account);
         if (config.Home is null) throw new InvalidDataException("尚未连接微软账户，请先登录授权。");
+        using (var cache = _store.Open())
+        using (var lookup = cache.CreateCommand())
+        {
+            lookup.CommandText = "SELECT messages.id FROM messages JOIN graph_receipts ON messages.id=message_id WHERE account_id=$a AND home_id=$h AND remote_id=$r";
+            lookup.Parameters.AddWithValue("$a", account.ToString()); lookup.Parameters.AddWithValue("$h", config.Home); lookup.Parameters.AddWithValue("$r", message);
+            if (lookup.ExecuteScalar() is string saved) return Guid.Parse(saved);
+        }
         var raw = await Get(account, new Uri(Root + "messages/" + Id(message) + "/$value"), MimeReader.MaxMessageBytes, cancellation);
         var parsed = await new MimeReader().Parse(raw, cancellation);
         using var db = _store.Open(); using var tx = db.BeginTransaction(); using var command = db.CreateCommand(); command.Transaction = tx;

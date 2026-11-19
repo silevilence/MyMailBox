@@ -8,7 +8,7 @@ using MyMailBox.Contracts;
 namespace MyMailBox.Mail;
 
 /// <summary>Read-only Graph calls. No subscriptions, mark-as-read, moves, deletes or sends.</summary>
-public sealed partial class GraphMailService : IGraphMailService, IDisposable
+public sealed partial class GraphMailService : IGraphMailService, IGraphFolderSync, IDisposable
 {
     private readonly SqliteMailStore _store;
     private readonly AccountService _accounts;
@@ -33,6 +33,7 @@ public sealed partial class GraphMailService : IGraphMailService, IDisposable
                 DELETE FROM graph_settings WHERE account_id=NEW.id;
             END;
             """; command.ExecuteNonQuery();
+        GraphDeltaStore.Initialize(db);
     }
     private async Task<MailAccount> Account(Guid id, CancellationToken token)
     {

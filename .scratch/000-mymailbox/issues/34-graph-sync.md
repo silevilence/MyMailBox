@@ -2,7 +2,7 @@
 
 Spec: 000-mymailbox
 Status: ready-for-agent
-Progress: not-started
+Progress: in-progress
 Type: task
 Scope: 必做
 Estimate: 2–3 人日
@@ -38,8 +38,10 @@ Blocked by: 32, 18
 
 ## 验证与交付记录
 
-实施时记录演示步骤或检查命令、结果、适用环境和已知限制；目前未执行，所有验收项保持未勾选。若发现超出预计粒度，先拆为完整可验收子场景；环境不足时保留具体缺口，不标完成。
+本轮实施及验证见下方记录。
 
 ## Comments
 
 - 2026-11-16：用户确认任务拆分后创建，尚未开始开发。
+
+- 2026-11-19：Graph 只读 delta 按账户身份与目录持久化页游标，合并局部更新和删除，保留独立下载的 MIME。离线目录可分页查看并显示上次成功时间，410 或 syncStateNotFound 重新构建，遵守 Retry-After。graph-delta 复用本地 HTTP 替身验证分页中断重开、目录改名、删除、作用域拒绝、无重复 MIME 下载及限流。32 的个人账户登录与真实 Graph 验收仍待完成。

@@ -5,7 +5,18 @@ public sealed record GraphFolder(string Id, string Name, int ChildCount);
 public sealed record GraphSummary(string Id, string Subject, string From, DateTimeOffset? Date, bool IsRead, bool HasAttachments);
 public sealed record GraphFolders(IReadOnlyList<GraphFolder> Items, string? Next);
 public sealed record GraphMessages(IReadOnlyList<GraphSummary> Items, string? Next);
-public sealed record GraphPage(IAccountService Accounts, IGraphMailService Service);
+public sealed record GraphPage(IAccountService Accounts, IGraphMailService Service)
+{
+    public IGraphFolderSync? Sync { get; init; }
+}
+public sealed record GraphSyncScope(string Id, string Name, DateTimeOffset? LastSuccess, int Messages);
+public sealed record GraphOfflinePage(IReadOnlyList<GraphSummary> Items, bool More);
+public interface IGraphFolderSync
+{
+    Task<GraphSyncScope> Sync(Guid account, GraphFolder folder, CancellationToken token);
+    Task<IReadOnlyList<GraphSyncScope>> Scopes(Guid account, CancellationToken token);
+    Task<GraphOfflinePage> Cached(Guid account, string folder, int offset, CancellationToken token);
+}
 public interface IGraphMailService
 {
     Task<GraphSettings> Settings(Guid account, CancellationToken cancellation = default);

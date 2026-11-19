@@ -40,7 +40,8 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
                 { Transfers = org.Transfers is { } transfers ? new ScopedTransfers(this,Target(transfers)) : null,
                   Actions = org.Actions is { } actions ? new ScopedActions(this,Target(actions)) : null } : null,
             UnifiedInbox = page.UnifiedInbox is { } inbox ? new ScopedUnifiedInbox(this, Target(inbox)) : null,
-            Graph = page.Graph is { } graph ? new(new ScopedAccounts(this, Target(graph.Accounts)), new ScopedGraph(this, Target(graph.Service))) : null,
+            Graph = page.Graph is { } graph ? new(new ScopedAccounts(this, Target(graph.Accounts)), new ScopedGraph(this, Target(graph.Service)))
+                { Sync = graph.Sync is { } graphSync ? new ScopedGraphSync(this, Target(graphSync)) : null } : null,
             Selections = page.Selections is { } selections ? new ScopedSelections(this, Target(selections)) : null,
             Export = page.Export is { } export ? new(new ScopedMailStore(this, Target(export.Store)), new ScopedSelections(this, Target(export.Selections))) : null,
             LocalMailboxes = page.LocalMailboxes is { } local ? new ScopedLocalMailboxes(this, Target(local)) : null,
@@ -262,6 +263,12 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
         public async Task Remove(Guid id, CancellationToken cancellation = default) => await scope.Run(async t => { await accounts.Value.Remove(id, t); return true; }, cancellation);
     }
 
+    private sealed class ScopedGraphSync(PluginScope scope, ServiceTarget<IGraphFolderSync> service) : IGraphFolderSync
+    {
+        public Task<GraphSyncScope> Sync(Guid account, GraphFolder folder, CancellationToken token) => scope.Run(t => service.Value.Sync(account, folder, t), token);
+        public Task<IReadOnlyList<GraphSyncScope>> Scopes(Guid account, CancellationToken token) => scope.Run(t => service.Value.Scopes(account, t), token);
+        public Task<GraphOfflinePage> Cached(Guid account, string folder, int offset, CancellationToken token) => scope.Run(t => service.Value.Cached(account, folder, offset, t), token);
+    }
     private sealed class ScopedGraph(PluginScope scope, ServiceTarget<IGraphMailService> service) : IGraphMailService
     {
         public Task<GraphSettings> Settings(Guid account, CancellationToken cancellation = default) => scope.Run(t => service.Value.Settings(account, t), cancellation);

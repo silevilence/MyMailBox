@@ -4,7 +4,7 @@ using Microsoft.Identity.Client;
 using MyMailBox.Contracts;
 using MyMailBox.Mail;
 
-internal static class GraphChecks
+internal static partial class GraphChecks
 {
     public static async Task Run()
     {
