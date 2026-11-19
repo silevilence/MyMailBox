@@ -10,6 +10,33 @@ using Application = FlaUI.Core.Application;
 
 internal static class UpgradeUiChecks
 {
+    public static async Task MissingRuntime(string installer, string output)
+    {
+        var install = Path.Combine(output, "install");
+        Directory.CreateDirectory(install);
+        if (!string.Equals(Environment.UserName, "WDAGUtilityAccount", StringComparison.OrdinalIgnoreCase))
+            throw new InvalidOperationException("此安装器验收使用一次性 Windows Sandbox。");
+        var store = new SqliteMailStore(Path.Combine(output, "mail"));
+        var raw = "Subject: preserved\r\n\r\noriginal"u8.ToArray();
+        var id = await store.Import(SqliteMailStore.Inbox, raw, await new MyMailBox.Mail.MimeReader().Parse(raw));
+        var backup = await new WorkspaceBackup(output,store).Create(Path.Combine(output, "original.mmbbackup"));
+        var bytes = await File.ReadAllBytesAsync(installer);
+        var seed = RandomNumberGenerator.GetBytes(32);
+        Ed25519.KeyPairFromSeed(out var pub,out var priv,seed);
+        CryptographicOperations.ZeroMemory(seed);
+        var prepared = new PreparedUpdate("0.1.0",installer,bytes.Length,Convert.ToBase64String(Ed25519.Sign(bytes,priv)),
+            Convert.ToHexString(SHA256.HashData(bytes)),Convert.ToHexString(SHA256.HashData(pub)));
+        CryptographicOperations.ZeroMemory(priv);
+        var job = new UpdateJob(prepared,install,output,backup,int.MaxValue,DateTime.UnixEpoch);
+        var exit = await UpdateHandoff.Execute(job,Convert.ToBase64String(pub));
+        var state = UpdateHandoff.ReadState(output);
+        if (exit == 0 || state is not { State: "failed" } || !state.Message.Contains("1638") ||
+            !state.Message.Contains(".NET 10 x64 Runtime") || state.Backup != backup || !File.Exists(backup) ||
+            !(await store.Read(id)).SequenceEqual(raw))
+            throw new Exception("安装器与更新助手的缺少运行时提示或数据保留不一致：" + state?.Message);
+        Console.WriteLine("PASS real NSIS exit 1638 under update helper, precise x64 runtime guidance and original backup/mail retained");
+    }
+
     public static void Run(string executable, string installer, string output) =>
         RunAsync(executable, installer, output).GetAwaiter().GetResult();
 

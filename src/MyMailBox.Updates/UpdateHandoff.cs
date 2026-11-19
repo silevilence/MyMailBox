@@ -68,7 +68,12 @@ public static class UpdateHandoff
                 catch (InvalidOperationException) when (installer.HasExited) { }
             }
             await installer.WaitForExitAsync(cancellation).WaitAsync(TimeSpan.FromMinutes(15), cancellation);
-            if (installer.ExitCode != 0) throw new IOException("安装器退出码：" + installer.ExitCode);
+            if (installer.ExitCode != 0) throw new IOException(installer.ExitCode switch
+            {
+                1638 => "安装器未找到 .NET 10 x64 Runtime，请安装所需运行时后重试（1638）。",
+                1633 => "安装器仅支持 Windows x64，请核对系统架构（1633）。",
+                _ => "安装器退出码：" + installer.ExitCode
+            });
             var executable = Path.Combine(job.InstallDirectory, "MyMailBox.Desktop.exe");
             using var check = Process.Start(new ProcessStartInfo(executable, "--runtime-check") { UseShellExecute = false, CreateNoWindow = true, WindowStyle = ProcessWindowStyle.Hidden }) ?? throw new IOException("无法验证新版本运行时。");
             await check.WaitForExitAsync(cancellation).WaitAsync(TimeSpan.FromSeconds(20), cancellation);

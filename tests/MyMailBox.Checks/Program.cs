@@ -52,6 +52,7 @@ if (args.Contains("pst-fidelity")) await PstFidelityChecks.Run();
 if (args.Length == 0 || args.Contains("exchange-eas")) await ExchangeChecks.Run();
 if (args.Length == 0 || args.Contains("settings-templates")) await SettingsTemplateChecks.Run();
 if (args.Length == 0 || args.Contains("outlook-rules")) await OutlookRuleChecks.Run();
+if (args.Length == 2 && args[0] == "update-loopback") await UpdateLoopbackChecks.Run(args[1]);
 if (args.SequenceEqual(["outlook-registry"]) && OperatingSystem.IsWindows()) await OutlookRegistryChecks.Run();
 if (args.Length == 0 || args.Contains("outlook-import")) await OutlookImportChecks.Run();
 if (args.Length == 0 || args.Contains("accounts")) await AccountChecks.Run();

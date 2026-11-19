@@ -21,6 +21,7 @@ internal static class Program
         if (args.Length==2 && args[0]=="performance"){PerformanceUiChecks.Run(int.Parse(args[1]));return;}
         if (args.FirstOrDefault() == "protocols") { ProtocolUiChecks.Run(); return; }
         if (args.FirstOrDefault() is "graph" or "local-samples") { GraphUiChecks.Run(args[0] == "local-samples"); return; }
+        if (args.Length == 3 && args[0] == "upgrade-missing-runtime") { UpgradeUiChecks.MissingRuntime(args[1], args[2]).GetAwaiter().GetResult(); return; }
         if (args.Length > 0 && args[0] == "upgrade") { UpgradeUiChecks.Run(args[1], args[2], args[3]); return; }
         if (args.Length > 0 && args[0] == "uninstall-delete") { UninstallUiChecks.Run(args[1], args[2]); return; }
         var readingOnly = args.FirstOrDefault() == "reading";
