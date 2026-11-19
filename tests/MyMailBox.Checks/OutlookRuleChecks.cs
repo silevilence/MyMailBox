@@ -5,6 +5,35 @@ using MyMailBox.Mail;
 
 internal static class OutlookRuleChecks
 {
+    internal static async Task CompareClassic(string evidence, string source)
+    {
+        var workspace = Path.Combine(Environment.GetEnvironmentVariable("MYMAILBOX_HOME")!, "classic-rules");
+        var store = new SqliteMailStore(workspace);
+        var mime = new MimeReader();
+        var local = new LocalMailboxService(store, new AccountService(store), mime);
+        var target = await local.Create(new(null, "经典 Outlook 对照", "local"));
+        var importer = new PstImportService(store, local, mime);
+        var input = await importer.Preview(source, 936, default);
+        using var result = JsonDocument.Parse(await File.ReadAllBytesAsync(Path.Combine(evidence, "rule-results.json")));
+        var expected = result.RootElement;
+        MailChecks.Check(expected.GetProperty("available").GetBoolean() && input.Fingerprint == expected.GetProperty("sourceHash").GetString(), "Different source PST or unavailable Outlook rules");
+        await importer.Import(input, target.Id, null, default);
+        var folder = (await local.Folders(target.Id)).Single(f => f.Name == "嵌套目录");
+        var protocols = new ProtocolMailService(store);
+        var archive = await protocols.Create(target.Id, null, "规则匹配");
+        var rules = new ReceiveRuleService(store, new(store, protocols), protocols);
+        var inventory = await OutlookRuleImport.Read(Path.Combine(evidence, "rule-inventory.json"), default);
+        var original = inventory.Rules.Single(r => r.Name == expected.GetProperty("rule").GetString());
+        var converted = OutlookRuleImport.Convert(inventory, original, new(target.Id, folder.Id, folder.Name), new(target.Id, archive, "规则匹配"));
+        var draft = converted.Rule ?? throw new Exception(string.Join("\n", converted.Report));
+        var preview = await rules.Preview(draft);
+        var matches = expected.GetProperty("matched").EnumerateArray().Select(x => x.GetString()).Order().ToArray();
+        var actual = preview.Samples.Where(s => s.StartsWith("命中 · ")).Select(s => s["命中 · ".Length..]).Order().ToArray();
+        MailChecks.Check(!draft.Enabled && draft.Stop && matches.SequenceEqual(actual) && matches.Length == preview.Matches &&
+            preview.Samples.Count == expected.GetProperty("subjects").GetArrayLength(), "Actual Outlook decisions differ from the imported draft");
+        Console.WriteLine($"PASS classic Outlook rule comparison: {preview.Samples.Count} original PST messages, {preview.Matches} identical matches, {preview.Exceptions} exceptions; move mapping and stop preserved");
+    }
+
     public static async Task Run()
     {
         var path = Path.Combine(Environment.GetEnvironmentVariable("MYMAILBOX_HOME")!,"rule-comparison");

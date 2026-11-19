@@ -11,9 +11,14 @@ Set-StrictMode -Version Latest
 
 function Read-RuleParts($Collection, [bool]$Actions) {
     for ($index=1; $index -le $Collection.Count; $index++) {
-        $part = $Collection.Item($index)
-        if (!$part.Enabled) { continue }
-        $type = if ($Actions) { [int]$part.ActionType } else { [int]$part.ConditionType }
+        try {
+            $part = $Collection.Item($index)
+            if (!$part.Enabled) { continue }
+            $type = if ($Actions) { [int]$part.ActionType } else { [int]$part.ConditionType }
+        } catch {
+            [pscustomobject][ordered]@{ index=$index; type=-1; field='unavailable'; values=@(); candidate=$false; reason="Outlook did not expose this entry (HRESULT $($_.Exception.HResult))." }
+            continue
+        }
         $result = [ordered]@{ index=$index; type=$type; field=''; values=@(); candidate=$false; reason='' }
         try {
             if (!$Actions -and $type -in 2,13,14,16,17) {
@@ -99,7 +104,8 @@ $session=$app.Session
 if ($session.CurrentProfileName -cne $Profile) { throw 'The open Outlook profile does not match the requested profile.' }
 $stores=@($session.Stores | Where-Object { $_.DisplayName -ceq $StoreName })
 if ($stores.Count -ne 1) { throw 'Choose a unique store display name in this profile.' }
-$rules=$stores[0].GetRules()
+try { $rules = $stores[0].GetRules() }
+catch { throw "Outlook could not expose rules for this store (HRESULT $($_.Exception.HResult)). Select the account delivery store in the test profile, or recreate the rule manually in MyMailBox." }
 $entries=@(for ($index=1; $index -le $rules.Count; $index++) { Read-Rule ($rules.Item($index)) })
 $data=[ordered]@{ schema=1; profile=$Profile; store=$StoreName; rules=$entries }
 $stream=[IO.File]::Open($path,[IO.FileMode]::CreateNew,[IO.FileAccess]::Write,[IO.FileShare]::None)
