@@ -41,6 +41,11 @@ internal static class ImportPluginChecks
         var message = (await store.List(folder.Id, 0, 10)).Items.Single();
         PstImportChecks.Require((await store.Read(message.Id)).SequenceEqual(raw), "Changed original EML");
         PstImportChecks.Require((await service.Import(preview, target.Id, null, default)).Counts.Duplicates == 1, "Replay duplicated external item");
+        await File.WriteAllBytesAsync(file, []);
+        var damaged = await service.PreviewFile(format.Id, file, preview.Parameters, default);
+        var failed = await service.Import(damaged, target.Id, null, default);
+        PstImportChecks.Require(failed.Counts is { Failed: 1, Imported: 0 } && (await service.Pending(default)).Single().Committed == 0,
+            "Unreadable MIME must be reported per item and remain available for retry");
         await runtime.Stop(options.InstanceId);
         Console.WriteLine("PASS external import plugin: shared wizard schema, granted target, cancellation on unload, retained session, repeat without duplicates, exact MIME and item report");
     }

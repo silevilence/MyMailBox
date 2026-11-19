@@ -18,13 +18,17 @@ internal static class Program
         System.Windows.Forms.Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
         if (args.Length==2 && args[0]=="performance"){PerformanceUiChecks.Run(int.Parse(args[1]));return;}
         if (args.FirstOrDefault() == "protocols") { ProtocolUiChecks.Run(); return; }
-        if (args.FirstOrDefault() == "graph") { GraphUiChecks.Run(); return; }
+        if (args.FirstOrDefault() is "graph" or "local-samples") { GraphUiChecks.Run(args[0] == "local-samples"); return; }
         if (args.Length > 0 && args[0] == "upgrade") { UpgradeUiChecks.Run(args[1], args[2], args[3]); return; }
         if (args.Length > 0 && args[0] == "uninstall-delete") { UninstallUiChecks.Run(args[1], args[2]); return; }
         var readingOnly = args.FirstOrDefault() == "reading";
         if (readingOnly) args = [];
         var repo = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "../../../../../"));
-        var output = Environment.GetEnvironmentVariable("MYMAILBOX_UI_OUTPUT") ?? Path.Combine(repo, "artifacts/ui-acceptance"); Directory.CreateDirectory(output);
+        var output = Environment.GetEnvironmentVariable("MYMAILBOX_UI_OUTPUT") ?? Path.Combine(repo, "artifacts/ui-acceptance");
+        // File export checks watch for fresh output. Keep earlier runs and their evidence intact.
+        if (args.Length == 0 && Directory.Exists(output) && Directory.EnumerateFileSystemEntries(output).Any())
+            output = Path.Combine(output, "run-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(output);
         var workspace = args.Length > 0 ? Path.GetFullPath(args[0]) : Path.Combine(output, "workspace-" + Guid.NewGuid().ToString("N"));
         var profile = Path.Combine(workspace, "profiles/default"); DefaultProfile.Ensure(profile);
         if (args.Length > 0)
@@ -88,6 +92,25 @@ internal static class Program
             Console.WriteLine("PASS UI prototype + keyboard");
 
             features!.Run(ui, window);
+
+            ui.Click("nav-accounts/outlook-import");
+            ui.Click("outlook-preview"); ui.Status("outlook-status", "请先选择来源 Profile");
+            var pst = Path.Combine(repo, "artifacts/outlook-acceptance/final/read-ansi.pst");
+            if (File.Exists(pst))
+            {
+                ui.Click("nav-local-mail/pst-import");
+                ui.Text("pst-file", pst); ui.Text("import-option-codepage", "936");
+                ui.Click("pst-preview"); ui.Status("pst-status", "请核对目标邮箱");
+                ui.ListContains("pst-folders", "read-ansi");
+                ui.Click("pst-start"); ui.Status("pst-status", "导入结束。已导入 4 封");
+                var importedStore = new MyMailBox.Mail.SqliteMailStore(Path.Combine(workspace, "mail"));
+                var nested = importedStore.Folders().GetAwaiter().GetResult().Single(f => f.Path.EndsWith("测试邮件 / 嵌套目录", StringComparison.Ordinal));
+                if (importedStore.List(nested.Id, 0, 10).GetAwaiter().GetResult().Items.Count != 4) throw new Exception("Imported folder contents differ from preview");
+                if (!ui.Find("pst-report").IsEnabled) throw new Exception("Import report unavailable");
+                ui.Click("pst-start"); ui.Status("pst-status", "已存在 4 封");
+                Capture.Element(window).ToFile(Path.Combine(output, "15-pst.png"));
+                Console.WriteLine("PASS published PST desktop preview/import/report/re-import using local ANSI fixture");
+            }
 
             ui.Click("nav-plugin-manager");
             foreach (var name in new[] { "example-1.0.0", "example-2.0.0", "alternative-selector-1.0.0", "native-1.0.0" })

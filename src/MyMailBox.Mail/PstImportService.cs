@@ -37,7 +37,8 @@ public sealed class PstImportService(SqliteMailStore store, ILocalMailboxService
             folders.Add(new(location, entry.Count));
             return Task.CompletedTask;
         }, token);
-        return new(path, hash, null, folders.ToArray()) { Format = format, Version = reader.Format.Version, Parameters = new(parameters) };
+        int? codePage = format == "pst" && int.TryParse(parameters.GetValueOrDefault("codepage"), out var page) ? page : null;
+        return new(path, hash, codePage, folders.ToArray()) { Format = format, Version = reader.Format.Version, Parameters = new(parameters) };
     }
 
     public async Task<PstResult> Import(PstPreview preview, Guid target, IProgress<PstProgress>? progress, CancellationToken token)
@@ -87,9 +88,14 @@ public sealed class PstImportService(SqliteMailStore store, ILocalMailboxService
             var destination = folders[entry.Parent!.Value];
             var status = entry.Kind;
             var detail = entry.Detail;
+            ParsedMail? metadata = null;
             if (status == "message")
             {
-                var metadata = await parser.Parse(entry.Raw ?? throw new InvalidDataException("导入器未提供邮件原文。"), readToken);
+                try { metadata = await parser.Parse(entry.Raw ?? throw new InvalidDataException("导入器未提供邮件原文。"), readToken); }
+                catch (Exception e) when (e is FormatException or InvalidDataException) { status = "error"; detail = e.Message; }
+            }
+            if (metadata != null)
+            {
                 using var tx = db.BeginTransaction();
                 using var cmd = db.CreateCommand();
                 cmd.Transaction = tx;

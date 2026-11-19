@@ -10,6 +10,6 @@
 - RtfDecompressor：流重载修复少分配一个字节及忽略当前位置的缺陷；压缩数据继续执行 CRC 检查。
 - 工具层通过 MimeKit.Core **5.0.0** 的 RTF 转文本器恢复只有压缩 RTF 的正文，保留原 RTF，并记录正文来源；只移除最后一个结构性段落换行。
 
-许可边界：上游根声明 Ms-PL，但未修改的 `Crypto.cs` 文件头另注明表和实现来源为 libpff、LGPLv3+。不能把整个组合简化宣称为只有 Ms-PL。当前只用于本地研究工具，不进入产品或安装包；采用产品依赖前须处理这部分许可来源及相应源码/通知/替换条件，或更换实现。MimeKit.Core 为 MIT。本目录原有版权声明不移除，新增修改不声称来自上游。
+研究工具使用的上游 `Crypto.cs` 文件头注明代码来自 libpff、采用 LGPLv3+。此文件仅供本地探测。产品读取器复用本目录的 Ms-PL 修订，并按微软公开的 MS-PST 规范单独实现解码。发布产物的 `Notices` 目录包含 XstReader 的许可证和来源说明。MimeKit.Core 采用 MIT 许可。详见[产品读取器说明](../../../src/MyMailBox.Pst/NOTICE.txt)。
 
 回归：`dotnet build tools/MyMailBox.PstProbe -r win-x64 --self-contained false`，随后 `python scripts/check-pst-fixtures.py`。复用 `artifacts/outlook-acceptance/final/`，不重新下载或创建 Outlook 样本。

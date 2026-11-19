@@ -19,6 +19,7 @@ public sealed class PstImportView : UserControl, IDisposable
     private readonly Dictionary<string,TextBox> _inputs = [];
     private readonly ComboBox _targets = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly ComboBox _sessions = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
+    private readonly StackPanel _recovery = new() { Spacing = 8, IsVisible = false };
     private readonly ListBox _folders = new() { Height = 180 };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap };
     private readonly Button _start = new() { Content = "开始导入", IsEnabled = false };
@@ -37,12 +38,14 @@ public sealed class PstImportView : UserControl, IDisposable
         panel.Children.Add(new TextBlock { Text = "先预览目录，再导入到本地邮箱。每封邮件单独保存，取消后仍可阅读已导入的邮件。", TextWrapping = TextWrapping.Wrap });
         panel.Children.Add(_form);
         _sessions.ItemTemplate = new FuncDataTemplate<PstSession>((s, _) => new TextBlock { Text = s == null ? "" : $"{Path.GetFileName(s.File)} → {s.TargetName}（已保存 {s.Committed} 封）" });
-        Field("未完成的导入", "pst-sessions", _sessions);
+        _form.Children.Add(_recovery);
+        Field("未完成的导入", "pst-sessions", _sessions, _recovery);
         var resume = new Button { Content = "恢复所选导入" };
         AutomationProperties.SetAutomationId(resume, "pst-resume");
         resume.Click += async (_, _) => await Run(async token =>
         {
             if (_sessions.SelectedItem is not PstSession saved) throw new InvalidDataException("请选择未完成的导入。");
+            InvalidatePreview();
             var format = _service.Formats.SingleOrDefault(f => f.Id == saved.Format && f.Version == saved.Version)
                 ?? throw new InvalidDataException("原导入器或对应版本未启用，请先在插件管理中恢复。");
             _formats.SelectedItem = (_formats.ItemsSource as IEnumerable<ImportFormat>)?.Single(f => f.Id == format.Id);
@@ -56,7 +59,7 @@ public sealed class PstImportView : UserControl, IDisposable
             _folders.ItemsSource = preview.Folders.Select(f => $"{f.Path}（{f.Items} 项）").ToArray();
             _status.Text = $"已恢复到 {saved.TargetName}，此前已保存 {saved.Committed} 封。点击开始导入可继续未处理项目并重试失败项。";
         });
-        _form.Children.Add(resume);
+        _recovery.Children.Add(resume);
         _formats.ItemTemplate = new FuncDataTemplate<ImportFormat>((f, _) => new TextBlock { Text = f?.Name });
         Field("文件格式", "import-format", _formats);
         Field("源文件", "pst-file", _file);
@@ -108,10 +111,15 @@ public sealed class PstImportView : UserControl, IDisposable
             button.Margin = new Avalonia.Thickness(0, 0, 8, 0);
             buttons.Children.Add(button);
         }
-        panel.Children.Add(buttons);
+        var feedback = new StackPanel { Spacing = 6, Margin = new Avalonia.Thickness(0, 10, 0, 0) };
+        feedback.Children.Add(buttons);
         AutomationProperties.SetAutomationId(_status, "pst-status");
-        panel.Children.Add(_status);
-        Content = new ScrollViewer { Content = panel };
+        feedback.Children.Add(_status);
+        var layout = new DockPanel();
+        DockPanel.SetDock(feedback, Dock.Bottom);
+        layout.Children.Add(feedback);
+        layout.Children.Add(new ScrollViewer { Content = panel });
+        Content = layout;
         _file.TextChanged += (_, _) => InvalidatePreview();
         _targets.SelectionChanged += (_, _) => UpdateActions();
         _start.Click += async (_, _) => await Run(async token =>
@@ -149,15 +157,17 @@ public sealed class PstImportView : UserControl, IDisposable
         if (_disposed) return;
         _sessions.ItemsSource = sessions;
         _sessions.SelectedIndex = sessions.Count > 0 ? 0 : -1;
+        _recovery.IsVisible = sessions.Count > 0;
     }
 
     private static string Summary(PstProgress p) => $"已导入 {p.Imported} 封，已存在 {p.Duplicates} 封，跳过 {p.Skipped} 项，失败 {p.Failed} 项";
-    private void Field(string label, string id, Control control)
+    private void Field(string label, string id, Control control, StackPanel? parent = null)
     {
-        _form.Children.Add(new TextBlock { Text = label, TextWrapping = TextWrapping.Wrap });
+        var container = parent ?? _form;
+        container.Children.Add(new TextBlock { Text = label, TextWrapping = TextWrapping.Wrap });
         AutomationProperties.SetAutomationId(control, id);
         AutomationProperties.SetName(control, label);
-        _form.Children.Add(control);
+        container.Children.Add(control);
     }
     private void InvalidatePreview() { _preview = null; _folders.ItemsSource = null; UpdateActions(); }
     private void UpdateActions()

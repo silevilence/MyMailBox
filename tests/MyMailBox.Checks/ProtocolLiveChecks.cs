@@ -14,10 +14,12 @@ internal static partial class ProtocolChecks
         var pin = File.ReadAllText(Path.Combine(PluginChecks.Repository, "artifacts/protocol-acceptance/certificate-sha256.txt")).Trim();
         var store = new SqliteMailStore(Path.Combine(PluginChecks.Repository, "artifacts/checks/protocol-live-" + Guid.NewGuid().ToString("N")));
         var accounts = new AccountService(store); var service = new ProtocolMailService(store);
-        var alice = await accounts.Save(new(null, "Alice", "imap-smtp", "alice@localhost"));
         var bob = await accounts.Save(new(null, "Bob", "pop3", "bob@localhost"));
         var endpoint = new MailEndpoint("127.0.0.1", 3993, "alice@localhost", CertificateSha256: pin);
-        var settings = new ProtocolSettings(endpoint, endpoint with { Port = 3465 });
+        var importer = new OutlookAccountImport(accounts);
+        var alice = await importer.Import(new(null, "Alice", "imap-smtp", endpoint.User),
+            new(endpoint, endpoint with { Port = 3465 }), null, default);
+        var settings = await service.Settings(alice.Id);
         await service.Save(alice.Id, settings, "local-alice", "local-alice");
         await service.Save(bob.Id, new(endpoint with { Port = 3995, User = "bob@localhost" }), "local-bob", null);
         var run = "live-" + Guid.NewGuid().ToString("N");

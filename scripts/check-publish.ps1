@@ -4,6 +4,9 @@ $publish = Join-Path $repo 'artifacts/publish'
 $runtime = Get-Content (Join-Path $publish 'MyMailBox.Desktop.runtimeconfig.json') -Raw | ConvertFrom-Json
 if ($runtime.runtimeOptions.framework.name -ne 'Microsoft.NETCore.App') { throw 'Not framework dependent' }
 if (Test-Path (Join-Path $publish 'coreclr.dll')) { throw 'Bundled runtime detected' }
+foreach ($required in 'MyMailBox.Pst.dll','MyMailBox.Pst.deps.json','MyMailBox.Pst.runtimeconfig.json','MimeKit.Core.dll','Notices/Pst-reader.txt','Notices/XstReader-MS-PL.txt') {
+    if (!(Test-Path -LiteralPath (Join-Path $publish $required) -PathType Leaf)) { throw "Published PST reader is missing $required" }
+}
 $exe = Join-Path $publish 'MyMailBox.Desktop.exe'
 $normal = Start-Process -FilePath $exe -ArgumentList '--runtime-check' -WindowStyle Hidden -PassThru -Wait
 if ($normal.ExitCode -ne 0) { throw 'Runtime startup failed' }

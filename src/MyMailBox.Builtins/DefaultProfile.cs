@@ -82,7 +82,7 @@ public static class DefaultProfile
             var localMailboxes = new Mail.LocalMailboxService(localStore, new Mail.AccountService(localStore), mimeReader ?? new Mail.MimeReader());
             ctx.Effect(() => exportHost.Add(new Page("local-mailboxes", "本地邮箱管理", "", [], [], (_, _) => Task.FromResult(""))
                 { LocalMailboxes = localMailboxes }));
-            ctx.Effect(() => exportHost.Add(new Page("pst-import", "导入 Outlook 数据文件", "", [], [], (_, _) => Task.FromResult(""))
+            ctx.Effect(() => exportHost.Add(new Page("pst-import", "从文件导入邮件", "", [], [], (_, _) => Task.FromResult(""))
                 { PstImport = new Mail.PstImportService(localStore, localMailboxes, mimeReader ?? new Mail.MimeReader(), () => exportHost.ImportReaders) }));
             ArchivePage.Apply(ctx, new Mail.SqliteMailStore(Path.Combine(location, "mail")));
             var maintenance = new Mail.StorageMaintenance(new Mail.SqliteMailStore(Path.Combine(location, "mail")), mimeReader ?? new Mail.MimeReader());

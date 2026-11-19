@@ -15,6 +15,7 @@ internal static class PstImportChecks
         var target = await local.Create(new(null, "PST 验收", "local"));
         var service = new PstImportService(store, local, mime);
         var preview = await service.Preview(path, 936, default);
+        Require(preview.AnsiCodePage == 936, "ANSI code page missing from preview");
         Require(preview.Folders.Any(f => f.Path.EndsWith("测试邮件 / 嵌套目录") && f.Items == 4), "Folder preview");
         Require(!(await local.Folders(target.Id)).Any(f => f.Name == "嵌套目录"), "Preview wrote folders");
         using var cancel = new CancellationTokenSource();
