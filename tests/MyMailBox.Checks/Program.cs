@@ -52,6 +52,7 @@ if (args.Length == 0 || args.Contains("graph")) await GraphChecks.Run();
 if (args.Length == 0 || args.Contains("graph-write")) await GraphChecks.Writes();
 if (args.Length == 0 || args.Contains("graph-delta")) await GraphChecks.Delta();
 if (args.Length == 0 || args.Contains("outbox")) await ProtocolChecks.Outbox();
+if (args.Length == 0 || args.Contains("mailbox-provider")) await MailboxProviderChecks.Run();
 if (args.Length == 0 || args.Contains("multi-sync")) await MultiSyncChecks.Run();
 if (args.Length == 0 || args.Contains("organization")) await OrganizationChecks.Run(false);
 if (args.Length == 0 || args.Contains("mail-actions")) await MailActionChecks.Run(false);

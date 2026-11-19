@@ -19,11 +19,13 @@ internal static class GraphUiChecks
         {
             var profile = Path.Combine(workspace, "profiles/default");
             DefaultProfile.Ensure(profile);
-            new PluginPackages(Path.Combine(workspace, "plugins"), DefaultProfile.Catalog(workspace))
-                .Install(Path.Combine(repo, "artifacts/packages/example-importer-1.0.0.zip"));
+            var packages = new PluginPackages(Path.Combine(workspace, "plugins"), DefaultProfile.Catalog(workspace));
+            packages.Install(Path.Combine(repo, "artifacts/packages/example-importer-1.0.0.zip"));
+            packages.Install(Path.Combine(repo, "artifacts/packages/example-mailbox-1.0.0.zip"));
             var config = DefaultProfile.Ordinary;
             var importer = new PluginInstance("reader", "example-importer", "1.0.0", Grants: ["files.read", "mail.write:" + SqliteMailStore.LocalAccount]);
-            ConfigurationFiles.Save(Path.Combine(profile, "plugins.json"), config with { Instances = [.. config.Instances, importer] });
+            var mailbox = new PluginInstance("mailbox","example-mailbox","1.0.0",Grants:["mail.read","mail.write","mail.send"]);
+            ConfigurationFiles.Save(Path.Combine(profile, "plugins.json"), config with { Instances = [.. config.Instances, importer, mailbox] });
         }
         var start = new ProcessStartInfo(Environment.GetEnvironmentVariable("MYMAILBOX_UI_EXE") ?? Path.Combine(repo, "artifacts/publish/MyMailBox.Desktop.exe")) { UseShellExecute = false };
         start.Environment["MYMAILBOX_HOME"] = workspace;

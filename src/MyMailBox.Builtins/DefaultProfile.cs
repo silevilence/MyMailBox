@@ -9,7 +9,7 @@ public static class DefaultProfile
     public static PluginConfiguration Core => new(1, [new("platform", "core.platform", "1.0.0")]);
     public static PluginConfiguration Ordinary => new(1, [new("welcome", "welcome", "1.0.0"), new("prototype", "prototype", "1.0.0"), new("selector", "selector", "1.0.0"), new("local-mail", "local-mail", "1.0.0"), new("qq-mail", "qq-mail", "1.0.0"), new("netease-mail", "netease-mail", "1.0.0"), new("accounts", "accounts", "1.0.0"), new("mail-selectors", "mail-selectors", "1.0.0"), new("reminders", "reminders", "1.0.0"), new("updates", "updates", "1.0.0")]);
 
-    public static PluginCatalog Catalog(string? workspace = null, IMailStore? mailStore = null, IMimeReader? mimeReader = null, Action<string>? openWorkspace = null, IMailPdfPrinter? printer = null, Action<string>? notification = null, Action<Updates.PreparedUpdate>? installUpdate = null, Func<IReadOnlyList<SearchExtension>>? searchExtensions = null,Func<IReadOnlyList<NotificationPresenter>>? presenters=null,Func<bool>? locked=null,Func<IReadOnlyList<AutomationExtension>>? automationExtensions=null)
+    public static PluginCatalog Catalog(string? workspace = null, IMailStore? mailStore = null, IMimeReader? mimeReader = null, Action<string>? openWorkspace = null, IMailPdfPrinter? printer = null, Action<string>? notification = null, Action<Updates.PreparedUpdate>? installUpdate = null, Func<IReadOnlyList<SearchExtension>>? searchExtensions = null,Func<IReadOnlyList<NotificationPresenter>>? presenters=null,Func<bool>? locked=null,Func<IReadOnlyList<AutomationExtension>>? automationExtensions=null, Func<IReadOnlyList<IMailboxProvider>>? mailboxProviders=null)
     {
         var catalog = new PluginCatalog();
         var location = workspace ?? Environment.GetEnvironmentVariable("MYMAILBOX_HOME")
@@ -44,10 +44,14 @@ public static class DefaultProfile
         {
             var host = ctx.Get<IPluginHost>("mailbox.host")!;
             var store = new Mail.SqliteMailStore(Path.Combine(location, "mail"));
-            var accounts = new Mail.AccountService(store);
+            var accounts = new Mail.AccountService(store, mailboxProviders ?? (() => []));
             var graph = new Mail.GraphMailService(store);
             ctx.Effect(() => graph);
-            var protocols = new Mail.ProtocolMailService(store, () => host.ProtocolPresets) { Graph = graph };
+            var protocols = new Mail.ProtocolMailService(store, () => host.ProtocolPresets) { Graph = graph, MailboxProviders = mailboxProviders };
+            foreach (var adapter in Mail.BuiltinMailboxAdapters.Create(store, graph, protocols))
+                ctx.Effect(() => host.AddMailboxProvider(adapter));
+            ctx.Effect(() => host.Add(new Page("mailbox-browser", "邮箱浏览与整理", "", [], [], (_, _) => Task.FromResult(""), Accounts: accounts)
+                { BrowseMailboxes = true }));
             ctx.Effect(() => host.Add(new Page("outlook-import", "导入 Outlook 账户", "", [], [], (_, _) => Task.FromResult(""))
                 { OutlookAccounts = new Mail.OutlookAccountImport(accounts) }));
             var search = new Mail.MailSearchService(store, protocols, searchExtensions);
@@ -60,7 +64,8 @@ public static class DefaultProfile
             var rules = new Mail.ReceiveRuleService(store,search,protocols);
             ctx.Effect(() => host.Add(new Page("rules", "收件规则", "", [], [], (_, _) => Task.FromResult("")) { Rules=rules }));
             ctx.Effect(() => new Mail.ReceiveRuleRunner(rules,activity.RecordError));
-            var inbox = new Mail.UnifiedInboxService(store, accounts, new Mail.ProtocolReceiveProvider(store, protocols));
+            var inbox = new Mail.UnifiedInboxService(store, accounts, new Mail.ProtocolReceiveProvider(store, protocols),
+                new Mail.MailboxReceiveProvider(store, mailboxProviders ?? (() => [])));
             ctx.Effect(() => host.Add(new Page("inbox", "统一收件箱", "", [], [], (_, _) => Task.FromResult("")) { UnifiedInbox = inbox }));
             ctx.Effect(() => host.Add(new Page("organize", "目录与标记", "", [], [], (_, _) => Task.FromResult("")) { Organization = new(accounts, protocols) { Actions = protocols, Transfers = protocols } }));
             ctx.Effect(() => new Mail.ReceiveRunner(inbox, activity.RecordError));

@@ -192,6 +192,10 @@ public sealed class ShellWindow : Window
         {
             var view=new ComposerView(composer,_pages,page.Id.Split('/')[0],_reply);_reply=null;_hostView=view;_body.Content=view;return;
         }
+        if (page.BrowseMailboxes && page.Accounts is { } mailboxAccounts)
+        {
+            var view = new MailboxBrowserView(mailboxAccounts, _pages); _hostView = view; _body.Content = view; return;
+        }
         if(page.Activity is {} activity){var view=new ActivityView(activity,_pages.Presenters,OpenActivity);_hostView=view;_body.Content=view;return;}
         if(page.Automation is {} automation){var view=new AutomationView(automation,_activityLink?.Record);_hostView=view;_body.Content=view;return;}
         if (page.Rules is { } rules)

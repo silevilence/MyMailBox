@@ -27,7 +27,7 @@ public sealed class PluginRuntime(Contributions pages, HostOperations? operation
         if (_running.ContainsKey(options.InstanceId)) throw new InvalidOperationException("实例已启用：" + options.InstanceId);
         var root = Context.Create();
         _states[options.InstanceId] = "正在启用";
-        var scope = new PluginScope(options.InstanceId, pages, Events, new(definition.Manifest.Permissions ?? [], options.Grants), operations ?? new(), diagnostics);
+        var scope = new PluginScope(options.InstanceId, pages, Events, new(definition.Manifest.Permissions ?? [], options.Grants), operations ?? new(), diagnostics, definition.Origin == PluginOrigin.Builtin);
         root.Provide<IPluginHost>("mailbox.host", scope);
         AssemblyPluginSet? set = null;
         PluginHandle? handle = null;

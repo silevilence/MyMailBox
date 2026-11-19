@@ -10,8 +10,12 @@ namespace MyMailBox.Mail;
 public sealed class AccountService : IAccountService
 {
     private readonly SqliteMailStore _store;
-    public AccountService(SqliteMailStore store)
+    private readonly Func<IReadOnlyList<IMailboxProvider>> _providers;
+    public IReadOnlyList<MailboxType> ProviderTypes => _providers().Select(p => p.Type).Where(t => t.Id.Contains('/')).ToArray();
+    public AccountService(SqliteMailStore store) : this(store, () => []) { }
+    public AccountService(SqliteMailStore store, Func<IReadOnlyList<IMailboxProvider>> providers)
     {
+        _providers = providers;
         _store = store;
         using var db = store.Open(); using var command = db.CreateCommand();
         command.CommandText = """
@@ -52,7 +56,10 @@ public sealed class AccountService : IAccountService
             "imap" or "pop3" => AccountCapabilities.Receive,
             "smtp" => AccountCapabilities.Send,
             "outlook-com" => AccountCapabilities.Receive | AccountCapabilities.Folders,
-            _ => throw new InvalidDataException("未知账户类型。")
+            _ when ProviderTypes.FirstOrDefault(t => t.Id == edit.Provider) is { } type => AccountCapabilities.Receive | AccountCapabilities.Folders |
+                (type.Features.HasFlag(MailboxFeatures.Send) ? AccountCapabilities.Send : 0) | (type.Features.HasFlag(MailboxFeatures.Upload) ? AccountCapabilities.Import : 0),
+            _ when edit.Id != null && edit.Provider.Contains('/') => edit.Capabilities,
+            _ => throw new InvalidDataException("未知账户类型或提供者插件已停用。")
         };
         if (edit.Provider != "local" && (!MimeKit.MailboxAddress.TryParse(edit.Address, out var address) || address.Address != edit.Address.Trim())) throw new InvalidDataException("请输入有效邮箱地址。");
         if (capabilities == AccountCapabilities.None) throw new InvalidDataException("在线账户至少选择接收或发送能力。");
@@ -82,6 +89,8 @@ public sealed class AccountService : IAccountService
             else if (!restoring) throw new InvalidDataException("账户不存在，请重新选择。");
         }
         if (existing is not null && existing.Provider != edit.Provider) throw new InvalidDataException("账户类型创建后不可更改；请新建对应类型账户。");
+        if (existing != null && existing.Provider.Contains('/') && !ProviderTypes.Any(p => p.Id == existing.Provider))
+            capabilities = existing.Capabilities;
         if (existing?.Provider == "outlook-com" && existing.Address.Equals(edit.Address.Trim(), StringComparison.OrdinalIgnoreCase))
             capabilities |= existing.Capabilities & AccountCapabilities.Send;
         var id = edit.Id ?? Guid.NewGuid();

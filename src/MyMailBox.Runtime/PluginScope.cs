@@ -2,7 +2,7 @@ using MyMailBox.Contracts;
 
 namespace MyMailBox.Runtime;
 
-public sealed class PluginScope(string instanceId, Contributions pages, EventHub events, PermissionPolicy permissions, HostOperations operations, Diagnostics? diagnostics) : IPluginHost, IDisposable
+public sealed partial class PluginScope(string instanceId, Contributions pages, EventHub events, PermissionPolicy permissions, HostOperations operations, Diagnostics? diagnostics, bool builtin = false) : IPluginHost, IDisposable
 {
     private readonly List<IDisposable> _owned = [];
     private readonly Dictionary<string, Func<CancellationToken, Task<string>>> _commands = [];
@@ -258,6 +258,7 @@ public sealed class PluginScope(string instanceId, Contributions pages, EventHub
 
     private sealed class ScopedAccounts(PluginScope scope, ServiceTarget<IAccountService> accounts) : IAccountService
     {
+        public IReadOnlyList<MailboxType> ProviderTypes => accounts.Value.ProviderTypes;
         public Task<IReadOnlyList<MailAccount>> List(CancellationToken cancellation = default) => scope.Run(t => accounts.Value.List(t), cancellation);
         public Task<MailAccount> Save(AccountEdit edit, string? newCredential = null, CancellationToken cancellation = default) => scope.Run(t => accounts.Value.Save(edit, newCredential, t), cancellation);
         public async Task Remove(Guid id, CancellationToken cancellation = default) => await scope.Run(async t => { await accounts.Value.Remove(id, t); return true; }, cancellation);

@@ -9,6 +9,7 @@ foreach ($sample in @(
     @{ Id='example'; Project='ExamplePluginV2'; Version='2.0.0'; Entry='example'; Files=@('ExamplePlugin.dll','PrivateGreeting.dll'); Permissions=@() },
     @{ Id='alternative-selector'; Project='ExamplePlugin'; Entry='selector'; Files=@('ExamplePlugin.dll','PrivateGreeting.dll'); Permissions=@() },
     @{ Id='example-exporter'; Project='ExamplePlugin'; Entry='exporter'; Files=@('ExamplePlugin.dll','PrivateGreeting.dll'); Permissions=@() },
+    @{ Id='example-mailbox'; Project='MailboxPlugin'; Entry='loopback-mailbox'; Files=@('MailboxPlugin.dll'); Permissions=@('mail.read','mail.write','mail.send') },
     @{ Id='example-importer'; Project='ExamplePlugin'; Entry='eml-import'; Files=@('ExamplePlugin.dll','PrivateGreeting.dll'); Permissions=@('files.read','mail.write') },
     @{ Id='automation-example'; Project='ExamplePlugin'; Entry='automation-example'; Files=@('ExamplePlugin.dll','PrivateGreeting.dll'); Permissions=@('automation.condition','automation.action','automation.schedule','mail.write') },
     @{ Id='automation-example'; Project='ExamplePluginV2'; Version='2.0.0'; Entry='automation-example'; Files=@('ExamplePlugin.dll','PrivateGreeting.dll'); Permissions=@('automation.condition','automation.action','automation.schedule','mail.write') },

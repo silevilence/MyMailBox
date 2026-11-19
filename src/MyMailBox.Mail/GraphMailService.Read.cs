@@ -24,10 +24,13 @@ public sealed partial class GraphMailService
         var items = data.RootElement.GetProperty("value").EnumerateArray().Select(f => new GraphFolder(Required(f, "id"), Required(f, "displayName"), f.GetProperty("childFolderCount").GetInt32())).ToArray();
         return new GraphFolders(items, Next(data, new Uri(route).AbsolutePath));
     }, cancellation);
-    public Task<GraphMessages> Messages(Guid account, string folder, string? next = null, CancellationToken cancellation = default) => Run(async () =>
+    public Task<GraphMessages> Messages(Guid account, string folder, string? next = null, CancellationToken cancellation = default) =>
+        Messages(account,folder,next,25,cancellation);
+    internal Task<GraphMessages> Messages(Guid account, string folder, string? next, int limit, CancellationToken cancellation) => Run(async () =>
     {
         var route = Root + "mailFolders/" + Id(folder) + "/messages";
-        using var data = await Json(account, next ?? route + "?$top=25&$select=id,subject,from,receivedDateTime,isRead,hasAttachments&$orderby=receivedDateTime%20desc", new Uri(route).AbsolutePath, cancellation);
+        if (limit is < 1 or > 200) throw new ArgumentOutOfRangeException(nameof(limit));
+        using var data = await Json(account, next ?? route + $"?$top={limit}&$select=id,subject,from,receivedDateTime,isRead,hasAttachments&$orderby=receivedDateTime%20desc", new Uri(route).AbsolutePath, cancellation);
         var items = data.RootElement.GetProperty("value").EnumerateArray().Select(m => new GraphSummary(Required(m, "id"), m.GetProperty("subject").GetString() ?? "", Sender(m),
             m.TryGetProperty("receivedDateTime", out var date) && DateTimeOffset.TryParse(date.GetString(), out var parsed) ? parsed : null,
             m.GetProperty("isRead").GetBoolean(), m.GetProperty("hasAttachments").GetBoolean())).ToArray();

@@ -40,6 +40,8 @@ internal static partial class ProtocolChecks
         }
         var folders = await service.Folders(alice.Id); var inbox = folders.Single(f => f.Role == "inbox");
         MailChecks.Check(folders.Any(f => f.Name.Contains("中文目录")), "Non-English folder missing");
+        using var graph = new GraphMailService(store);
+        await MailboxProviderChecks.Probe(BuiltinMailboxAdapters.Create(store,graph,service).Single(p => p.Type.Id == alice.Provider),alice);
         var first = await service.Summaries(alice.Id, inbox.Path, 0, 20); var second = await service.Summaries(alice.Id, inbox.Path, 20, 20);
         MailChecks.Check(first.Items.Count == 20 && first.HasMore && second.Items.Count >= 5 && !first.Items.Select(m => m.Uid).Intersect(second.Items.Select(m => m.Uid)).Any(), "IMAP pagination overlap");
         MailChecks.Check(first.Items.All(m => !m.IsRead), "Read-only IMAP changed read flags");

@@ -3,6 +3,7 @@ namespace MyMailBox.Contracts;
 public sealed record Page(string Id, string Title, string Description, IReadOnlyList<Field> Fields,
     IReadOnlyList<PageAction> Actions, Func<IReadOnlyDictionary<string, string>, string, Task<string>> Execute, MailReader? Reader = null, IAccountService? Accounts = null, ISelectionService? Selections = null)
 {
+    public bool BrowseMailboxes { get; init; }
     public ActivityPage? Activity {get;init;}
     public ExportSource? Export { get; init; }
     public ILocalMailboxService? LocalMailboxes { get; init; }
@@ -37,6 +38,7 @@ public interface IContributions
 {
     IDisposable Add(Page page);
     IDisposable AddSelector(Selector selector);
+    IDisposable AddMailboxProvider(IMailboxProvider provider) => throw new NotSupportedException("宿主不支持邮箱提供者。");
     IDisposable AddImportReader(MailImportReader reader) => throw new NotSupportedException("宿主尚不支持文件导入器。");
     IDisposable AddProtocolPreset(ProtocolPreset preset) => throw new NotSupportedException("宿主不支持协议预设。");
     IDisposable AddNative(NativePage page);

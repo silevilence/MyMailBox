@@ -11,6 +11,7 @@ public sealed record AccountEdit(Guid? Id, string Name, string Provider, string 
 
 public interface IAccountService
 {
+    IReadOnlyList<MailboxType> ProviderTypes => [];
     Task<IReadOnlyList<MailAccount>> List(CancellationToken cancellation = default);
     Task<MailAccount> Save(AccountEdit edit, string? newCredential = null, CancellationToken cancellation = default);
     Task Remove(Guid id, CancellationToken cancellation = default);

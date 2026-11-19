@@ -2,6 +2,7 @@
   <Folder Name="/samples/">
     <Project Path="samples/ExamplePlugin/ExamplePlugin.csproj" />
     <Project Path="samples/ExamplePluginV2/ExamplePluginV2.csproj" />
+    <Project Path="samples/MailboxPlugin/MailboxPlugin.csproj" />
     <Project Path="samples/NativePlugin/NativePlugin.csproj" />
     <Project Path="samples/PrivateGreeting/PrivateGreeting.csproj" />
   </Folder>

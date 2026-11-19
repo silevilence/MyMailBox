@@ -14,7 +14,9 @@ public sealed class AccountsView : UserControl, IDisposable
     private readonly CancellationTokenSource _lifetime = new();
     private readonly ComboBox _accounts = new() { HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly ComboBox _provider = new() { ItemsSource = new[] { "本地邮箱", "IMAP + SMTP", "IMAP（仅收）", "SMTP（仅发）", "POP3（仅收）", "Outlook.com（个人账户）" }, SelectedIndex = 0, HorizontalAlignment = HorizontalAlignment.Stretch };
-    private static readonly string[] Providers = ["local", "imap-smtp", "imap", "smtp", "pop3", "outlook-com"];
+    private static readonly string[] BuiltinTypes = ["local", "imap-smtp", "imap", "smtp", "pop3", "outlook-com"];
+    private string[] Providers = BuiltinTypes;
+    private readonly string[] _builtinLabels;
     private readonly TextBox _name = new(), _address = new(), _alias = new(), _tags = new(), _color = new() { Text = "#2563EB" }, _notes = new() { AcceptsReturn = true, MinHeight = 64 }, _order = new() { Text = "0" }, _credential = new() { PasswordChar = '●' };
     private readonly CheckBox _enabled = new() { Content = "启用此账户", IsChecked = true }, _receive = new() { Content = "接收", IsChecked = true }, _send = new() { Content = "发送", IsChecked = true };
     private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap }, _capability = new() { TextWrapping = TextWrapping.Wrap };
@@ -26,6 +28,7 @@ public sealed class AccountsView : UserControl, IDisposable
     public AccountsView(IAccountService service)
     {
         _service = service;
+        _builtinLabels = _provider.ItemsSource!.Cast<string>().ToArray();
         _accounts.ItemTemplate = new FuncDataTemplate<MailAccount>((a, _) => new TextBlock { Text = a is null ? "" : $"{a.Name} · {(a.Provider == "local" ? "本地" : a.Address)}{(a.Enabled ? "" : " · 已停用")}" });
         var panel = new StackPanel { Spacing = 12, MaxWidth = 760 };
         panel.Children.Add(new TextBlock { Text = "账户管理", FontSize = 28, FontWeight = FontWeight.SemiBold });
@@ -68,6 +71,11 @@ public sealed class AccountsView : UserControl, IDisposable
     private async Task Reload(Guid? selected)
     {
         var accounts = await _service.List(_lifetime.Token); if (_disposed) return;
+        var external = _service.ProviderTypes;
+        var missing = accounts.Select(a => a.Provider).Where(p => p.Contains('/') && !external.Any(e => e.Id == p)).Distinct().ToArray();
+        Providers = [.. BuiltinTypes, .. external.Select(e => e.Id), .. missing];
+        _provider.ItemsSource = _builtinLabels.Concat(external.Select(e => e.Name)).Concat(missing.Select(id => id + "（插件已停用）")).ToArray();
+        _provider.SelectedIndex = 0;
         _accounts.ItemsSource = accounts; _accounts.SelectedItem = accounts.FirstOrDefault(a => a.Id == selected);
     }
     private void Edit(MailAccount? account)
@@ -87,6 +95,15 @@ public sealed class AccountsView : UserControl, IDisposable
         _credential.IsEnabled = !local && provider != "outlook-com";
         _receive.IsEnabled = _send.IsEnabled = provider == "imap-smtp";
         if (provider != "imap-smtp") { _receive.IsChecked = provider is "imap" or "pop3" or "outlook-com"; _send.IsChecked = provider == "smtp" || provider == "outlook-com" && (_accounts.SelectedItem as MailAccount)?.Capabilities.HasFlag(AccountCapabilities.Send) == true; }
+        if (provider.Contains('/'))
+        {
+            var type = _service.ProviderTypes.FirstOrDefault(p => p.Id == provider);
+            _receive.IsChecked = type?.Features.HasFlag(MailboxFeatures.Read) ?? false;
+            _send.IsChecked = type?.Features.HasFlag(MailboxFeatures.Send) ?? false;
+            _credential.IsEnabled = false;
+            _capability.Text = type == null ? $"所需邮箱插件 {provider} 已停用，可重新启用后连接。" : "请在“邮箱浏览与整理”中连接这个账户。";
+            return;
+        }
         _capability.Text = local ? "本地账户用于保存和整理邮件，不支持联网收发。" : provider == "outlook-com" ? "在“Outlook.com 邮件”登录个人账户。发送与整理需另外授权。" : provider == "smtp" ? "SMTP 仅发送，不支持收取邮件。" : provider is "imap" or "pop3" ? "此类型仅接收；发送需要单独的 SMTP 账户。" : "可单独关闭收取或发送；在“邮箱连接与收发”配置各自的服务器和凭据。";
     }
     private async Task Save()

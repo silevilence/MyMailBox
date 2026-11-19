@@ -8,6 +8,17 @@ public sealed class Contributions(Action<Action>? dispatch = null) : IContributi
     private readonly object _gate = new();
     private readonly Dictionary<string, Selector> _selectors = [];
     private readonly Dictionary<string,ProtocolPreset> _protocolPresets = [];
+    private readonly Dictionary<string, IMailboxProvider> _mailboxProviders = new(StringComparer.Ordinal);
+    public IReadOnlyList<IMailboxProvider> MailboxProviders { get { lock (_gate) return _mailboxProviders.Values.ToArray(); } }
+    public IDisposable AddMailboxProvider(IMailboxProvider provider)
+    {
+        var type = provider.Type;
+        if (string.IsNullOrWhiteSpace(type.Name) || !type.Features.HasFlag(MailboxFeatures.Read))
+            throw new InvalidDataException("邮箱提供者须声明名称与读取能力。");
+        lock (_gate) _mailboxProviders.Add(type.Id, provider);
+        Notify();
+        return new Cleanup(() => { lock (_gate) _mailboxProviders.Remove(type.Id); Notify(); });
+    }
     private readonly Dictionary<string, MailImportReader> _importReaders = [];
     public IReadOnlyList<MailImportReader> ImportReaders { get { lock (_gate) return _importReaders.Values.ToArray(); } }
     public IDisposable AddImportReader(MailImportReader reader)

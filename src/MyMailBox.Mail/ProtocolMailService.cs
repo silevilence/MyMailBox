@@ -14,11 +14,13 @@ namespace MyMailBox.Mail;
 /// <summary>Short-lived protocol sessions: no timers, implicit sends, or automatic retries.</summary>
 public sealed partial class ProtocolMailService : IProtocolMailService, IImapSyncService, IOutboxService, IMailOrganizer, IMailActionService, IMailTransferService, IOfflineMarks
 {
+    public Func<IReadOnlyList<IMailboxProvider>>? MailboxProviders { private get; init; }
+    private IMailboxProvider? ExternalSender(string type) => type.Contains('/') ? MailboxProviders?.Invoke().SingleOrDefault(p => p.Type.Id == type && p.Type.Features.HasFlag(MailboxFeatures.Send)) : null;
     public GraphMailService? Graph { private get; init; }
     private async Task<MailAccount> SendingAccount(Guid account, CancellationToken token)
     {
         var sender = (await _accounts.List(token)).SingleOrDefault(a => a.Id == account && a.Enabled && a.Capabilities.HasFlag(AccountCapabilities.Send));
-        if (sender == null || !(sender.Provider is "imap-smtp" or "smtp" || sender.Provider == "outlook-com" && Graph != null))
+        if (sender == null || !(sender.Provider is "imap-smtp" or "smtp" || sender.Provider == "outlook-com" && Graph != null || ExternalSender(sender.Provider) != null))
             throw new InvalidDataException("账户已停用、移除，或不支持此操作。");
         return sender;
     }

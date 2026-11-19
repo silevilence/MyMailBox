@@ -37,7 +37,19 @@ internal static class LocalSampleUiChecks
         var folder = store.Folders().GetAwaiter().GetResult().Single(f => f.Name == "外部导入验收");
         var item = store.List(folder.Id, 0, 10).GetAwaiter().GetResult().Items.Single();
         if (!store.Read(item.Id).GetAwaiter().GetResult().SequenceEqual(raw)) throw new Exception("External importer changed the original MIME");
-        Console.WriteLine("PASS published UI: two offline Graph pages and external EML package schema/preview/import/replay with exact MIME");
+        ui.Click("nav-accounts/manage"); ui.Click("account-new"); ui.Select("account-provider",6);
+        ui.Text("account-name","A Loopback"); ui.Text("account-address","desktop@example.invalid"); ui.Click("account-save");
+        ui.Status("account-status","账户已保存");
+        ui.Click("nav-accounts/compose"); ui.Text("compose-to","desktop@example.invalid"); ui.Text("compose-subject","外部邮箱投递");
+        ui.Text("compose-body","桌面插件正文"); ui.Click("compose-send"); ui.Status("compose-status","回环");
+        ui.Click("nav-accounts/mailbox-browser"); ui.Click("provider-connect"); ui.Status("provider-status","2 个目录");
+        ui.Click("provider-list"); ui.Status("provider-status","1 封"); ui.Click("provider-read"); ui.Status("provider-body","桌面插件正文");
+        ui.Text("provider-query","外部"); ui.Click("provider-search"); ui.Status("provider-status","1 封");
+        ui.Click("provider-mark"); ui.Status("provider-status","已标为已读"); ui.Select("provider-target",1);
+        ui.Click("provider-move"); ui.Status("provider-status","已移动到"); ui.Text("provider-file",file);
+        ui.Click("provider-upload"); ui.Status("provider-status","已上传邮件"); ui.Click("provider-quota"); ui.Status("provider-status","总容量");
+        ui.Click("provider-delta"); ui.Status("provider-status","移出 1 封");
+        Console.WriteLine("PASS published UI: Graph offline and write access, external EML import/replay, account creation, loopback compose/send/read/search/mark/move/upload/quota/delta");
     }
 
     private sealed class SampleAuthorization(SqliteMailStore store, string address) : IGraphAuthorization, IGraphWriteAuthorization

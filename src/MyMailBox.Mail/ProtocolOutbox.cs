@@ -34,6 +34,21 @@ public sealed partial class ProtocolMailService
         item.Detail + (item.CopyPending ? " 已获接收的邮件尚未保存本地副本，可在发件箱单独补存。" : ""),
         item.Accepted, item.State is "partial" or "rejected" ? item.Remaining : []);
 
+    private static SendOutcome CheckReceipt(SendOutcome receipt, string[] envelope)
+    {
+        var accepted = receipt.Accepted.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var rejected = receipt.Rejected.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        bool valid = receipt.State switch {
+            "sent" => accepted.SetEquals(envelope) && rejected.Count == 0,
+            "rejected" => accepted.Count == 0 && rejected.SetEquals(envelope),
+            "partial" => accepted.Count > 0 && rejected.Count > 0 && !accepted.Overlaps(rejected) &&
+                envelope.ToHashSet(StringComparer.OrdinalIgnoreCase).SetEquals(accepted.Concat(rejected)),
+            "unknown" => accepted.Count == 0 && rejected.Count == 0,
+            _ => false
+        };
+        return valid ? receipt : new("unknown", "邮箱插件的回执与收件人不一致，请核对投递状态。", [], []);
+    }
+
     internal Guid? NextDelivery() => _outbox.Next();
 
     // The OS releases this lock on process exit. Only its current owner may recover an interrupted SMTP submission.
@@ -64,6 +79,17 @@ public sealed partial class ProtocolMailService
             if (account.Provider == "outlook-com")
             {
                 result = await Graph!.SendQueued(account.Id, raw, item.Remaining, () => _outbox.Claim(id), cancellation);
+            }
+            else if (account.Provider.Contains('/'))
+            {
+                var provider = ExternalSender(account.Provider) ?? throw new InvalidDataException("所需邮箱插件已停用。");
+                if (!_outbox.Claim(id)) return Outcome(_outbox.Get(id));
+                try
+                {
+                    using var stream = new MemoryStream(raw, false);
+                    result = CheckReceipt(await provider.Send(new(account.Id, account.Address), id, stream, item.Remaining, cancellation), item.Remaining);
+                }
+                catch (Exception) { result = new("unknown", "邮箱插件未返回发送回执，请先核对投递状态。", [], []); }
             }
             else
             {

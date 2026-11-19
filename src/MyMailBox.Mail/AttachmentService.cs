@@ -64,13 +64,13 @@ public sealed class AttachmentService(IMailStore store, IAttachmentPreviewer? pr
     public static bool CanOpenExternally(string path) => !new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     { ".exe", ".com", ".bat", ".cmd", ".ps1", ".psm1", ".vbs", ".vbe", ".js", ".jse", ".wsf", ".wsh", ".lnk", ".url", ".scr", ".msi", ".msp", ".hta", ".dll", ".reg", ".html", ".htm", ".svg", ".iso", ".img", ".docm", ".xlsm", ".pptm" }.Contains(Path.GetExtension(path));
 
-    private sealed class CountingStream(Stream inner, long maximum, IProgress<long>? progress) : Stream
+    internal sealed class CountingStream(Stream inner, long maximum, IProgress<long>? progress, string limitMessage = "附件超过 2 MiB 预览限制，请保存后查看。") : Stream
     {
         public long Written { get; private set; }
         public override void Write(byte[] buffer, int offset, int count) { Check(count); inner.Write(buffer, offset, count); Written += count; progress?.Report(Written); }
         public override async Task WriteAsync(byte[] buffer, int offset, int count, CancellationToken cancellation) { Check(count); await inner.WriteAsync(buffer.AsMemory(offset, count), cancellation); Written += count; progress?.Report(Written); }
         public override async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellation = default) { Check(buffer.Length); await inner.WriteAsync(buffer, cancellation); Written += buffer.Length; progress?.Report(Written); }
-        private void Check(int count) { if (Written + count > maximum) throw new InvalidDataException("附件超过 2 MiB 预览限制，请保存后查看。"); }
+        private void Check(int count) { if (Written + count > maximum) throw new InvalidDataException(limitMessage); }
         public override void Flush() => inner.Flush(); public override Task FlushAsync(CancellationToken cancellation) => inner.FlushAsync(cancellation);
         public override bool CanRead => false; public override bool CanSeek => false; public override bool CanWrite => true; public override long Length => Written; public override long Position { get => Written; set => throw new NotSupportedException(); }
         public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException(); public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException(); public override void SetLength(long value) => throw new NotSupportedException();
