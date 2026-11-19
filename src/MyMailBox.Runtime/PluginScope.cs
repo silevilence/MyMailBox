@@ -517,6 +517,8 @@ public sealed partial class PluginScope(string instanceId, Contributions pages, 
         public Task<IReadOnlyList<string>> Profiles(CancellationToken token) => scope.Run(t => service.Value.Profiles(t), token);
         public Task<IReadOnlyList<OutlookAccountPreview>> Preview(string profile, CancellationToken token) => scope.Run(t => service.Value.Preview(profile, t), token);
         public Task<IReadOnlyList<MailAccount>> Matches(string provider, string address, CancellationToken token) => scope.Run(t => service.Value.Matches(provider, address, t), token);
+        public Task<MailAccount> ImportSource(string profile, OutlookAccountPreview source, AccountEdit edit, ProtocolSettings settings, Guid? mapTo, CancellationToken token) =>
+            scope.Run(t => service.Value.ImportSource(profile, source, edit, settings, mapTo, t), token);
         public Task<MailAccount> Import(AccountEdit edit, ProtocolSettings settings, Guid? mapTo, CancellationToken token) =>
             scope.Run(t => service.Value.Import(edit, settings, mapTo, t), token);
     }

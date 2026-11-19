@@ -7,7 +7,7 @@ using MyMailBox.Contracts;
 
 namespace MyMailBox.Mail;
 
-public sealed class AccountService : IAccountService
+public sealed partial class AccountService : IAccountService
 {
     private readonly SqliteMailStore _store;
     private readonly Func<IReadOnlyList<IMailboxProvider>> _providers;
@@ -21,6 +21,7 @@ public sealed class AccountService : IAccountService
         command.CommandText = """
             CREATE TABLE IF NOT EXISTS accounts(id TEXT PRIMARY KEY, name TEXT NOT NULL, provider TEXT NOT NULL, address TEXT NOT NULL, alias TEXT COLLATE NOCASE, tags TEXT NOT NULL, color TEXT NOT NULL, notes TEXT NOT NULL, sort_order INTEGER NOT NULL, enabled INTEGER NOT NULL, capabilities INTEGER NOT NULL, credential_ref TEXT, auth_state TEXT NOT NULL, removed INTEGER NOT NULL DEFAULT 0);
             CREATE UNIQUE INDEX IF NOT EXISTS accounts_alias ON accounts(alias) WHERE alias IS NOT NULL AND removed=0;
+            CREATE TABLE IF NOT EXISTS outlook_imported(source TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, account TEXT NOT NULL REFERENCES accounts(id));
             CREATE TABLE IF NOT EXISTS credentials(id TEXT PRIMARY KEY, protected BLOB NOT NULL);
             INSERT OR IGNORE INTO accounts VALUES($local,'本地邮箱','local','',NULL,'[]','#2563EB','',0,1,12,NULL,'无需登录',0);
             """;
@@ -40,10 +41,10 @@ public sealed class AccountService : IAccountService
     // Restore never overwrites another account. A caller must explicitly remap conflicting IDs/aliases.
     public Task<MailAccount> Restore(MailAccount account, CancellationToken cancellation = default) => Task.Run(() => SaveCore(new(account.Id, account.Name, account.Provider, account.Address, account.Alias, account.Tags, account.Color, account.Notes, account.Order, account.Enabled, account.Capabilities), null, true, cancellation), cancellation);
 
-    internal Task<MailAccount> CreateImported(AccountEdit edit, ProtocolSettings settings, CancellationToken token) =>
-        Task.Run(() => SaveCore(edit, null, false, token, settings), token);
+    internal Task<MailAccount> CreateImported(AccountEdit edit, ProtocolSettings settings, CancellationToken token, OutlookReceipt? receipt = null) =>
+        Task.Run(() => SaveCore(edit, null, false, token, settings, receipt), token);
 
-    private MailAccount SaveCore(AccountEdit edit, string? secret, bool restoring, CancellationToken cancellation, ProtocolSettings? imported = null)
+    private MailAccount SaveCore(AccountEdit edit, string? secret, bool restoring, CancellationToken cancellation, ProtocolSettings? imported = null, OutlookReceipt? receipt = null)
     {
         if (string.IsNullOrWhiteSpace(edit.Name)) throw new InvalidDataException("请输入账户名称。");
         var alias = string.IsNullOrWhiteSpace(edit.Alias) ? null : edit.Alias.Trim();
@@ -66,6 +67,7 @@ public sealed class AccountService : IAccountService
         if (edit.Provider is "imap" or "imap-smtp" && capabilities.HasFlag(AccountCapabilities.Receive)) capabilities |= AccountCapabilities.Folders;
         var tags = (edit.Tags ?? []).Select(t => t.Trim()).Where(t => t.Length > 0).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
         using var db = _store.Open(); using var transaction = db.BeginTransaction();
+        if (receipt != null && ImportedAccount(db, transaction, receipt) is { } completed) return completed;
         if (imported != null)
         {
             using var match = db.CreateCommand();
@@ -135,6 +137,7 @@ public sealed class AccountService : IAccountService
             command.Parameters.AddWithValue("$settings", JsonSerializer.Serialize(imported));
             command.ExecuteNonQuery();
         }
+        if (receipt != null) StoreReceipt(db, transaction, receipt, account.Id);
         cancellation.ThrowIfCancellationRequested(); transaction.Commit(); return account;
     }
 

@@ -42,6 +42,8 @@ internal static class ImportPluginChecks
         PstImportChecks.Require((await store.Read(message.Id)).SequenceEqual(raw), "Changed original EML");
         PstImportChecks.Require((await service.Import(preview, target.Id, null, default)).Counts.Duplicates == 1, "Replay duplicated external item");
         await File.WriteAllBytesAsync(file, []);
+        await PluginChecks.Reject(() => service.Import(preview, target.Id, null, default), "变化");
+        PstImportChecks.Require((await store.Read(message.Id)).SequenceEqual(raw), "Stale selection changed an imported message");
         var damaged = await service.PreviewFile(format.Id, file, preview.Parameters, default);
         var failed = await service.Import(damaged, target.Id, null, default);
         PstImportChecks.Require(failed.Counts is { Failed: 1, Imported: 0 } && (await service.Pending(default)).Single().Committed == 0,

@@ -53,7 +53,11 @@ public sealed class PstImportView : UserControl, IDisposable
             _file.Text = saved.File;
             _targets.SelectedItem = (_targets.ItemsSource as IEnumerable<LocalMailboxInfo>)?.SingleOrDefault(m => m.Id == saved.Target);
             var preview = await _service.PreviewFile(format.Id, saved.File, saved.Parameters, token);
-            if (preview.Fingerprint != saved.Fingerprint) throw new InvalidDataException("源文件已变化。请重新预览并确认目标邮箱。");
+            if (preview.Fingerprint != saved.Fingerprint)
+            {
+                _targets.SelectedIndex = -1;
+                throw new InvalidDataException("源文件已变化。请重新预览并选择目标邮箱。");
+            }
             _preview = preview;
             _reportPath = saved.Report;
             _folders.ItemsSource = preview.Folders.Select(f => $"{f.Path}（{f.Items} 项）").ToArray();

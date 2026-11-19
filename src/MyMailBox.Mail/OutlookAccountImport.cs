@@ -5,8 +5,9 @@ using MyMailBox.Contracts;
 
 namespace MyMailBox.Mail;
 
-public sealed class OutlookAccountImport(AccountService accounts) : IOutlookAccountImport
+public sealed class OutlookAccountImport(AccountService accounts, Func<string,CancellationToken,Task<IReadOnlyList<OutlookAccountPreview>>> readProfile) : IOutlookAccountImport
 {
+    public OutlookAccountImport(AccountService accounts) : this(accounts, ReadProfile) { }
     // Classic Outlook 16 Internet account sections. Providers may omit these optional fields.
     private const string ProfileRoot = @"Software\Microsoft\Office\16.0\Outlook\Profiles";
     private const string AccountSection = "9375CFF0413111d3B88A00104B2A6676";
@@ -18,7 +19,10 @@ public sealed class OutlookAccountImport(AccountService accounts) : IOutlookAcco
         return profiles?.GetSubKeyNames().Order(StringComparer.OrdinalIgnoreCase).ToArray() ?? [];
     }, token);
 
-    public Task<IReadOnlyList<OutlookAccountPreview>> Preview(string profile, CancellationToken token) => Task.Run<IReadOnlyList<OutlookAccountPreview>>(() =>
+    public async Task<IReadOnlyList<OutlookAccountPreview>> Preview(string profile, CancellationToken token) =>
+        accounts.MarkImported(await readProfile(profile, token), token);
+
+    private static Task<IReadOnlyList<OutlookAccountPreview>> ReadProfile(string profile, CancellationToken token) => Task.Run<IReadOnlyList<OutlookAccountPreview>>(() =>
     {
         if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException();
         using var profiles = Registry.CurrentUser.OpenSubKey(ProfileRoot);
@@ -76,10 +80,24 @@ public sealed class OutlookAccountImport(AccountService accounts) : IOutlookAcco
     public async Task<IReadOnlyList<MailAccount>> Matches(string provider, string address, CancellationToken token) =>
         (await accounts.List(token)).Where(a => a.Provider == provider && a.Address.Equals(address.Trim(), StringComparison.OrdinalIgnoreCase)).ToArray();
 
-    public async Task<MailAccount> Import(AccountEdit edit, ProtocolSettings settings, Guid? mapTo, CancellationToken token)
+    public async Task<MailAccount> ImportSource(string profile, OutlookAccountPreview source, AccountEdit edit, ProtocolSettings settings, Guid? mapTo, CancellationToken token)
+    {
+        var receipt = OutlookReceipt.From(source);
+        var current = (await readProfile(profile, token)).SingleOrDefault(row => row.Source == source.Source);
+        if (current == null || OutlookReceipt.From(current) != receipt)
+            throw new InvalidDataException("来源账户已变化。请重新读取 Profile 并确认映射。");
+        if (edit.Provider != current.Provider) throw new InvalidDataException("来源账户类型已变化，请重新确认。");
+        return await Import(edit, settings, mapTo, token, receipt);
+    }
+
+    public Task<MailAccount> Import(AccountEdit edit, ProtocolSettings settings, Guid? mapTo, CancellationToken token) =>
+        Import(edit, settings, mapTo, token, null);
+
+    private async Task<MailAccount> Import(AccountEdit edit, ProtocolSettings settings, Guid? mapTo, CancellationToken token, OutlookReceipt? receipt)
     {
         if (edit.Id != null || edit.Provider is not ("imap" or "imap-smtp" or "pop3" or "smtp"))
             throw new InvalidDataException("请选择支持的 Internet 邮箱类型。");
+        if (mapTo is { } mapped && receipt != null) return accounts.MapImported(edit, mapped, receipt, token);
         if (mapTo is { } id)
             return (await Matches(edit.Provider, edit.Address, token)).SingleOrDefault(m => m.Id == id)
                 ?? throw new InvalidDataException("映射的账户或邮箱身份已变化，请重新核对。");
@@ -87,6 +105,6 @@ public sealed class OutlookAccountImport(AccountService accounts) : IOutlookAcco
             throw new InvalidDataException("请补全所选协议的服务器设置。");
         if (settings.Incoming != null) ProtocolMailService.Validate(settings.Incoming);
         if (settings.Outgoing != null) ProtocolMailService.Validate(settings.Outgoing);
-        return await accounts.CreateImported(edit, settings, token);
+        return await accounts.CreateImported(edit, settings, token, receipt);
     }
 }
