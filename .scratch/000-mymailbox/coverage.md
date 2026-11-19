@@ -1,6 +1,6 @@
 # 000-mymailbox · MyMailBox 需求覆盖矩阵
 
-状态：完成 76；进行中 5；阻塞 1；未开始 26。PST ANSI 保真已修复并完成研究选型；32 已内置公共客户端注册并提供直接登录，待真实个人账户验收；35 EWS 认证仍为 401，EAS 带凭据 OPTIONS 已为 200/最高 16.1，待实际读写验收。入口：[任务索引](index.md)、[规格](spec.md)、[PST修复验收](../../docs/validation/2026-11-17-pst-ansi-fix.md)。
+状态：完成 76；进行中 6；阻塞 1；未开始 25。PST ANSI 保真已修复并完成研究选型；32 已内置公共客户端注册并提供直接登录，待真实个人账户验收；35 EWS 认证仍为 401，EAS 带凭据 OPTIONS 已为 200/最高 16.1，待实际读写验收。入口：[任务索引](index.md)、[规格](spec.md)、[PST修复验收](../../docs/validation/2026-11-17-pst-ansi-fix.md)。
 
 本轮各验收环境和结论见 [2026-11-18 集中验收](../../docs/validation/2026-11-18-task-000.md)。
 
@@ -15,7 +15,7 @@ REQ 是原始用户需求及后续确认，SUP 为必要支撑，OPT 为尚未�
 | REQ-05 | 用户 6.1 | QQ、163、Outlook.com、公司 Exchange、本地邮箱、IMAP、POP3 等可扩展提供者 | [10](issues/10-local-inbox.md)、[11](issues/11-accounts.md)、[18](issues/18-storage-recovery.md)、[20](issues/20-imap-connect.md)、[22](issues/22-smtp-send.md)、[29](issues/29-qq.md)、[30](issues/30-netease.md)、[31](issues/31-pop3.md)、[32](issues/32-graph-login.md)、[33](issues/33-graph-send.md)、[35](issues/35-exchange-discovery.md)、[36](issues/36-ews-read.md)、[37](issues/37-ews-send.md)、[39](issues/39-exchange-online.md)、[41](issues/41-folders-flags.md)、[42](issues/42-same-store-actions.md)、[43](issues/43-local-archive.md)、[47](issues/47-provider-sdk.md)、[84](issues/84-reliability.md)、[94](issues/94-extensibility-audit.md) | 完成 9；进行中 3；阻塞 1；未开始 7 |
 | REQ-06 | 用户 6.2 必做 | 从本机经典 Outlook 导入在线账户配置并重新授权 | [48](issues/48-outlook-discovery.md)、[49](issues/49-account-import.md)、[53](issues/53-import-resume.md)、[94](issues/94-extensibility-audit.md)、[97](issues/97-user-guides.md) | 完成 1；进行中 1；未开始 3 |
 | REQ-07 | 用户 6.2 必做 | PST 邮件与目录导入，保真、报告及恢复 | [13](issues/13-mime-baseline.md)、[48](issues/48-outlook-discovery.md)、[50](issues/50-pst-spike.md)、[51](issues/51-pst-import.md)、[52](issues/52-pst-fidelity.md)、[53](issues/53-import-resume.md)、[94](issues/94-extensibility-audit.md)、[97](issues/97-user-guides.md)、[101](issues/101-outlook-pst-adapter.md) | 完成 5；未开始 4 |
-| REQ-08 | 用户 6.2 条件项 | 评估并尽可能导入 Outlook 规则，清楚报告不支持项 | [54](issues/54-rules-import-spike.md)、[68](issues/68-rules-import.md) | 未开始 2 |
+| REQ-08 | 用户 6.2 条件项 | 评估并尽可能导入 Outlook 规则，清楚报告不支持项 | [54](issues/54-rules-import-spike.md)、[68](issues/68-rules-import.md) | 进行中 1；未开始 1 |
 | REQ-09 | 用户 6.3 | 多形式邮件导出及外部导出器 | [19](issues/19-backup.md)、[55](issues/55-eml-export.md)、[56](issues/56-archive-export.md)、[57](issues/57-readable-export.md)、[58](issues/58-bulk-export.md)、[94](issues/94-extensibility-audit.md)、[95](issues/95-settings-transfer.md)、[99](issues/99-mbox-maildir.md)、[102](issues/102-msg-pst-export.md) | 完成 5；未开始 4 |
 | REQ-10 | 用户 6.4 | 高级搜索、正文、发件人、To/Cc、日期及扩展搜索能力 | [59](issues/59-search-fields.md)、[60](issues/60-query-language.md)、[61](issues/61-fulltext.md)、[62](issues/62-search-builder.md)、[63](issues/63-search-cancel.md)、[64](issues/64-search-plugin.md)、[94](issues/94-extensibility-audit.md) | 完成 6；未开始 1 |
 | REQ-11 | 用户 6.5 | 收件规则、条件与动作扩展 | [60](issues/60-query-language.md)、[65](issues/65-receive-rules.md)、[66](issues/66-rule-stages.md)、[67](issues/67-rule-preview.md)、[79](issues/79-automation-sdk.md)、[85](issues/85-automatic-replies.md)、[94](issues/94-extensibility-audit.md)、[95](issues/95-settings-transfer.md) | 完成 6；未开始 2 |

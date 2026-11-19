@@ -2,7 +2,7 @@
 
 Spec: 000-mymailbox
 Status: needs-info
-Progress: not-started
+Progress: in-progress
 Type: research
 Scope: 必做验证
 Estimate: 2–3 人日
@@ -37,8 +37,10 @@ Blocked by: 48
 
 ## 验证与交付记录
 
-实施时记录演示步骤或检查命令、结果、适用环境和已知限制；目前未执行，所有验收项保持未勾选。若发现超出预计粒度，先拆为完整可验收子场景；环境不足时保留具体缺口，不标完成。
+本轮实施及验证见下方记录。
 
 ## Comments
 
 - 2026-11-16：用户确认任务拆分后创建，尚未开始开发。
+
+- 2026-11-19：新增只读规则清单与[转换矩阵](../../../docs/validation/outlook-rule-inventory.md)。PowerShell 7 离线自测通过条件、例外、顺序、停止标志、脚本、未知类型和失效目标；用户选择复用现有本地样本，其中无获准读取的有规则 Profile。未连接实际 Outlook 会话，真实代表性规则及 68 条件门槛待验。

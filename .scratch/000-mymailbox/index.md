@@ -4,7 +4,7 @@ CI 修复验证：普通 push/PR 不再触发构建；修正 `runner.temp` 的�
 
 推送前复核：Exchange 验收地址及应用 ID 已从待推送历史移除。真实 ID 仅在本地忽略配置保留，Actions 从 `MYMAILBOX_GRAPH_CLIENT_ID` Secret 注入；普通用户仍直接登录，不填写 ID。真实服务地址由用户逐账户提供。
 
-日期：2026 年 11 月 19 日。**完成 76；进行中 5；阻塞 1；未开始 26。** 50 的 ANSI 中文及正文修复通过，研究选型完成；32 已内置发布者应用注册，普通用户直接登录，无需输入 Client ID，待个人账户真实登录/读取验收；35 的 EWS 认证仍失败，但 ActiveSync 带凭据 OPTIONS 已返回 200，声明最高协议 16.1，待部署、设备策略及测试目录读写验收。Exchange 产品须由用户逐账户填写服务器及身份，不绑定验收公司域名。证据见 [PST 修复](../../docs/validation/2026-11-17-pst-ansi-fix.md)、[Outlook.com 配置](../../docs/validation/outlook-com-setup.md)、[公司端点调查](../../docs/validation/2026-11-17-exchange-discovery.md)。
+日期：2026 年 11 月 19 日。**完成 76；进行中 6；阻塞 1；未开始 25。** 50 的 ANSI 中文及正文修复通过，研究选型完成；32 已内置发布者应用注册，普通用户直接登录，无需输入 Client ID，待个人账户真实登录/读取验收；35 的 EWS 认证仍失败，但 ActiveSync 带凭据 OPTIONS 已返回 200，声明最高协议 16.1，待部署、设备策略及测试目录读写验收。Exchange 产品须由用户逐账户填写服务器及身份，不绑定验收公司域名。证据见 [PST 修复](../../docs/validation/2026-11-17-pst-ansi-fix.md)、[Outlook.com 配置](../../docs/validation/outlook-com-setup.md)、[公司端点调查](../../docs/validation/2026-11-17-exchange-discovery.md)。
 
 - [000-mymailbox 开发规格与完成标准](spec.md)
 - [全部规格索引](../index.md)
@@ -133,7 +133,7 @@ flowchart TD
 | [51 导入 PST 目录和邮件并查看进度](issues/51-pst-import.md) | 必做 | [50](issues/50-pst-spike.md)、[43](issues/43-local-archive.md)、[13](issues/13-mime-baseline.md) | ready-for-agent | 完成 |
 | [52 完成 PST 复杂邮件的保真与异常报告](issues/52-pst-fidelity.md) | 必做 | [51](issues/51-pst-import.md)、[17](issues/17-encoding.md)、[16](issues/16-attachments.md) | ready-for-agent | 完成 |
 | [53 在重启和插件停用后继续导入](issues/53-import-resume.md) | 必做 | [49](issues/49-account-import.md)、[51](issues/51-pst-import.md)、[08](issues/08-plugin-upgrade.md) | ready-for-agent | 未开始 |
-| [54 识别可转换的 Outlook 规则子集](issues/54-rules-import-spike.md) | 必做验证 | [48](issues/48-outlook-discovery.md) | needs-info | 未开始 |
+| [54 识别可转换的 Outlook 规则子集](issues/54-rules-import-spike.md) | 必做验证 | [48](issues/48-outlook-discovery.md) | needs-info | 进行中 |
 | [55 单封和批量导出原始 EML](issues/55-eml-export.md) | 必做 | [13](issues/13-mime-baseline.md)、[12](issues/12-selectors.md) | ready-for-agent | 完成 |
 | [56 导出并重新导入可搬运邮箱归档包](issues/56-archive-export.md) | 必做 | [19](issues/19-backup.md)、[55](issues/55-eml-export.md) | ready-for-agent | 完成 |
 | [57 将邮件导出为 PDF HTML 和纯文本](issues/57-readable-export.md) | 必做 | [14](issues/14-safe-html.md)、[55](issues/55-eml-export.md) | ready-for-agent | 完成 |
