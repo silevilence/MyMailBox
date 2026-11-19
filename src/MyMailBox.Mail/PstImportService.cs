@@ -44,6 +44,7 @@ public sealed class PstImportService(SqliteMailStore store, ILocalMailboxService
         using var writer = new StreamWriter(new FileStream(report, FileMode.CreateNew, FileAccess.Write, FileShare.Read)) { AutoFlush = true };
         var folders = new Dictionary<uint, MailFolder>();
         var counts = new PstProgress(0, 0, 0, 0, "");
+        OrganizationStore.Initialize(store);
         using var db = store.Open();
         await foreach (var entry in Read("import", preview.File, preview.AnsiCodePage, token))
         {
@@ -82,6 +83,12 @@ public sealed class PstImportService(SqliteMailStore store, ILocalMailboxService
                 {
                     cmd.Parameters.Clear();
                     SqliteMailStore.InsertMessage(cmd, destination.Id, entry.Raw, metadata with { Date = entry.Received ?? entry.Submitted ?? metadata.Date }, id, entry.IsRead);
+                    if (entry.Categories is { Length: > 0 })
+                    {
+                        cmd.CommandText = "INSERT INTO mail_marks(folder,item,labels) VALUES($folder,$id,$labels)";
+                        cmd.Parameters.AddWithValue("$labels", JsonSerializer.Serialize(entry.Categories));
+                        cmd.ExecuteNonQuery();
+                    }
                     token.ThrowIfCancellationRequested();
                     tx.Commit();
                     counts = counts with { Imported = counts.Imported + 1 };
@@ -91,7 +98,7 @@ public sealed class PstImportService(SqliteMailStore store, ILocalMailboxService
             else if (status == "skip") counts = counts with { Skipped = counts.Skipped + 1 };
             else counts = counts with { Failed = counts.Failed + 1 };
             counts = counts with { Current = destination.Path + " / " + entry.Name };
-            writer.WriteLine(JsonSerializer.Serialize(new { entry.Node, folder = destination.Path, entry.Name, status, detail, id, entry.Received, entry.Submitted, entry.IsRead }));
+            writer.WriteLine(JsonSerializer.Serialize(new { entry.Node, folder = destination.Path, entry.Name, status, detail, id, entry.Received, entry.Submitted, entry.IsRead, entry.Categories }));
             progress?.Report(counts);
         }
         return new(counts, report);

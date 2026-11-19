@@ -43,7 +43,10 @@ namespace XstReader
             Body = null;
             BodyHtml = null;
             Html = null;
+            RtfCompressed = null;
             Attachments.Clear();
+            Properties.Clear();
+            Recipients.Clear();
         }
 
         public string GetBodyAsHtmlString()
@@ -55,7 +58,7 @@ namespace XstReader
                 var e = GetEncoding();
                 if (e != null)
                 {
-                    return EscapeUnicodeCharacters(new String(e.GetChars(Html)));
+                    return e.GetString(Html);
                 }
             }
             else if (Body != null) // Not really expecting this as a source of HTML

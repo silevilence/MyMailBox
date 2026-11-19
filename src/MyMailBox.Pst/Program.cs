@@ -28,17 +28,23 @@ try
                     var kind = PstMime.Property(item, 0x001a) as string;
                     if (kind == null || !kind.StartsWith("IPM.Note", StringComparison.OrdinalIgnoreCase))
                         entry = new("skip", key, node, item.Subject, Detail: "项目类型：" + (kind ?? "未知"));
-                    else if (item.IsEncryptedOrSigned || kind.Contains("SMIME", StringComparison.OrdinalIgnoreCase))
+                    else if (item.IsEncryptedOrSigned || kind.Contains("SMIME", StringComparison.OrdinalIgnoreCase) || kind.StartsWith("IPM.Note.rpmsg", StringComparison.OrdinalIgnoreCase))
                         entry = new("skip", key, node, item.Subject, Detail: "受保护邮件，请在原客户端读取。");
                     else
-                        entry = new("message", key, node, item.Subject, Raw: PstMime.Encode(file, item), IsRead: ((int)item.Flags & 1) != 0,
-                            Received: item.Received, Submitted: item.Submitted);
+                    {
+                        var differences = new List<string>();
+                        var labels = item.Properties.FirstOrDefault(p => p.Guid?.Equals("00020329-0000-0000-c000-000000000046", StringComparison.OrdinalIgnoreCase) == true && p.Name == "Keywords");
+                        var categories = (labels?.Value as string[])?.Select(s => s.TrimEnd('\0')).Where(s => s.Length > 0).ToArray();
+                        if (labels != null && categories == null) differences.Add("分类属性格式无法转换。");
+                        entry = new("message", key, node, item.Subject, Raw: PstMime.Encode(file, item, differences), IsRead: ((int)item.Flags & 1) != 0,
+                            Received: item.Received, Submitted: item.Submitted, Detail: string.Join(" ", differences.Distinct()), Categories: categories);
+                    }
                 }
                 catch (Exception e) when (e is not OutOfMemoryException)
                 {
                     entry = new("error", key, node, item.Subject, Detail: e.Message);
                 }
-                finally { item.ClearContents(); item.Properties.Clear(); }
+                finally { item.ClearContents(); }
                 Write(entry);
             }
             folder.Messages.Clear();
@@ -57,5 +63,5 @@ static void Write(PstEntry entry) => Console.WriteLine(JsonSerializer.Serialize(
 namespace MyMailBox.Pst
 {
     public sealed record PstEntry(string Kind, uint Node, uint? Parent, string Name, uint Count = 0,
-        byte[] Raw = null, bool IsRead = false, DateTime? Received = null, DateTime? Submitted = null, string Detail = null);
+        byte[] Raw = null, bool IsRead = false, DateTime? Received = null, DateTime? Submitted = null, string Detail = null, string[] Categories = null);
 }
